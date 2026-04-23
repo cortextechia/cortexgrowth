@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -11,7 +11,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: 'Google',
 };
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [countdown, setCountdown] = useState(4);
@@ -40,7 +40,6 @@ export default function OAuthCallbackPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-10 max-w-md w-full text-center">
 
-        {/* Ícone */}
         <div className={`mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full ${
           isSuccess ? 'bg-green-50' : 'bg-red-50'
         }`}>
@@ -55,12 +54,10 @@ export default function OAuthCallbackPage() {
           )}
         </div>
 
-        {/* Título */}
         <h1 className="text-xl font-semibold text-gray-900 mb-2">
           {isSuccess ? `${providerLabel} conectado` : 'Falha na conexão'}
         </h1>
 
-        {/* Mensagem */}
         <p className="text-sm text-gray-500 mb-1">
           {isSuccess
             ? `Sua conta ${providerLabel} foi autorizada com sucesso.`
@@ -73,13 +70,11 @@ export default function OAuthCallbackPage() {
           </p>
         )}
 
-        {/* Contador */}
         <p className="mt-6 text-xs text-gray-400">
           Redirecionando para integrações em{' '}
           <span className="font-medium text-gray-600">{countdown}s</span>...
         </p>
 
-        {/* Botão manual */}
         <button
           onClick={() => router.push('/dashboard/integrations')}
           className="mt-4 w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
@@ -88,5 +83,17 @@ export default function OAuthCallbackPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+      </div>
+    }>
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }
