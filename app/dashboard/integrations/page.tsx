@@ -199,11 +199,11 @@ export default function IntegrationsPage() {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full max-w-4xl">
 
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Integrações</h1>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Integrações</h1>
         <p className="mt-1 text-sm text-gray-500">
           Conecte suas plataformas de marketing e CRM para centralizar todos os dados.
         </p>
@@ -211,7 +211,7 @@ export default function IntegrationsPage() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
+        <div className={`fixed bottom-4 left-4 right-4 sm:bottom-auto sm:top-5 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
           toast.type === 'success'
             ? 'bg-gray-900 text-white'
             : 'bg-red-600 text-white'

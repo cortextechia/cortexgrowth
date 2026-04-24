@@ -58,7 +58,7 @@ export default function DashboardAnalytics({
     <div className="space-y-6">
       {/* Tab Navigation */}
       <div
-        className="rounded-xl p-1 flex gap-1"
+        className="rounded-xl p-1 flex flex-wrap gap-1"
         style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
       >
         {TABS.map((tab) => {
@@ -69,7 +69,7 @@ export default function DashboardAnalytics({
               key={tab.id}
               onClick={() => { if (enabled) setActiveTab(tab.id); }}
               disabled={!enabled}
-              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all"
+              className="flex-1 min-w-[120px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all"
               style={
                 active
                   ? { backgroundColor: '#3b82f6', color: '#ffffff' }

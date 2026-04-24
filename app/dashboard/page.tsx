@@ -20,14 +20,14 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 function StatCard({ title, value, accent = false }: { title: string; value: number | string; accent?: boolean }) {
   return (
     <div
-      className="rounded-xl p-6"
+      className="rounded-xl p-4 sm:p-6"
       style={{
         backgroundColor: accent ? 'rgba(59,130,246,0.07)' : '#0f1629',
         border: accent ? '1px solid rgba(59,130,246,0.25)' : '1px solid rgba(255,255,255,0.06)',
       }}
     >
       <p className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</p>
-      <p className="mt-2 text-3xl font-semibold" style={{ color: '#f1f5f9' }}>{value}</p>
+      <p className="mt-2 text-2xl sm:text-3xl font-semibold" style={{ color: '#f1f5f9' }}>{value}</p>
     </div>
   );
 }
@@ -94,8 +94,8 @@ export default function DashboardPage() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold" style={{ color: '#f1f5f9' }}>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: '#f1f5f9' }}>
           Bem-vindo, {user?.name}
         </h1>
         <p className="mt-1 text-sm" style={{ color: '#475569' }}>
@@ -116,7 +116,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 sm:mb-8">
         <StatCard title="Usuários" value={users.length} />
         <StatCard title="Integrações" value={integrations.length} />
         <StatCard title="Ativas" value={activeCount} accent={activeCount > 0} />
@@ -125,7 +125,7 @@ export default function DashboardPage() {
 
       {/* Analytics */}
       {(metaInsights.length > 0 || googleAdsMetrics.length > 0) && (
-        <div className="mb-8">
+        <div className="mb-6 sm:mb-8">
           <DashboardAnalytics
             metaInsights={metaInsights}
             googleAdsMetrics={googleAdsMetrics}
@@ -137,7 +137,7 @@ export default function DashboardPage() {
       {/* Toast */}
       {generateToast && (
         <div
-          className="fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
           style={{
             backgroundColor: generateToast.includes('sucesso') ? 'rgba(34,197,94,0.15)' : 'rgba(248,113,113,0.15)',
             border: generateToast.includes('sucesso') ? '1px solid rgba(34,197,94,0.30)' : '1px solid rgba(248,113,113,0.30)',
@@ -149,13 +149,13 @@ export default function DashboardPage() {
       )}
 
       {/* AI Insights */}
-      <div className="mb-8 rounded-xl overflow-hidden" style={SURFACE}>
-        <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-          <div>
+      <div className="mb-6 sm:mb-8 rounded-xl overflow-hidden" style={SURFACE}>
+        <div className="px-4 sm:px-6 py-4 flex flex-wrap items-start gap-3 justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="min-w-0">
             <h2 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Inteligência de IA</h2>
             {latestInsight && (
               <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-                Relatório de {latestInsight.period} · gerado em {new Date(latestInsight.createdAt).toLocaleString('pt-BR')}
+                Relatório de {latestInsight.period} · {new Date(latestInsight.createdAt).toLocaleString('pt-BR')}
               </p>
             )}
           </div>
@@ -163,7 +163,7 @@ export default function DashboardPage() {
             <button
               onClick={handleGenerateInsights}
               disabled={isGenerating}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity"
+              className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity"
               style={{
                 backgroundColor: 'rgba(59,130,246,0.15)',
                 border: '1px solid rgba(59,130,246,0.30)',
@@ -182,7 +182,7 @@ export default function DashboardPage() {
             <Spinner /> Carregando...
           </div>
         ) : latestInsight?.content?.orchestrator ? (
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             {/* Score geral */}
             <div className="mb-6 flex items-center gap-3">
               <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Score geral</span>
@@ -230,7 +230,7 @@ export default function DashboardPage() {
 
             {/* Scores por agente */}
             {(latestInsight.content.marketing || latestInsight.content.sales || latestInsight.content.roas) && (
-              <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {latestInsight.content.marketing && (
                   <div className="rounded-lg p-3 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                     <p className="text-xs" style={{ color: '#475569' }}>Marketing</p>
@@ -264,7 +264,7 @@ export default function DashboardPage() {
 
       {/* Recent Users */}
       <div className="mb-6 rounded-xl overflow-hidden" style={SURFACE}>
-        <div className="px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="px-4 sm:px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <h2 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Usuários Recentes</h2>
         </div>
         {usersLoading ? (
@@ -272,44 +272,70 @@ export default function DashboardPage() {
             <Spinner /> Carregando...
           </div>
         ) : users.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                  {['Nome', 'Email', 'Função', 'Status'].map((h) => (
-                    <th key={h} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {users.slice(0, 5).map((u) => {
-                  const role = ROLE_BADGE[u.role] ?? ROLE_BADGE.USER;
-                  const status = STATUS_BADGE[u.status] ?? STATUS_BADGE.INACTIVE;
-                  return (
-                    <tr
-                      key={u.id}
-                      style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = SURFACE_HOVER)}
-                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-                    >
-                      <td className="px-6 py-3 font-medium" style={{ color: '#e2e8f0' }}>{u.name}</td>
-                      <td className="px-6 py-3" style={{ color: '#64748b' }}>{u.email}</td>
-                      <td className="px-6 py-3">
-                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: role.bg, color: role.color }}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3">
-                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: status.bg, color: status.color }}>
-                          {u.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
+              {users.slice(0, 5).map((u) => {
+                const role = ROLE_BADGE[u.role] ?? ROLE_BADGE.USER;
+                const status = STATUS_BADGE[u.status] ?? STATUS_BADGE.INACTIVE;
+                return (
+                  <div key={u.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: '#e2e8f0' }}>{u.name}</p>
+                      <p className="text-xs truncate mt-0.5" style={{ color: '#64748b' }}>{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: role.bg, color: role.color }}>
+                        {u.role}
+                      </span>
+                      <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: status.bg, color: status.color }}>
+                        {u.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                    {['Nome', 'Email', 'Função', 'Status'].map((h) => (
+                      <th key={h} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.slice(0, 5).map((u) => {
+                    const role = ROLE_BADGE[u.role] ?? ROLE_BADGE.USER;
+                    const status = STATUS_BADGE[u.status] ?? STATUS_BADGE.INACTIVE;
+                    return (
+                      <tr
+                        key={u.id}
+                        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = SURFACE_HOVER)}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <td className="px-6 py-3 font-medium" style={{ color: '#e2e8f0' }}>{u.name}</td>
+                        <td className="px-6 py-3" style={{ color: '#64748b' }}>{u.email}</td>
+                        <td className="px-6 py-3">
+                          <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: role.bg, color: role.color }}>
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={{ backgroundColor: status.bg, color: status.color }}>
+                            {u.status === 'ACTIVE' ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>Nenhum usuário</p>
@@ -320,7 +346,7 @@ export default function DashboardPage() {
 
       {/* Integrations */}
       <div className="rounded-xl overflow-hidden" style={SURFACE}>
-        <div className="px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="px-4 sm:px-6 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <h2 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Integrações</h2>
         </div>
         {integrationsLoading ? (
@@ -328,7 +354,7 @@ export default function DashboardPage() {
             <Spinner /> Carregando...
           </div>
         ) : integrations.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 sm:p-6">
             {integrations.slice(0, 6).map((integration) => {
               const st = INTEGRATION_STATUS[integration.status] ?? INTEGRATION_STATUS.DISCONNECTED;
               return (

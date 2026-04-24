@@ -87,17 +87,17 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="max-w-4xl">
+    <div className="w-full max-w-4xl">
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Usuários</h1>
+      <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Usuários</h1>
           <p className="mt-1 text-sm text-gray-500">Gerencie os membros da equipe.</p>
         </div>
         <PermissionGuard requiredRoles={['ADMIN', 'SUPER_ADMIN']}>
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+            className="shrink-0 flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
           >
             {showForm ? 'Cancelar' : '+ Novo Usuário'}
           </button>
@@ -195,49 +195,81 @@ export default function UsersPage() {
             <button onClick={fetchUsers} className="ml-auto text-xs underline">Tentar novamente</button>
           </div>
         ) : users.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50/60 border-b border-gray-100">
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Nome</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Função</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Status</th>
-                  <th className="px-6 py-3" />
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
-                    <td className="px-6 py-3 font-medium text-gray-900">{user.name}</td>
-                    <td className="px-6 py-3 text-gray-500">{user.email}</td>
-                    <td className="px-6 py-3">
+          <>
+            {/* Mobile card list */}
+            <div className="sm:hidden divide-y divide-gray-100">
+              {users.map((user) => (
+                <div key={user.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{user.email}</p>
+                    <div className="flex items-center gap-2 mt-1.5">
                       <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
                         {ROLE_LABEL[user.role] ?? user.role}
                       </span>
-                    </td>
-                    <td className="px-6 py-3">
                       <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[user.status] ?? 'bg-gray-100 text-gray-500'}`}>
                         {STATUS_LABEL[user.status] ?? user.status}
                       </span>
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <PermissionGuard requiredRoles={['ADMIN', 'SUPER_ADMIN']}>
-                        <button
-                          onClick={() => handleDelete(user.id, user.name)}
-                          disabled={deletingId === user.id}
-                          className="flex items-center gap-1.5 ml-auto text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
-                        >
-                          {deletingId === user.id && <Spinner className="h-3 w-3" />}
-                          Remover
-                        </button>
-                      </PermissionGuard>
-                    </td>
+                    </div>
+                  </div>
+                  <PermissionGuard requiredRoles={['ADMIN', 'SUPER_ADMIN']}>
+                    <button
+                      onClick={() => handleDelete(user.id, user.name)}
+                      disabled={deletingId === user.id}
+                      className="shrink-0 flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      {deletingId === user.id && <Spinner className="h-3 w-3" />}
+                      Remover
+                    </button>
+                  </PermissionGuard>
+                </div>
+              ))}
+            </div>
+            {/* Desktop table */}
+            <div className="hidden sm:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50/60 border-b border-gray-100">
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Nome</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Função</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Status</th>
+                    <th className="px-6 py-3" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id} className="border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
+                      <td className="px-6 py-3 font-medium text-gray-900">{user.name}</td>
+                      <td className="px-6 py-3 text-gray-500">{user.email}</td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {ROLE_LABEL[user.role] ?? user.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3">
+                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[user.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {STATUS_LABEL[user.status] ?? user.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-right">
+                        <PermissionGuard requiredRoles={['ADMIN', 'SUPER_ADMIN']}>
+                          <button
+                            onClick={() => handleDelete(user.id, user.name)}
+                            disabled={deletingId === user.id}
+                            className="flex items-center gap-1.5 ml-auto text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                          >
+                            {deletingId === user.id && <Spinner className="h-3 w-3" />}
+                            Remover
+                          </button>
+                        </PermissionGuard>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-sm font-medium text-gray-900">Nenhum usuário</p>
