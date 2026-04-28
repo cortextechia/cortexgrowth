@@ -189,6 +189,7 @@ export function useDashboard() {
   const { isAuthenticated } = useAuth();
   const [metaInsights, setMetaInsights] = useState<any[]>([]);
   const [googleAdsMetrics, setGoogleAdsMetrics] = useState<any[]>([]);
+  const [kommoLeads, setKommoLeads] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -238,18 +239,30 @@ export function useDashboard() {
     }
   }, [isAuthenticated]);
 
+  const fetchKommoLeads = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const data = await apiService.getKommoLeads();
+      setKommoLeads(data);
+    } catch {
+      // silently ignore — Kommo may not be connected
+    }
+  }, [isAuthenticated]);
+
   const fetchAllDashboardData = useCallback(async () => {
-    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats()]);
-  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats]);
+    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats(), fetchKommoLeads()]);
+  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats, fetchKommoLeads]);
 
   return {
     metaInsights,
     googleAdsMetrics,
+    kommoLeads,
     stats,
     isLoading,
     error,
     fetchMetaInsights,
     fetchGoogleAdsMetrics,
+    fetchKommoLeads,
     fetchStats,
     fetchAllDashboardData,
   };

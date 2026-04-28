@@ -12,29 +12,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Verificar token ao carregar app
+  // Verificar token ao carregar app — com retry para tolerar restart do backend
   useEffect(() => {
     const initAuth = async () => {
-      try {
-        const storedToken = apiService.getAccessToken();
-        if (storedToken) {
-          // verifyToken pode disparar o interceptor de refresh (401 → refresh automático)
+      const storedToken = apiService.getAccessToken();
+      if (!storedToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      const MAX_RETRIES = 3;
+      const RETRY_DELAY_MS = 2000;
+
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+        try {
           const authResponse = await apiService.verifyToken();
           if (authResponse.success) {
-            // Usar o token atual (pode ter sido renovado pelo interceptor)
             setToken(apiService.getAccessToken());
             setUser(authResponse.user);
             setOrganization(authResponse.organization || null);
           } else {
             apiService.clearTokens();
           }
+          break; // sucesso — sai do loop
+        } catch (error: any) {
+          const isNetworkError = !error.response; // sem resposta HTTP = backend offline
+
+          if (isNetworkError && attempt < MAX_RETRIES - 1) {
+            // Backend provavelmente reiniciando — aguarda e tenta de novo
+            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          }
+
+          if (!isNetworkError) {
+            // 401 real ou token inválido — limpa tokens (interceptor já pode ter feito isso)
+            apiService.clearTokens();
+          }
+          // Erro de rede após esgotar retries: mantém tokens no localStorage,
+          // usuário verá tela de login mas poderá logar normalmente quando o backend voltar
+          break;
         }
-      } catch {
-        // Refresh falhou ou token inválido — interceptor já limpou tokens
-        // e redirecionará para /auth/login via window.location
-      } finally {
-        setIsLoading(false);
       }
+
+      setIsLoading(false);
     };
 
     initAuth();

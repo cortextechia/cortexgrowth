@@ -62,11 +62,15 @@ class ApiService {
 
             original.headers.Authorization = `Bearer ${data.accessToken}`;
             return this.client(original);
-          } catch {
-            // Refresh falhou — deslogar
-            this.clearTokens();
-            if (typeof window !== 'undefined') window.location.href = '/auth/login';
-            return Promise.reject(error);
+          } catch (refreshError: any) {
+            const isNetworkError = !refreshError.response;
+            if (!isNetworkError) {
+              // Refresh token inválido/expirado — sessão encerrada de verdade
+              this.clearTokens();
+              if (typeof window !== 'undefined') window.location.href = '/auth/login';
+            }
+            // Erro de rede: não redireciona — backend pode estar reiniciando
+            return Promise.reject(refreshError);
           } finally {
             this.isRefreshing = false;
           }
@@ -280,6 +284,11 @@ class ApiService {
     return response.data;
   }
 
+  async getKommoLeads(): Promise<any[]> {
+    const response = await this.client.get('/kommo/leads');
+    return Array.isArray(response.data) ? response.data : [];
+  }
+
   // ─── AI Insights ─────────────────────────────────────────────────────────
 
   async generateInsights(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
@@ -294,6 +303,11 @@ class ApiService {
 
   async getLatestInsight(): Promise<{ success: boolean; data: AiAnalysis | null }> {
     const response = await this.client.get('/ai/insights/latest');
+    return response.data;
+  }
+
+  async getInsight(id: string): Promise<{ success: boolean; data: AiAnalysis }> {
+    const response = await this.client.get(`/ai/insights/${id}`);
     return response.data;
   }
 }
