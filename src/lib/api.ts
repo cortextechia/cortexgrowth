@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -162,6 +162,26 @@ class ApiService {
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<{ success: boolean; organization: Organization }> {
     const response = await this.client.put(`/organizations/${id}`, data);
+    return response.data;
+  }
+
+  async deleteOrganization(id: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/organizations/${id}`);
+    return response.data;
+  }
+
+  async getAdminMetrics(): Promise<{ success: boolean; data: AdminMetrics }> {
+    const response = await this.client.get('/admin/metrics');
+    return response.data;
+  }
+
+  async getOrgUsers(orgId: string): Promise<{ success: boolean; users: User[] }> {
+    const response = await this.client.get(`/organizations/${orgId}/users`);
+    return response.data;
+  }
+
+  async createOrgUser(orgId: string, data: { email: string; password: string; name: string; role: string }): Promise<{ success: boolean; user: User }> {
+    const response = await this.client.post(`/organizations/${orgId}/users`, data);
     return response.data;
   }
 

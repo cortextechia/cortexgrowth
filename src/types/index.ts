@@ -13,10 +13,15 @@ export enum UserStatus {
 }
 
 export enum Plan {
-  FREE = 'FREE',
   STARTER = 'STARTER',
   PROFESSIONAL = 'PROFESSIONAL',
   ENTERPRISE = 'ENTERPRISE',
+}
+
+export enum OrgStatus {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  CANCELLED = 'CANCELLED',
 }
 
 export enum IntegrationType {
@@ -44,6 +49,7 @@ export interface User {
   status: UserStatus;
   emailVerified: boolean;
   organizationId: string;
+  organization?: Organization;
   integrations?: Integration[];
   createdAt: Date;
   updatedAt: Date;
@@ -57,10 +63,12 @@ export interface Organization {
   domain?: string;
   logo?: string;
   plan: Plan;
+  status: OrgStatus;
   stripeCustomerId?: string;
   subscriptionEnds?: Date;
   createdAt: Date;
   updatedAt: Date;
+  _count?: { users: number; integrations: number };
 }
 
 // ===== INTEGRAÇÃO =====
@@ -97,7 +105,6 @@ export interface AuthResponse {
   user: User;
   accessToken: string;
   refreshToken: string;
-  organization?: Organization;
 }
 
 export interface AuthContextType {
@@ -143,6 +150,42 @@ export interface AiAnalysis {
   content: AiAnalysisContent;
   tokensUsed?: number;
   createdAt: string;
+}
+
+// ===== ADMIN METRICS =====
+export interface AdminMetrics {
+  mrr: number;
+  arr: number;
+  mrrByPlan: { plan: string; price: number; count: number; revenue: number }[];
+  orgs: {
+    total: number;
+    ACTIVE: number;
+    SUSPENDED: number;
+    CANCELLED: number;
+    newThisMonth: number;
+    newLastMonth: number;
+    growthPct: number;
+    atRisk: number;
+  };
+  platform: {
+    totalUsers: number;
+    totalIntegrations: number;
+    connectedIntegrations: number;
+    totalLeads: number;
+    totalAiReports: number;
+  };
+  recentOrgs: {
+    id: string;
+    name: string;
+    slug: string;
+    plan: string;
+    status: string;
+    createdAt: string;
+    users: number;
+    integrations: number;
+    hasIntegration: boolean;
+    internal: boolean;
+  }[];
 }
 
 // ===== RESPOSTA GENÉRICA =====

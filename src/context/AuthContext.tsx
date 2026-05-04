@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (authResponse.success) {
             setToken(apiService.getAccessToken());
             setUser(authResponse.user);
-            setOrganization(authResponse.organization || null);
+            setOrganization(authResponse.user?.organization || null);
           } else {
             apiService.clearTokens();
           }
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success) {
         setToken(response.accessToken);
         setUser(response.user);
-        setOrganization(response.organization || null);
+        setOrganization(response.user?.organization || null);
       }
       return response;
     } catch (error: any) {
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success) {
         setToken(response.accessToken);
         setUser(response.user);
-        setOrganization(response.organization || null);
+        setOrganization(response.user?.organization || null);
       }
       return response;
     } catch (error: any) {
