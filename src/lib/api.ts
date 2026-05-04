@@ -185,6 +185,11 @@ class ApiService {
     return response.data;
   }
 
+  async syncMetaForOrg(orgId: string): Promise<{ success: boolean; message: string; data?: { count: number } }> {
+    const response = await this.client.post(`/admin/sync/meta/${orgId}`);
+    return response.data;
+  }
+
   // ─── Usuários ────────────────────────────────────────────────────────────────
 
   async getUsers(): Promise<{ success: boolean; users: User[] }> {

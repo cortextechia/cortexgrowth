@@ -99,6 +99,9 @@ export default function OrganizationsPage() {
   // Delete
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Meta sync
+  const [syncingMetaId, setSyncingMetaId] = useState<string | null>(null);
+
   // Users modal
   const [usersModal, setUsersModal] = useState<UsersModal | null>(null);
 
@@ -183,6 +186,18 @@ export default function OrganizationsPage() {
       showToast(err instanceof Error ? err.message : 'Erro ao deletar.', 'error');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleSyncMeta = async (org: Organization) => {
+    setSyncingMetaId(org.id);
+    try {
+      const res = await apiService.syncMetaForOrg(org.id);
+      showToast(res.message, 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro ao sincronizar Meta Ads.', 'error');
+    } finally {
+      setSyncingMetaId(null);
     }
   };
 
@@ -337,6 +352,13 @@ export default function OrganizationsPage() {
                     </div>
                     <div className="flex flex-col gap-1.5 shrink-0 items-end">
                       <button onClick={() => void openUsers(org)} className="text-xs text-indigo-600 hover:underline">Usuários</button>
+                      <button
+                        onClick={() => void handleSyncMeta(org)}
+                        disabled={syncingMetaId === org.id}
+                        className="flex items-center gap-1 text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                      >
+                        {syncingMetaId === org.id ? <Spinner className="h-3 w-3" /> : 'Sync Meta'}
+                      </button>
                       <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">Editar</button>
                       <button
                         onClick={() => void handleDelete(org)}
@@ -389,6 +411,14 @@ export default function OrganizationsPage() {
                         <div className="flex items-center justify-end gap-3">
                           <button onClick={() => void openUsers(org)} className="text-xs text-indigo-600 hover:underline">
                             Usuários
+                          </button>
+                          <button
+                            onClick={() => void handleSyncMeta(org)}
+                            disabled={syncingMetaId === org.id}
+                            className="flex items-center gap-1 text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                          >
+                            {syncingMetaId === org.id && <Spinner className="h-3 w-3" />}
+                            Sync Meta
                           </button>
                           <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">
                             Editar
