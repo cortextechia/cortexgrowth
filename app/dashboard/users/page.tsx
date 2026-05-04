@@ -2,7 +2,15 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useUsers } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
 import { PermissionGuard } from '@/components/ProtectedRoute';
+import { Plan } from '@/types';
+
+const PLAN_USER_LIMITS: Record<Plan, number> = {
+  [Plan.STARTER]:      1,
+  [Plan.PROFESSIONAL]: 3,
+  [Plan.ENTERPRISE]:   Infinity,
+};
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -40,7 +48,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function UsersPage() {
+  const { organization } = useAuth();
   const { users, isLoading, error, fetchUsers, createUser, deleteUser } = useUsers();
+  const userLimit = organization?.plan ? (PLAN_USER_LIMITS[organization.plan] ?? Infinity) : Infinity;
+  const atLimit = userLimit !== Infinity && users.length >= userLimit;
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -92,12 +103,21 @@ export default function UsersPage() {
       <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
         <div className="min-w-0">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Usuários</h1>
-          <p className="mt-1 text-sm text-gray-500">Gerencie os membros da equipe.</p>
+          <p className="mt-1 text-sm text-gray-500">
+            Gerencie os membros da equipe.
+            {userLimit !== Infinity && (
+              <span className={`ml-2 font-medium ${atLimit ? 'text-red-500' : 'text-gray-400'}`}>
+                {users.length}/{userLimit} usuários
+              </span>
+            )}
+          </p>
         </div>
         <PermissionGuard requiredRoles={['ADMIN', 'SUPER_ADMIN']}>
           <button
-            onClick={() => setShowForm(!showForm)}
-            className="shrink-0 flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+            onClick={() => !atLimit && setShowForm(!showForm)}
+            disabled={atLimit && !showForm}
+            title={atLimit ? `Limite de ${userLimit} usuário(s) atingido. Faça upgrade do plano.` : undefined}
+            className="shrink-0 flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {showForm ? 'Cancelar' : '+ Novo Usuário'}
           </button>
@@ -110,6 +130,16 @@ export default function UsersPage() {
           toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.message}
+        </div>
+      )}
+
+      {/* Limit banner */}
+      {atLimit && userLimit !== Infinity && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+          Limite de <strong className="mx-1">{userLimit} usuário(s)</strong> atingido no plano {organization?.plan}. Entre em contato para fazer upgrade.
         </div>
       )}
 

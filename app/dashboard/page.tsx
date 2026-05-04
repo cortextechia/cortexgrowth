@@ -6,6 +6,8 @@ import { useUsers, useIntegrations, useDashboard, useAiInsights } from '@/hooks/
 import Sparkline from '@/components/charts/Sparkline';
 import SpendAreaChart from '@/components/charts/AreaChart';
 import DonutChart from '@/components/charts/DonutChart';
+import AdminDashboard from '@/components/AdminDashboard';
+import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -397,6 +399,10 @@ export default function DashboardPage() {
 
   // ── Integrations status ────────────────────────────────────────────────────
   const activeCount = integrations.filter((i) => i.status === 'CONNECTED').length;
+
+  if (user?.role === UserRole.SUPER_ADMIN) {
+    return <AdminDashboard />;
+  }
 
   return (
     <div>

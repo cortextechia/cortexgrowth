@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '@/lib/api';
-import { Integration, IntegrationType } from '@/types';
+import { useAuth } from '@/context/AuthContext';
+import { Integration, IntegrationType, Plan } from '@/types';
 
 // ─── Provider config ──────────────────────────────────────────────────────────
 
@@ -116,6 +117,8 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
+  const { organization } = useAuth();
+  const isStarter = organization?.plan === Plan.STARTER;
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -266,11 +269,12 @@ export default function IntegrationsPage() {
             const isSyncing   = syncingType === config.type;
             const isConnecting = connectingProvider === config.provider;
             const isDisconnecting = disconnectingId === integration?.id;
+            const isLocked = isStarter && config.type === IntegrationType.KOMMO;
 
             return (
               <div
                 key={config.type}
-                className="flex flex-col rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+                className={`flex flex-col rounded-2xl border p-6 shadow-sm transition-shadow ${isLocked ? 'border-gray-100 bg-gray-50 opacity-75' : 'border-gray-100 bg-white hover:shadow-md'}`}
               >
                 {/* Card header */}
                 <div className="flex items-start justify-between">
@@ -288,6 +292,16 @@ export default function IntegrationsPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Locked badge */}
+                {isLocked && (
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit">
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Disponível no Professional ou superior
+                  </span>
+                )}
 
                 {/* Description */}
                 <p className="mt-3 text-xs text-gray-500 leading-relaxed">{config.description}</p>
@@ -308,7 +322,14 @@ export default function IntegrationsPage() {
 
                 {/* Actions */}
                 <div className="mt-4 flex gap-2">
-                  {!isConnected && !isExpired ? (
+                  {isLocked ? (
+                    <button disabled className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-xs font-medium text-gray-400 cursor-not-allowed">
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                      Bloqueado no Starter
+                    </button>
+                  ) : !isConnected && !isExpired ? (
                     /* Not connected — show Connect button */
                     <button
                       onClick={() => handleConnect(config.provider)}
