@@ -311,7 +311,8 @@ class ApiService {
 
   async getKommoLeads(): Promise<any[]> {
     const response = await this.client.get('/kommo/leads');
-    return Array.isArray(response.data) ? response.data : [];
+    const payload = response.data;
+    return Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [];
   }
 
   // ─── AI Insights ─────────────────────────────────────────────────────────
