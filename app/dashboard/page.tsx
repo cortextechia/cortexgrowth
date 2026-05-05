@@ -24,8 +24,8 @@ export interface KommoLead {
   createdAt: string;
 }
 
-type Range = '7D' | '30D' | '90D';
-const RANGES: Record<Range, { days: number; label: string }> = {
+type Range = '7D' | '30D' | '90D' | 'CUSTOM';
+const PRESETS: Record<Exclude<Range, 'CUSTOM'>, { days: number; label: string }> = {
   '7D':  { days: 7,  label: 'Últimos 7 dias'  },
   '30D': { days: 30, label: 'Últimos 30 dias' },
   '90D': { days: 90, label: 'Últimos 90 dias' },
@@ -33,21 +33,20 @@ const RANGES: Record<Range, { days: number; label: string }> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function filterByDays<T extends { date: string }>(items: T[], days: number): T[] {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  cutoff.setHours(0, 0, 0, 0);
-  return items.filter((i) => new Date(i.date) >= cutoff);
-}
-
-function prevPeriod<T extends { date: string }>(items: T[], days: number): T[] {
-  const end = new Date();
-  end.setDate(end.getDate() - days);
-  const start = new Date();
-  start.setDate(start.getDate() - days * 2);
+function filterByDateRange<T extends { date: string }>(items: T[], start: Date, end: Date): T[] {
   return items.filter((i) => {
     const d = new Date(i.date);
-    return d >= start && d < end;
+    return d >= start && d <= end;
+  });
+}
+
+function prevPeriodRange<T extends { date: string }>(items: T[], start: Date, end: Date): T[] {
+  const duration = end.getTime() - start.getTime();
+  const prevEnd = new Date(start.getTime());
+  const prevStart = new Date(start.getTime() - duration);
+  return items.filter((i) => {
+    const d = new Date(i.date);
+    return d >= prevStart && d < prevEnd;
   });
 }
 
@@ -76,10 +75,11 @@ function fmtPct(v: number): string {
 function buildSpendSeries(
   meta: MetaInsight[],
   google: GoogleAdsMetric[],
-  days: number,
+  start: Date,
+  end: Date,
 ) {
-  const metaFiltered  = filterByDays(meta, days);
-  const googleFiltered = filterByDays(google, days);
+  const metaFiltered   = filterByDateRange(meta, start, end);
+  const googleFiltered = filterByDateRange(google, start, end);
 
   const map = new Map<string, { meta: number; google: number }>();
 
@@ -133,11 +133,11 @@ function getKommoDate(lead: KommoLead): Date {
   return new Date(lead.createdAt);
 }
 
-function filterKommoByDays(leads: KommoLead[], days: number): KommoLead[] {
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - days);
-  cutoff.setHours(0, 0, 0, 0);
-  return leads.filter((l) => getKommoDate(l) >= cutoff);
+function filterKommoByRange(leads: KommoLead[], start: Date, end: Date): KommoLead[] {
+  return leads.filter((l) => {
+    const d = getKommoDate(l);
+    return d >= start && d <= end;
+  });
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -286,6 +286,8 @@ export default function DashboardPage() {
   const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
 
   const [range, setRange]             = useState<Range>('30D');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd]     = useState('');
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
 
@@ -300,6 +302,13 @@ export default function DashboardPage() {
 
   const changeRange = (r: Range) => {
     if (r === range) return;
+    if (r === 'CUSTOM' && !customStart) {
+      const e = new Date();
+      const s = new Date();
+      s.setDate(s.getDate() - 30);
+      setCustomEnd(e.toISOString().slice(0, 10));
+      setCustomStart(s.toISOString().slice(0, 10));
+    }
     setRange(r);
     setAnimKey((k) => k + 1);
   };
@@ -310,12 +319,35 @@ export default function DashboardPage() {
     setTimeout(() => setGenerateToast(null), 4000);
   };
 
+  // ── Active period ──────────────────────────────────────────────────────────
+  const activePeriod = useMemo(() => {
+    if (range === 'CUSTOM' && customStart && customEnd) {
+      const s = new Date(customStart); s.setHours(0, 0, 0, 0);
+      const e = new Date(customEnd);   e.setHours(23, 59, 59, 999);
+      return { start: s, end: e };
+    }
+    const days = PRESETS[range as Exclude<Range, 'CUSTOM'>]?.days ?? 30;
+    const e = new Date();
+    const s = new Date();
+    s.setDate(s.getDate() - days);
+    s.setHours(0, 0, 0, 0);
+    return { start: s, end: e };
+  }, [range, customStart, customEnd]);
+
+  const rangeLabel = useMemo(() => {
+    if (range === 'CUSTOM') {
+      if (!customStart || !customEnd) return 'Personalizado';
+      const fmt = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      return `${fmt(customStart)} – ${fmt(customEnd)}`;
+    }
+    return PRESETS[range].label;
+  }, [range, customStart, customEnd]);
+
   // ── Filtered data ──────────────────────────────────────────────────────────
-  const days = RANGES[range].days;
-  const metaCur    = useMemo(() => filterByDays(metaInsights,      days), [metaInsights,      days]);
-  const googleCur  = useMemo(() => filterByDays(googleAdsMetrics,  days), [googleAdsMetrics,  days]);
-  const metaPrev   = useMemo(() => prevPeriod(metaInsights,        days), [metaInsights,      days]);
-  const googlePrev = useMemo(() => prevPeriod(googleAdsMetrics,    days), [googleAdsMetrics,  days]);
+  const metaCur    = useMemo(() => filterByDateRange(metaInsights,     activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
+  const googleCur  = useMemo(() => filterByDateRange(googleAdsMetrics, activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
+  const metaPrev   = useMemo(() => prevPeriodRange(metaInsights,       activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
+  const googlePrev = useMemo(() => prevPeriodRange(googleAdsMetrics,   activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
 
   const hasData = metaCur.length > 0 || googleCur.length > 0;
 
@@ -349,7 +381,7 @@ export default function DashboardPage() {
   }, [metaCur, googleCur]);
 
   // ── Spend chart series ─────────────────────────────────────────────────────
-  const spendSeries = useMemo(() => buildSpendSeries(metaInsights, googleAdsMetrics, days), [metaInsights, googleAdsMetrics, days]);
+  const spendSeries = useMemo(() => buildSpendSeries(metaInsights, googleAdsMetrics, activePeriod.start, activePeriod.end), [metaInsights, googleAdsMetrics, activePeriod]);
 
   // ── Channel donut ──────────────────────────────────────────────────────────
   const channelData = useMemo(() => {
@@ -368,7 +400,7 @@ export default function DashboardPage() {
   const maxCampaignSpend = campaigns[0]?.spend ?? 1;
 
   // ── Kommo CRM ──────────────────────────────────────────────────────────────
-  const kommoCur = useMemo(() => filterKommoByDays(kommoLeads, days), [kommoLeads, days]);
+  const kommoCur = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
 
   const statusBreakdown = useMemo(() => {
     const map = new Map<string, number>();
@@ -413,7 +445,7 @@ export default function DashboardPage() {
             Marketing <em style={{ color: '#60a5fa', fontStyle: 'italic' }}>performance</em>
           </h1>
           <p className="mt-0.5 text-xs uppercase tracking-wider" style={{ color: '#334155' }}>
-            {RANGES[range].label.toUpperCase()} · {organization?.name ?? ''}
+            {rangeLabel.toUpperCase()} · {organization?.name ?? ''}
             {organization?.plan && (
               <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium normal-case"
                 style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa', letterSpacing: 0 }}>
@@ -424,12 +456,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Range picker */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2">
           <div
             className="flex rounded-lg p-0.5 gap-0.5"
             style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
           >
-            {(Object.keys(RANGES) as Range[]).map((r) => (
+            {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
               <button
                 key={r}
                 onClick={() => changeRange(r)}
@@ -443,7 +475,51 @@ export default function DashboardPage() {
                 {r}
               </button>
             ))}
+            <button
+              onClick={() => changeRange('CUSTOM')}
+              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+              style={
+                range === 'CUSTOM'
+                  ? { backgroundColor: '#3b82f6', color: '#ffffff' }
+                  : { color: '#64748b', backgroundColor: 'transparent' }
+              }
+            >
+              Personalizado
+            </button>
           </div>
+
+          {range === 'CUSTOM' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                max={customEnd || undefined}
+                onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                style={{
+                  backgroundColor: '#0f1629',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  color: '#94a3b8',
+                  colorScheme: 'dark',
+                }}
+              />
+              <span className="text-xs" style={{ color: '#334155' }}>–</span>
+              <input
+                type="date"
+                value={customEnd}
+                min={customStart || undefined}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
+                className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+                style={{
+                  backgroundColor: '#0f1629',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  color: '#94a3b8',
+                  colorScheme: 'dark',
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -471,7 +547,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Gasto por canal</h3>
-                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>{RANGES[range].label} · diário</p>
+                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>{rangeLabel} · diário</p>
               </div>
             </div>
             <SpendAreaChart
@@ -518,7 +594,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
             <div className="px-4 sm:px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas</h3>
-              <p className="text-xs mt-0.5" style={{ color: '#475569' }}>por gasto · {RANGES[range].label.toLowerCase()}</p>
+              <p className="text-xs mt-0.5" style={{ color: '#475569' }}>por gasto · {rangeLabel.toLowerCase()}</p>
             </div>
 
             {/* Mobile: cards */}
@@ -708,7 +784,7 @@ export default function DashboardPage() {
           <div className="px-4 sm:px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Funil de Leads CRM</h3>
             <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-              {kommoCur.length} leads · {RANGES[range].label.toLowerCase()} · Kommo
+              {kommoCur.length} leads · {rangeLabel.toLowerCase()} · Kommo
             </p>
           </div>
 
