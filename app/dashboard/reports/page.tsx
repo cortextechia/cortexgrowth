@@ -77,10 +77,14 @@ function ReportCard({
   report,
   expanded,
   onToggle,
+  onExport,
+  exporting,
 }: {
   report: AiAnalysis;
   expanded: boolean;
   onToggle: () => void;
+  onExport: () => void;
+  exporting: boolean;
 }) {
   const content = report.content;
   const overall = content.orchestrator?.overallScore ?? 0;
@@ -190,6 +194,33 @@ function ReportCard({
             {content.sales && <AgentSection label="Vendas" data={content.sales} />}
             {content.roas && <AgentSection label="ROAS" data={content.roas} />}
           </div>
+
+          {/* Export button */}
+          <div className="flex justify-end pt-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); onExport(); }}
+              disabled={exporting}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity disabled:opacity-60"
+              style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
+            >
+              {exporting ? (
+                <>
+                  <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                  Gerando PDF…
+                </>
+              ) : (
+                <>
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+                  </svg>
+                  Exportar PDF
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -219,6 +250,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
 
   const fetchReports = useCallback(async () => {
@@ -259,6 +291,27 @@ export default function ReportsPage() {
 
   const toggleExpanded = (id: string) =>
     setExpandedId((prev) => (prev === id ? null : id));
+
+  const handleExportPdf = async (report: AiAnalysis) => {
+    setExportingId(report.id);
+    try {
+      const [{ pdf }, { ReportPdfDocument }] = await Promise.all([
+        import('@react-pdf/renderer'),
+        import('@/components/ReportPdfDocument'),
+      ]);
+      const blob = await pdf(<ReportPdfDocument report={report} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `relatorio-cortex-${report.period}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      showToast('Erro ao gerar PDF. Tente novamente.', 'err');
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   // Score trend chart data (cronológico: do mais antigo pro mais recente)
   const chartData = [...reports]
@@ -415,6 +468,8 @@ export default function ReportsPage() {
               report={report}
               expanded={expandedId === report.id}
               onToggle={() => toggleExpanded(report.id)}
+              onExport={() => handleExportPdf(report)}
+              exporting={exportingId === report.id}
             />
           ))}
         </div>
