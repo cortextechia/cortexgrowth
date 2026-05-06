@@ -577,25 +577,27 @@ export default function DashboardPage() {
           <RoasCard
             title="ROAS Geral"
             value={attributionSummary.roas !== null ? `${attributionSummary.roas.toFixed(2)}x` : '—'}
-            sub={`Receita R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`}
+            sub={attributionSummary.roas !== null
+              ? `Receitas fechadas R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`
+              : `Pipeline R$${attributionSummary.pipelineValue >= 1000 ? (attributionSummary.pipelineValue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.pipelineValue)} · sem negócios fechados`}
             accent={attributionSummary.roas !== null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
           />
           <RoasCard
             title="ROAS Meta"
             value={attributionSummary.roasMeta !== null ? `${attributionSummary.roasMeta.toFixed(2)}x` : '—'}
-            sub="Leads atribuídos ao Meta Ads"
+            sub="Negócios fechados atribuídos ao Meta"
             accent={attributionSummary.roasMeta !== null ? (attributionSummary.roasMeta >= 4 ? '#4ade80' : attributionSummary.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
           />
           <RoasCard
             title="ROAS Google"
             value={attributionSummary.roasGoogle !== null ? `${attributionSummary.roasGoogle.toFixed(2)}x` : '—'}
-            sub="Leads atribuídos ao Google Ads"
+            sub="Negócios fechados atribuídos ao Google"
             accent={attributionSummary.roasGoogle !== null ? (attributionSummary.roasGoogle >= 4 ? '#4ade80' : attributionSummary.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
           />
           <RoasCard
             title="CAC"
             value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
-            sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads atribuídos`}
+            sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads com UTM`}
             accent="#60a5fa"
           />
         </div>
