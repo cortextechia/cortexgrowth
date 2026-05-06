@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type { AiAnalysis, AttributionSummary } from '@/types';
@@ -192,6 +192,7 @@ export function useDashboard() {
   const [kommoLeads, setKommoLeads] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [attributionSummary, setAttributionSummary] = useState<AttributionSummary | null>(null);
+  const attributionReqId = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -252,9 +253,13 @@ export function useDashboard() {
 
   const fetchAttributionSummary = useCallback(async (days: number) => {
     if (!isAuthenticated) return;
+    const reqId = ++attributionReqId.current;
     try {
       const response = await apiService.getAttributionSummary(days);
-      if (response.success) setAttributionSummary(response.data);
+      // descarta resposta se uma requisição mais recente já foi disparada
+      if (reqId === attributionReqId.current && response.success) {
+        setAttributionSummary(response.data);
+      }
     } catch {
       // silently ignore — attribution depends on Kommo being connected
     }
