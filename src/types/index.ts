@@ -152,6 +152,18 @@ export interface AiAnalysis {
   createdAt: string;
 }
 
+
+export interface AttributionSummary {
+  roas: number | null;
+  roasMeta: number | null;
+  roasGoogle: number | null;
+  cac: number | null;
+  revenue: number;
+  spend: number;
+  attributedLeads: number;
+  totalLeads: number;
+}
+
 // ===== ADMIN METRICS =====
 export interface AdminMetrics {
   mrr: number;

@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { AiAnalysis } from '@/types';
+import type { AiAnalysis, AttributionSummary } from '@/types';
 
 // Hook para gerenciar usuários
 export function useUsers() {
@@ -191,6 +191,7 @@ export function useDashboard() {
   const [googleAdsMetrics, setGoogleAdsMetrics] = useState<any[]>([]);
   const [kommoLeads, setKommoLeads] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [attributionSummary, setAttributionSummary] = useState<AttributionSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -249,21 +250,33 @@ export function useDashboard() {
     }
   }, [isAuthenticated]);
 
-  const fetchAllDashboardData = useCallback(async () => {
-    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats(), fetchKommoLeads()]);
-  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats, fetchKommoLeads]);
+  const fetchAttributionSummary = useCallback(async (days: number) => {
+    if (!isAuthenticated) return;
+    try {
+      const response = await apiService.getAttributionSummary(days);
+      if (response.success) setAttributionSummary(response.data);
+    } catch {
+      // silently ignore — attribution depends on Kommo being connected
+    }
+  }, [isAuthenticated]);
+
+  const fetchAllDashboardData = useCallback(async (days = 30) => {
+    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats(), fetchKommoLeads(), fetchAttributionSummary(days)]);
+  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats, fetchKommoLeads, fetchAttributionSummary]);
 
   return {
     metaInsights,
     googleAdsMetrics,
     kommoLeads,
     stats,
+    attributionSummary,
     isLoading,
     error,
     fetchMetaInsights,
     fetchGoogleAdsMetrics,
     fetchKommoLeads,
     fetchStats,
+    fetchAttributionSummary,
     fetchAllDashboardData,
   };
 }

@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -306,6 +306,11 @@ class ApiService {
 
   async getStats(): Promise<{ success: boolean; stats: any }> {
     const response = await this.client.get('/dashboard/stats');
+    return response.data;
+  }
+
+  async getAttributionSummary(days: number): Promise<{ success: boolean; data: AttributionSummary }> {
+    const response = await this.client.get('/ads/attribution/summary', { params: { days } });
     return response.data;
   }
 

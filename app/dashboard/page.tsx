@@ -258,6 +258,26 @@ function KpiCard({ title, value, delta, invertDelta = false, sparkData, color, a
   );
 }
 
+interface RoasCardProps {
+  title: string;
+  value: string;
+  sub: string;
+  accent: string;
+}
+
+function RoasCard({ title, value, sub, accent }: RoasCardProps) {
+  return (
+    <div
+      className="rounded-xl p-4 sm:p-5 flex flex-col gap-1"
+      style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+    >
+      <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
+      <p className="text-2xl sm:text-3xl font-semibold" style={{ color: accent }}>{value}</p>
+      <span className="text-xs" style={{ color: '#475569' }}>{sub}</span>
+    </div>
+  );
+}
+
 function ScoreBadge({ score }: { score: number }) {
   const color = score >= 75 ? '#4ade80' : score >= 50 ? '#fbbf24' : '#f87171';
   const bg    = score >= 75 ? 'rgba(34,197,94,0.10)' : score >= 50 ? 'rgba(251,191,36,0.10)' : 'rgba(248,113,113,0.10)';
@@ -281,7 +301,7 @@ export default function DashboardPage() {
   const { user, organization } = useAuth();
   const { users, fetchUsers } = useUsers();
   const { integrations, fetchIntegrations } = useIntegrations();
-  const { metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads, fetchAllDashboardData, isLoading: dashLoading } = useDashboard();
+  const { metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads, attributionSummary, fetchAllDashboardData, fetchAttributionSummary, isLoading: dashLoading } = useDashboard();
   const kommoLeads = rawKommoLeads as KommoLead[];
   const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
 
@@ -296,7 +316,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchUsers();
     fetchIntegrations();
-    fetchAllDashboardData();
+    fetchAllDashboardData(30);
     fetchLatestInsight();
   }, []);
 
@@ -333,6 +353,18 @@ export default function DashboardPage() {
     s.setHours(0, 0, 0, 0);
     return { start: s, end: e };
   }, [range, customStart, customEnd]);
+
+  const activeDays = useMemo(() => {
+    if (range === 'CUSTOM' && customStart && customEnd) {
+      const diff = new Date(customEnd).getTime() - new Date(customStart).getTime();
+      return Math.max(1, Math.ceil(diff / 86400000));
+    }
+    return PRESETS[range as Exclude<Range, 'CUSTOM'>]?.days ?? 30;
+  }, [range, customStart, customEnd]);
+
+  useEffect(() => {
+    fetchAttributionSummary(activeDays);
+  }, [activeDays]);
 
   const rangeLabel = useMemo(() => {
     if (range === 'CUSTOM') {
@@ -536,6 +568,36 @@ export default function DashboardPage() {
           <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#60a5fa" animKey={animKey} />
           <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#4ade80" animKey={animKey} />
           <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#fbbf24" animKey={animKey} />
+        </div>
+      )}
+
+      {/* ── ROAS / CAC strip ─────────────────────────────────────────────────── */}
+      {attributionSummary && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <RoasCard
+            title="ROAS Geral"
+            value={attributionSummary.roas !== null ? `${attributionSummary.roas.toFixed(2)}x` : '—'}
+            sub={`Receita R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`}
+            accent={attributionSummary.roas !== null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+          />
+          <RoasCard
+            title="ROAS Meta"
+            value={attributionSummary.roasMeta !== null ? `${attributionSummary.roasMeta.toFixed(2)}x` : '—'}
+            sub="Leads atribuídos ao Meta Ads"
+            accent={attributionSummary.roasMeta !== null ? (attributionSummary.roasMeta >= 4 ? '#4ade80' : attributionSummary.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+          />
+          <RoasCard
+            title="ROAS Google"
+            value={attributionSummary.roasGoogle !== null ? `${attributionSummary.roasGoogle.toFixed(2)}x` : '—'}
+            sub="Leads atribuídos ao Google Ads"
+            accent={attributionSummary.roasGoogle !== null ? (attributionSummary.roasGoogle >= 4 ? '#4ade80' : attributionSummary.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+          />
+          <RoasCard
+            title="CAC"
+            value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
+            sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads atribuídos`}
+            accent="#60a5fa"
+          />
         </div>
       )}
 
