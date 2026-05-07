@@ -159,6 +159,8 @@ export interface AttributionSummary {
   roasGoogle: number | null;
   cac: number | null;
   revenue: number;
+  revenueMeta: number;
+  revenueGoogle: number;
   pipelineValue: number;
   spend: number;
   attributedLeads: number;

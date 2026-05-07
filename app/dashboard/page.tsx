@@ -20,6 +20,7 @@ export interface KommoLead {
   price: number | null;
   utmSource: string | null;
   utmCampaign: string | null;
+  tags: string[];
   rawData: { created_at?: number; [key: string]: unknown };
   createdAt: string;
 }
@@ -225,12 +226,13 @@ interface KpiCardProps {
   value: string;
   delta: number;
   invertDelta?: boolean;
+  neutralDelta?: boolean;
   sparkData: number[];
   color: string;
   animKey: number;
 }
 
-function KpiCard({ title, value, delta, invertDelta = false, sparkData, color, animKey }: KpiCardProps) {
+function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sparkData, color, animKey }: KpiCardProps) {
   const positive = invertDelta ? delta <= 0 : delta >= 0;
   const arrow = delta >= 0 ? '↑' : '↓';
   return (
@@ -243,10 +245,13 @@ function KpiCard({ title, value, delta, invertDelta = false, sparkData, color, a
         {delta !== 0 && (
           <span
             className="text-xs font-semibold px-1.5 py-0.5 rounded"
-            style={{
-              backgroundColor: positive ? 'rgba(34,197,94,0.10)' : 'rgba(248,113,113,0.10)',
-              color: positive ? '#4ade80' : '#f87171',
-            }}
+            style={neutralDelta
+              ? { backgroundColor: 'rgba(148,163,184,0.10)', color: '#94a3b8' }
+              : {
+                  backgroundColor: positive ? 'rgba(34,197,94,0.10)' : 'rgba(248,113,113,0.10)',
+                  color: positive ? '#4ade80' : '#f87171',
+                }
+            }
           >
             {arrow} {Math.abs(delta).toFixed(1)}%
           </span>
@@ -461,6 +466,12 @@ export default function DashboardPage() {
     [kommoLeads],
   );
 
+  // Leads com tag "carteira" = compras recorrentes (já clientes)
+  const recurrentCount = useMemo(
+    () => kommoCur.filter((l) => (l.tags ?? []).some((t) => t.toLowerCase() === 'carteira')).length,
+    [kommoCur],
+  );
+
   // ── Integrations status ────────────────────────────────────────────────────
   const activeCount = integrations.filter((i) => i.status === 'CONNECTED').length;
 
@@ -564,43 +575,66 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  invertDelta sparkData={sparkSpend}  color="#f87171" animKey={animKey} />
-          <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#60a5fa" animKey={animKey} />
-          <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#4ade80" animKey={animKey} />
-          <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#fbbf24" animKey={animKey} />
+          <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sparkData={sparkSpend}  color="#94a3b8" animKey={animKey} />
+          <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#94a3b8" animKey={animKey} />
+          <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#94a3b8" animKey={animKey} />
+          <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#94a3b8" animKey={animKey} />
         </div>
       )}
 
       {/* ── ROAS / CAC strip ─────────────────────────────────────────────────── */}
       {attributionSummary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <RoasCard
-            title="ROAS Geral"
-            value={attributionSummary.roas !== null ? `${attributionSummary.roas.toFixed(2)}x` : '—'}
-            sub={attributionSummary.roas !== null
-              ? `Receitas fechadas R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`
-              : `Pipeline R$${attributionSummary.pipelineValue >= 1000 ? (attributionSummary.pipelineValue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.pipelineValue)} · sem negócios fechados`}
-            accent={attributionSummary.roas !== null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-          />
-          <RoasCard
-            title="ROAS Meta"
-            value={attributionSummary.roasMeta !== null ? `${attributionSummary.roasMeta.toFixed(2)}x` : '—'}
-            sub="Negócios fechados atribuídos ao Meta"
-            accent={attributionSummary.roasMeta !== null ? (attributionSummary.roasMeta >= 4 ? '#4ade80' : attributionSummary.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-          />
-          <RoasCard
-            title="ROAS Google"
-            value={attributionSummary.roasGoogle !== null ? `${attributionSummary.roasGoogle.toFixed(2)}x` : '—'}
-            sub="Negócios fechados atribuídos ao Google"
-            accent={attributionSummary.roasGoogle !== null ? (attributionSummary.roasGoogle >= 4 ? '#4ade80' : attributionSummary.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-          />
-          <RoasCard
-            title="CAC"
-            value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
-            sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads com UTM`}
-            accent="#60a5fa"
-          />
-        </div>
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+            <RoasCard
+              title="ROAS Geral"
+              value={attributionSummary.roas !== null ? `${attributionSummary.roas.toFixed(2)}x` : '—'}
+              sub={attributionSummary.roas !== null
+                ? `Receitas fechadas R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`
+                : `Pipeline R$${attributionSummary.pipelineValue >= 1000 ? (attributionSummary.pipelineValue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.pipelineValue)} · sem negócios fechados`}
+              accent={attributionSummary.roas !== null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+            />
+            <RoasCard
+              title="ROAS Meta"
+              value={attributionSummary.roasMeta !== null ? `${attributionSummary.roasMeta.toFixed(2)}x` : '—'}
+              sub="Negócios fechados atribuídos ao Meta"
+              accent={attributionSummary.roasMeta !== null ? (attributionSummary.roasMeta >= 4 ? '#4ade80' : attributionSummary.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+            />
+            <RoasCard
+              title="ROAS Google"
+              value={attributionSummary.roasGoogle !== null ? `${attributionSummary.roasGoogle.toFixed(2)}x` : '—'}
+              sub="Negócios fechados atribuídos ao Google"
+              accent={attributionSummary.roasGoogle !== null ? (attributionSummary.roasGoogle >= 4 ? '#4ade80' : attributionSummary.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+            />
+            <RoasCard
+              title="CAC"
+              value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
+              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads com UTM`}
+              accent="#60a5fa"
+            />
+          </div>
+
+          {/* ── Receitas por canal ──────────────────────────────────────────── */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+            {[
+              { title: 'Receita Geral', value: attributionSummary.revenue, sub: 'Total de negócios fechados' },
+              { title: 'Receita Meta', value: attributionSummary.revenueMeta ?? 0, sub: 'Fechados atribuídos ao Meta' },
+              { title: 'Receita Google', value: attributionSummary.revenueGoogle ?? 0, sub: 'Fechados atribuídos ao Google' },
+            ].map(({ title, value, sub }) => (
+              <div
+                key={title}
+                className="rounded-xl p-4 sm:p-5 flex flex-col gap-1"
+                style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
+                <p className="text-2xl sm:text-3xl font-semibold tabular-nums" style={{ color: '#f1f5f9' }}>
+                  {value > 0 ? fmtMoney(value) : '—'}
+                </p>
+                <span className="text-xs" style={{ color: '#334155' }}>{sub}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* ── Charts row ───────────────────────────────────────────────────────── */}
@@ -933,6 +967,12 @@ export default function DashboardPage() {
               <div>
                 <p className="text-xs" style={{ color: '#475569' }}>Fechados</p>
                 <p className="text-sm font-semibold tabular-nums" style={{ color: '#4ade80' }}>{fmtMoney(closedValue)}</p>
+              </div>
+            )}
+            {recurrentCount > 0 && (
+              <div>
+                <p className="text-xs" style={{ color: '#475569' }}>Recorrentes (carteira)</p>
+                <p className="text-sm font-semibold tabular-nums" style={{ color: '#a78bfa' }}>{recurrentCount}</p>
               </div>
             )}
             <div>
