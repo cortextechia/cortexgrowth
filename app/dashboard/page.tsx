@@ -73,14 +73,10 @@ function calcDelta(cur: number, prev: number): number {
 }
 
 function fmtMoney(v: number): string {
-  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (v >= 1_000)     return `R$ ${(v / 1_000).toFixed(1).replace('.', ',')}k`;
-  return `R$ ${Math.round(v)}`;
-}
-
-function fmtBRL(v: number): string {
   return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+const fmtBRL = fmtMoney;
 
 function fmtNum(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace('.', ',')}M`;
@@ -357,6 +353,7 @@ export default function DashboardPage() {
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+  const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
@@ -461,20 +458,27 @@ export default function DashboardPage() {
     return imprArr.map((imp, i) => imp > 0 ? (clickArr[i] / imp) * 100 : 0);
   }, [metaCur, googleCur]);
 
+  // ── Funnel leads filtered by channel tab ──────────────────────────────────
+  const funnelLeads = useMemo(() => {
+    if (funnelTab === 'meta')   return kommoCur.filter((l) => l.utmSource === 'meta');
+    if (funnelTab === 'google') return kommoCur.filter((l) => l.utmSource === 'google');
+    return kommoCur;
+  }, [kommoCur, funnelTab]);
+
   // ── Funnel counts (cumulative — how many reached or passed each stage) ─────
   const funnelCounts = useMemo<FunnelCounts>(() => {
     const contactedOrBeyond = [...CONTACT_STATUSES, ...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
     const quotedOrBeyond    = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
     const negOrBeyond       = [...NEGOTIATION_STATUSES, ...WON_STATUSES];
     return {
-      generated:   kommoCur.length,
-      contacted:   kommoCur.filter((l) => contactedOrBeyond.includes(l.status)).length,
-      quoted:      kommoCur.filter((l) => quotedOrBeyond.includes(l.status)).length,
-      negotiating: kommoCur.filter((l) => negOrBeyond.includes(l.status)).length,
-      won:         kommoCur.filter((l) => WON_STATUSES.includes(l.status)).length,
-      lost:        kommoCur.filter((l) => LOST_STATUSES.includes(l.status)).length,
+      generated:   funnelLeads.length,
+      contacted:   funnelLeads.filter((l) => contactedOrBeyond.includes(l.status)).length,
+      quoted:      funnelLeads.filter((l) => quotedOrBeyond.includes(l.status)).length,
+      negotiating: funnelLeads.filter((l) => negOrBeyond.includes(l.status)).length,
+      won:         funnelLeads.filter((l) => WON_STATUSES.includes(l.status)).length,
+      lost:        funnelLeads.filter((l) => LOST_STATUSES.includes(l.status)).length,
     };
-  }, [kommoCur]);
+  }, [funnelLeads]);
 
   // ── Revenue / pipeline from Kommo ─────────────────────────────────────────
   const { closedValue, pipeline } = useMemo(() => {
@@ -504,6 +508,36 @@ export default function DashboardPage() {
     return {
       meta:   { spend: metaSpend,   leads: metaLeads,   cpl: metaLeads   > 0 ? metaSpend   / metaLeads   : null, pct: totalSpend > 0 ? (metaSpend   / totalSpend) * 100 : 0 },
       google: { spend: googleSpend, leads: googleLeads, cpl: googleLeads > 0 ? googleSpend / googleLeads : null, pct: totalSpend > 0 ? (googleSpend / totalSpend) * 100 : 0 },
+    };
+  }, [metaCur, googleCur, kommoCur]);
+
+  // ── Channel comparison (for funnel tab comparativo panel) ─────────────────
+  const canalComparativo = useMemo(() => {
+    const metaSpend   = metaCur.reduce((s, d) => s + d.spend, 0);
+    const googleSpend = googleCur.reduce((s, d) => s + d.cost, 0);
+    const metaLeads   = kommoCur.filter((l) => l.utmSource === 'meta');
+    const googleLeads = kommoCur.filter((l) => l.utmSource === 'google');
+    const metaWon     = metaLeads.filter((l) => WON_STATUSES.includes(l.status));
+    const googleWon   = googleLeads.filter((l) => WON_STATUSES.includes(l.status));
+    const metaRev     = metaWon.reduce((s, l) => s + (l.price ?? 0), 0);
+    const googleRev   = googleWon.reduce((s, l) => s + (l.price ?? 0), 0);
+    return {
+      meta: {
+        leads: metaLeads.length,
+        cpl:   metaLeads.length > 0 ? metaSpend / metaLeads.length : null,
+        won:   metaWon.length,
+        conv:  metaLeads.length > 0 ? (metaWon.length / metaLeads.length) * 100 : 0,
+        roas:  metaSpend > 0 ? metaRev / metaSpend : null,
+        spend: metaSpend,
+      },
+      google: {
+        leads: googleLeads.length,
+        cpl:   googleLeads.length > 0 ? googleSpend / googleLeads.length : null,
+        won:   googleWon.length,
+        conv:  googleLeads.length > 0 ? (googleWon.length / googleLeads.length) * 100 : 0,
+        roas:  googleSpend > 0 ? googleRev / googleSpend : null,
+        spend: googleSpend,
+      },
     };
   }, [metaCur, googleCur, kommoCur]);
 
@@ -811,7 +845,21 @@ export default function DashboardPage() {
       {/* ── 5. FUNIL DE VENDAS ────────────────────────────────────────────────── */}
       {kommoCur.length > 0 && (
         <div>
-          <SectionLabel>funil de vendas · {kommoCur.length} leads · Kommo</SectionLabel>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#334155', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · Kommo</p>
+            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.06)' }}>
+              {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setFunnelTab(tab)}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={funnelTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: '3fr 1fr' }}>
 
             {/* Left: funnel SVG + right info panel */}
@@ -922,6 +970,56 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 <p className="text-xs mt-2" style={{ color: '#334155' }}>Requer rastreamento de movimentações no CRM</p>
+              </div>
+
+              {/* Comparativo de canais */}
+              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>Comparativo de canais</p>
+                <div className="space-y-0">
+                  {/* Header */}
+                  <div className="flex items-center py-1.5 mb-1">
+                    <span className="flex-1 text-xs" style={{ color: '#334155' }}></span>
+                    <span className="w-20 text-center text-xs font-medium" style={{ color: '#818cf8' }}>Meta</span>
+                    <span className="w-20 text-center text-xs font-medium" style={{ color: '#34d399' }}>Google</span>
+                  </div>
+                  {[
+                    {
+                      label: 'Leads',
+                      meta:   String(canalComparativo.meta.leads),
+                      google: String(canalComparativo.google.leads),
+                    },
+                    {
+                      label: 'CPL',
+                      meta:   canalComparativo.meta.cpl != null ? fmtMoney(canalComparativo.meta.cpl) : '—',
+                      google: canalComparativo.google.cpl != null ? fmtMoney(canalComparativo.google.cpl) : '—',
+                    },
+                    {
+                      label: 'Vendas',
+                      meta:   String(canalComparativo.meta.won),
+                      google: String(canalComparativo.google.won),
+                    },
+                    {
+                      label: 'Conversão',
+                      meta:   canalComparativo.meta.leads > 0 ? fmtPct1(canalComparativo.meta.conv) : '—',
+                      google: canalComparativo.google.leads > 0 ? fmtPct1(canalComparativo.google.conv) : '—',
+                    },
+                    {
+                      label: 'ROAS',
+                      meta:   canalComparativo.meta.roas != null ? `${canalComparativo.meta.roas.toFixed(1).replace('.', ',')}x` : '—',
+                      google: canalComparativo.google.roas != null ? `${canalComparativo.google.roas.toFixed(1).replace('.', ',')}x` : '—',
+                    },
+                  ].map((row, i, arr) => (
+                    <div
+                      key={i}
+                      className="flex items-center py-2"
+                      style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                    >
+                      <span className="flex-1 text-xs" style={{ color: '#64748b' }}>{row.label}</span>
+                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#a5b4fc' }}>{row.meta}</span>
+                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#6ee7b7' }}>{row.google}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1118,7 +1216,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3">
 
           {/* Análise gerada */}
           <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1173,32 +1271,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Resumo executivo */}
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>Resumo executivo do período</p>
-            <div className="space-y-0">
-              {[
-                { label: 'Investimento em ads',  value: fmtMoney(metaCur.reduce((s, d) => s + d.spend, 0) + googleCur.reduce((s, d) => s + d.cost, 0)), color: undefined },
-                { label: 'Leads gerados',         value: String(funnelCounts.generated), color: undefined },
-                { label: 'Vendas fechadas',        value: String(funnelCounts.won), color: undefined },
-                { label: 'Receita fechada',        value: closedValue > 0 ? fmtMoney(closedValue) : '—', color: undefined },
-                { label: 'Pipeline em aberto',     value: pipeline > 0 ? fmtMoney(pipeline) : '—', color: '#fbbf24' },
-                { label: 'ROAS real',              value: attributionSummary?.roas != null ? `${attributionSummary.roas.toFixed(1).replace('.', ',')}x` : '—', color: attributionSummary?.roas != null && attributionSummary.roas >= 2 ? '#4ade80' : '#f87171' },
-                { label: 'CAC',                    value: attributionSummary?.cac != null ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa' },
-                { label: 'Ticket médio',           value: ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—', color: undefined },
-                { label: 'Projeção do mês',        value: projection ? fmtMoney(projection.projected) : '—', color: '#4ade80' },
-              ].map((row, i, arr) => (
-                <div
-                  key={i}
-                  className="flex justify-between items-center py-2.5"
-                  style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
-                >
-                  <span className="text-xs" style={{ color: '#64748b' }}>{row.label}</span>
-                  <span className="text-xs font-semibold tabular-nums" style={{ color: row.color ?? '#f1f5f9' }}>{row.value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
 
