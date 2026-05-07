@@ -163,7 +163,10 @@ export interface AttributionSummary {
   revenueGoogle: number;
   pipelineValue: number;
   spend: number;
+  spendMeta: number;
+  spendGoogle: number;
   attributedLeads: number;
+  paidChannelLeads: number;
   totalLeads: number;
   recurringLeads: number;
 }

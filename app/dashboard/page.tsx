@@ -568,13 +568,22 @@ export default function DashboardPage() {
 
   // ── LTV & projection ──────────────────────────────────────────────────────
   const ltvData = useMemo(() => {
-    const wonCount = funnelCounts.won;
+    // Sempre usa kommoCur (todos os canais) — independente da aba do funil selecionada.
+    // wonWithPrice: vendas com valor registrado (base do ticket médio)
+    const wonWithPrice = kommoCur.filter(
+      (l) => WON_STATUSES.includes(l.status) && l.price != null && (l.price as number) > 0,
+    );
+    const wonTotal = kommoCur.filter((l) => WON_STATUSES.includes(l.status)).length;
+    const wonCount = wonWithPrice.length;
     const ticketMedio = wonCount > 0 ? closedValue / wonCount : null;
-    const ltv = ticketMedio ? ticketMedio * (1 + (recurrentCount > 0 && wonCount > 0 ? recurrentCount / wonCount : 0.2)) : null;
+    // Cap de 1.0 (100%) no repeat rate — evita LTV inflado quando há mais tags Carteira
+    // do que vendas fechadas no período (clientes recorrentes que ainda não fecharam)
+    const repeatRate = wonCount > 0 ? Math.min(recurrentCount / wonCount, 1.0) : 0.2;
+    const ltv = ticketMedio ? ticketMedio * (1 + repeatRate) : null;
     const cac = attributionSummary?.cac ?? null;
     const ltvCacRatio = ltv && cac && cac > 0 ? ltv / cac : null;
-    return { ticketMedio, ltv, ltvCacRatio };
-  }, [funnelCounts.won, closedValue, recurrentCount, attributionSummary]);
+    return { ticketMedio, ltv, ltvCacRatio, wonTotal };
+  }, [kommoCur, closedValue, recurrentCount, attributionSummary]);
 
   const projection = useMemo(() => {
     const today = new Date();
@@ -828,7 +837,7 @@ export default function DashboardPage() {
             <BottomKpiCard
               title="Receita fechada"
               value={closedValue > 0 ? fmtMoney(closedValue) : '—'}
-              sub={funnelCounts.won > 0 ? `${funnelCounts.won} vendas · ticket médio ${ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—'}` : 'Nenhuma venda fechada'}
+              sub={ltvData.wonTotal > 0 ? `${ltvData.wonTotal} vendas · ticket médio ${ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—'}` : 'Nenhuma venda fechada'}
             />
             <BottomKpiCard
               title="Pipeline em negociação"
@@ -1127,10 +1136,34 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>LTV & relação LTV/CAC</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: 'LTV estimado',     value: ltvData.ltv        ? fmtMoney(ltvData.ltv)        : '—',  color: '#4ade80', sub: 'ticket × freq. média' },
-                  { label: 'CAC atual',         value: attributionSummary.cac ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa', sub: 'custo por lead'  },
-                  { label: 'Relação LTV/CAC',   value: ltvData.ltvCacRatio ? `${ltvData.ltvCacRatio.toFixed(0)}x` : '—', color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? '#4ade80' : '#fbbf24', sub: 'meta saudável ≥ 3x' },
-                  { label: 'Clientes recorr.',  value: String(recurrentCount), color: '#fbbf24', sub: 'tag carteira ativa' },
+                  {
+                    label: 'LTV estimado',
+                    value: ltvData.ltv ? fmtMoney(ltvData.ltv) : '—',
+                    color: '#4ade80',
+                    sub: `ticket × freq. (${ltvData.wonTotal} vendas no período)`,
+                  },
+                  {
+                    label: 'CAC atual',
+                    value: attributionSummary.cac ? fmtBRL(attributionSummary.cac) : '—',
+                    color: '#60a5fa',
+                    sub: `gasto ÷ leads (Meta${attributionSummary.spendGoogle > 0 ? ' + Google' : ''})`,
+                  },
+                  {
+                    label: 'Relação LTV/CAC',
+                    value: ltvData.ltvCacRatio
+                      ? ltvData.ltvCacRatio > 99
+                        ? `${ltvData.ltvCacRatio.toFixed(0)}x`
+                        : `${ltvData.ltvCacRatio.toFixed(1)}x`
+                      : '—',
+                    color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? '#4ade80' : '#fbbf24',
+                    sub: 'meta saudável ≥ 3x',
+                  },
+                  {
+                    label: 'Clientes recorr.',
+                    value: String(recurrentCount),
+                    color: '#fbbf24',
+                    sub: 'tag carteira no período',
+                  },
                 ].map((item, i) => (
                   <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}>
                     <p className="text-xs mb-1" style={{ color: '#475569' }}>{item.label}</p>
@@ -1169,24 +1202,44 @@ export default function DashboardPage() {
             <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
               <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>ROAS por canal</p>
               <div className="space-y-4">
-                {[
-                  { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   color: '#818cf8' },
-                  { label: 'Google Ads', roas: attributionSummary.roasGoogle, color: '#34d399' },
-                ].map(({ label, roas, color }) => (
-                  <div key={label}>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
-                      <span className="text-xs font-semibold" style={{ color: roas != null && roas >= 2 ? '#4ade80' : '#f87171' }}>
-                        {roas != null ? `${roas.toFixed(1).replace('.', ',')}x` : '—'}
-                      </span>
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
-                      {roas != null && roas > 0 && (
-                        <div className="h-full rounded-full" style={{ width: `${Math.min((roas / 10) * 100, 100)}%`, backgroundColor: color, opacity: 0.7 }} />
+                {([
+                  { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   spend: attributionSummary.spendMeta,   color: '#818cf8', accent: 'rgba(129,140,248,0.12)' },
+                  { label: 'Google Ads', roas: attributionSummary.roasGoogle, spend: attributionSummary.spendGoogle, color: '#34d399', accent: 'rgba(52,211,153,0.12)'  },
+                ] as const).map(({ label, roas, spend, color, accent }) => {
+                  const hasSpend  = spend > 0;
+                  const roasColor = roas != null && roas >= 2 ? '#4ade80' : roas != null ? '#f87171' : '#475569';
+                  const roasLabel = roas != null
+                    ? `${roas.toFixed(1).replace('.', ',')}x`
+                    : hasSpend ? '—' : 'Sem dados';
+                  return (
+                    <div key={label}>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+                        <span className="text-xs font-semibold" style={{ color: roasColor }}>{roasLabel}</span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                        {hasSpend && roas != null && roas > 0
+                          ? <div className="h-full rounded-full" style={{ width: `${Math.min((roas / 10) * 100, 100)}%`, backgroundColor: color, opacity: 0.7 }} />
+                          : !hasSpend
+                            ? <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: '#1e293b' }} />
+                            : null
+                        }
+                      </div>
+                      {!hasSpend && (
+                        <p className="text-xs mt-1" style={{ color: '#334155' }}>
+                          {label === 'Google Ads' ? 'Integração não conectada — leads rastreados via UTM do Kommo' : 'Nenhum gasto no período'}
+                        </p>
                       )}
                     </div>
+                  );
+                })}
+                {attributionSummary.roasMeta != null && attributionSummary.roasMeta > 5 && (
+                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.12)' }}>
+                    <p className="text-xs" style={{ color: '#a5b4fc' }}>
+                      ✦ Meta com ROAS {attributionSummary.roasMeta.toFixed(1).replace('.', ',')}x — considerar escalar verba
+                    </p>
                   </div>
-                ))}
+                )}
                 {attributionSummary.roasGoogle != null && attributionSummary.roasGoogle > 5 && (
                   <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.12)' }}>
                     <p className="text-xs" style={{ color: '#34d399' }}>
