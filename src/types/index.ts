@@ -165,6 +165,7 @@ export interface AttributionSummary {
   spend: number;
   attributedLeads: number;
   totalLeads: number;
+  recurringLeads: number;
 }
 
 // ===== ADMIN METRICS =====

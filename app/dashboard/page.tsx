@@ -609,7 +609,7 @@ export default function DashboardPage() {
             <RoasCard
               title="CAC"
               value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
-              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads com UTM`}
+              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads · ${attributionSummary.recurringLeads ?? 0} recorrentes excluídos`}
               accent="#60a5fa"
             />
           </div>
