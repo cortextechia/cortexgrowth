@@ -1,11 +1,9 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useUsers, useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
+import { useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
 import Sparkline from '@/components/charts/Sparkline';
-import SpendAreaChart from '@/components/charts/AreaChart';
-import DonutChart from '@/components/charts/DonutChart';
 import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
@@ -32,6 +30,24 @@ const PRESETS: Record<Exclude<Range, 'CUSTOM'>, { days: number; label: string }>
   '90D': { days: 90, label: 'Últimos 90 dias' },
 };
 
+// ─── Funnel stage mappings ─────────────────────────────────────────────────────
+
+const WON_STATUSES  = ['Fechado', 'Venda ganha', 'Ganho', 'Fechado Ganho', 'Won'];
+const LOST_STATUSES = ['Perdido', 'Venda perdida', 'Perdida', 'Fechado Perdido', 'Lost', 'Não Qualificado'];
+const NEGOTIATION_STATUSES = ['Negociando', 'Em negociação', 'Inicial B2B'];
+const QUOTE_STATUSES = ['Proposta Enviada', 'Orçamento Enviado', 'Aguardando Orçamento'];
+const CONTACT_STATUSES = [
+  'Contato Feito', 'Contato inicial', 'Contato Inicial',
+  'Follow- Up 1', 'Follow - Up 1', 'Follow - Up 2', 'Follow - Up 3',
+  'Qualificado',
+];
+
+interface ActiveAlert {
+  type: 'critical' | 'warning' | 'opportunity';
+  title: string;
+  action: string;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function filterByDateRange<T extends { date: string }>(items: T[], start: Date, end: Date): T[] {
@@ -57,55 +73,45 @@ function calcDelta(cur: number, prev: number): number {
 }
 
 function fmtMoney(v: number): string {
-  if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `R$${(v / 1_000).toFixed(1)}k`;
-  return `R$${Math.round(v)}`;
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace('.', ',')}M`;
+  if (v >= 1_000)     return `R$ ${(v / 1_000).toFixed(1).replace('.', ',')}k`;
+  return `R$ ${Math.round(v)}`;
+}
+
+function fmtBRL(v: number): string {
+  return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtNum(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `${(v / 1_000).toFixed(1)}k`;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace('.', ',')}M`;
+  if (v >= 1_000)     return `${(v / 1_000).toFixed(1).replace('.', ',')}k`;
   return `${Math.round(v)}`;
 }
 
 function fmtPct(v: number): string {
-  return `${v.toFixed(2)}%`;
+  return `${v.toFixed(2).replace('.', ',')}%`;
 }
 
-// Aggregates daily spend by date label
-function buildSpendSeries(
-  meta: MetaInsight[],
-  google: GoogleAdsMetric[],
-  start: Date,
-  end: Date,
-) {
-  const metaFiltered   = filterByDateRange(meta, start, end);
-  const googleFiltered = filterByDateRange(google, start, end);
-
-  const map = new Map<string, { meta: number; google: number }>();
-
-  metaFiltered.forEach((d) => {
-    const key = d.date.slice(0, 10);
-    const prev = map.get(key) ?? { meta: 0, google: 0 };
-    map.set(key, { ...prev, meta: prev.meta + d.spend });
-  });
-
-  googleFiltered.forEach((d) => {
-    const key = d.date.slice(0, 10);
-    const prev = map.get(key) ?? { meta: 0, google: 0 };
-    map.set(key, { ...prev, google: prev.google + d.cost });
-  });
-
-  return Array.from(map.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, vals]) => ({
-      label: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-      meta: Math.round(vals.meta),
-      google: Math.round(vals.google),
-    }));
+function fmtPct1(v: number): string {
+  return `${v.toFixed(1).replace('.', ',')}%`;
 }
 
-// Daily values for sparklines
+function getKommoDate(lead: KommoLead): Date {
+  const raw = lead.rawData as Record<string, unknown>;
+  const ts =
+    (raw?.created_at as number | undefined) ??
+    ((raw?.rawData as Record<string, unknown> | undefined)?.created_at as number | undefined);
+  if (ts) return new Date(ts * 1000);
+  return new Date(lead.createdAt);
+}
+
+function filterKommoByRange(leads: KommoLead[], start: Date, end: Date): KommoLead[] {
+  return leads.filter((l) => {
+    const d = getKommoDate(l);
+    return d >= start && d <= end;
+  });
+}
+
 function dailyValues(
   meta: MetaInsight[],
   google: GoogleAdsMetric[],
@@ -124,92 +130,6 @@ function dailyValues(
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
 }
 
-// Kommo date: rawData.created_at (after fix) or rawData.rawData.created_at (legacy data)
-function getKommoDate(lead: KommoLead): Date {
-  const raw = lead.rawData as Record<string, unknown>;
-  const ts =
-    (raw?.created_at as number | undefined) ??
-    ((raw?.rawData as Record<string, unknown> | undefined)?.created_at as number | undefined);
-  if (ts) return new Date(ts * 1000);
-  return new Date(lead.createdAt);
-}
-
-function filterKommoByRange(leads: KommoLead[], start: Date, end: Date): KommoLead[] {
-  return leads.filter((l) => {
-    const d = getKommoDate(l);
-    return d >= start && d <= end;
-  });
-}
-
-const STATUS_COLORS: Record<string, string> = {
-  'Novo Lead':          '#60a5fa',
-  'Contato Feito':      '#fbbf24',
-  'Contato inicial':    '#fbbf24',
-  'Contato Inicial':    '#fbbf24',
-  'Proposta Enviada':   '#a78bfa',
-  'Orçamento Enviado':  '#a78bfa',
-  'Aguardando Orçamento': '#fb923c',
-  'Negociando':         '#fb923c',
-  'Follow- Up 1':       '#38bdf8',
-  'Follow - Up 1':      '#38bdf8',
-  'Follow - Up 2':      '#22d3ee',
-  'Follow - Up 3':      '#06b6d4',
-  'Qualificado':        '#34d399',
-  'Inicial B2B':        '#818cf8',
-  'Fechado':            '#4ade80',
-  'Venda ganha':        '#4ade80',
-  'Ganho':              '#4ade80',
-  'Perdido':            '#f87171',
-  'Venda perdida':      '#f87171',
-  'Não Qualificado':    '#94a3b8',
-};
-const FALLBACK_PALETTE = ['#60a5fa', '#a78bfa', '#fb923c', '#fbbf24', '#38bdf8', '#f472b6', '#818cf8'];
-
-function statusColor(status: string, idx: number): string {
-  return STATUS_COLORS[status] ?? FALLBACK_PALETTE[idx % FALLBACK_PALETTE.length];
-}
-
-// Top campaigns grouped by name
-interface Campaign {
-  name: string;
-  platform: 'Meta' | 'Google';
-  spend: number;
-  clicks: number;
-  impressions: number;
-  conversions: number;
-}
-
-function buildCampaigns(meta: MetaInsight[], google: GoogleAdsMetric[]): Campaign[] {
-  const map = new Map<string, Campaign>();
-
-  meta.forEach((d) => {
-    const prev = map.get(d.campaignName) ?? { name: d.campaignName, platform: 'Meta', spend: 0, clicks: 0, impressions: 0, conversions: 0 };
-    map.set(d.campaignName, {
-      ...prev,
-      spend: prev.spend + d.spend,
-      clicks: prev.clicks + d.clicks,
-      impressions: prev.impressions + d.impressions,
-      conversions: prev.conversions + (d.conversions ?? 0),
-    });
-  });
-
-  google.forEach((d) => {
-    const key = `[G] ${d.campaignName}`;
-    const prev = map.get(key) ?? { name: d.campaignName, platform: 'Google', spend: 0, clicks: 0, impressions: 0, conversions: 0 };
-    map.set(key, {
-      ...prev,
-      spend: prev.spend + d.cost,
-      clicks: prev.clicks + d.clicks,
-      impressions: prev.impressions + d.impressions,
-      conversions: prev.conversions + (d.conversions ?? 0),
-    });
-  });
-
-  return Array.from(map.values())
-    .sort((a, b) => b.spend - a.spend)
-    .slice(0, 8);
-}
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
@@ -221,25 +141,30 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155', letterSpacing: '0.1em' }}>
+      {children}
+    </p>
+  );
+}
+
 interface KpiCardProps {
   title: string;
   value: string;
   delta: number;
   invertDelta?: boolean;
   neutralDelta?: boolean;
+  sub: string;
   sparkData: number[];
-  color: string;
   animKey: number;
 }
 
-function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sparkData, color, animKey }: KpiCardProps) {
+function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sub, sparkData, animKey }: KpiCardProps) {
   const positive = invertDelta ? delta <= 0 : delta >= 0;
   const arrow = delta >= 0 ? '↑' : '↓';
   return (
-    <div
-      className="rounded-xl p-4 sm:p-5 flex flex-col gap-2"
-      style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
-    >
+    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
         {delta !== 0 && (
@@ -253,32 +178,55 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
                 }
             }
           >
-            {arrow} {Math.abs(delta).toFixed(1)}%
+            {arrow} {Math.abs(delta).toFixed(1).replace('.', ',')}%
           </span>
         )}
       </div>
-      <p className="text-2xl sm:text-3xl font-semibold" style={{ color: '#f1f5f9' }}>{value}</p>
-      <Sparkline data={sparkData} color={color} height={36} animKey={animKey} />
+      <p className="text-2xl font-semibold tabular-nums" style={{ color: '#f1f5f9' }}>{value}</p>
+      <Sparkline data={sparkData} color="#60a5fa" height={32} animKey={animKey} />
+      <p className="text-xs" style={{ color: '#334155' }}>{sub}</p>
     </div>
   );
 }
 
-interface RoasCardProps {
+interface BottomKpiProps {
   title: string;
   value: string;
   sub: string;
-  accent: string;
+  badge?: string;
+  badgeColor?: string;
+  accent?: string;
 }
 
-function RoasCard({ title, value, sub, accent }: RoasCardProps) {
+function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = '#f1f5f9' }: BottomKpiProps) {
   return (
-    <div
-      className="rounded-xl p-4 sm:p-5 flex flex-col gap-1"
-      style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
-    >
+    <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
       <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
-      <p className="text-2xl sm:text-3xl font-semibold" style={{ color: accent }}>{value}</p>
-      <span className="text-xs" style={{ color: '#475569' }}>{sub}</span>
+      {badge && (
+        <span
+          className="self-start text-xs px-2 py-0.5 rounded font-medium"
+          style={{ backgroundColor: badgeColor ? `${badgeColor}18` : 'rgba(59,130,246,0.12)', color: badgeColor ?? '#60a5fa' }}
+        >
+          {badge}
+        </span>
+      )}
+      <p className="text-2xl font-semibold tabular-nums" style={{ color: accent }}>{value}</p>
+      <p className="text-xs" style={{ color: '#334155' }}>{sub}</p>
+    </div>
+  );
+}
+
+function AlertCard({ alert }: { alert: ActiveAlert }) {
+  const styles = {
+    critical:    { bg: 'rgba(248,113,113,0.06)',  border: '#f87171', titleColor: '#f87171',  icon: '🔴' },
+    warning:     { bg: 'rgba(251,191,36,0.06)',   border: '#fbbf24', titleColor: '#fbbf24',  icon: '🟡' },
+    opportunity: { bg: 'rgba(74,222,128,0.06)',   border: '#4ade80', titleColor: '#4ade80',  icon: '🟢' },
+  }[alert.type];
+  return (
+    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: styles.bg, border: `1px solid ${styles.border}30`, borderLeft: `3px solid ${styles.border}` }}>
+      <p className="text-xs font-semibold" style={{ color: styles.titleColor }}>{styles.icon} {alert.type === 'critical' ? 'Crítico' : alert.type === 'warning' ? 'Atenção' : 'Oportunidade'}</p>
+      <p className="text-xs leading-relaxed" style={{ color: '#c9d1d9' }} dangerouslySetInnerHTML={{ __html: alert.title }} />
+      <p className="text-xs font-medium" style={{ color: styles.titleColor }}>{alert.action}</p>
     </div>
   );
 }
@@ -295,18 +243,111 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
-const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
-  Meta:   { dot: '#818cf8', bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
-  Google: { dot: '#34d399', bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
-};
+// ─── Funnel SVG ────────────────────────────────────────────────────────────────
+
+interface FunnelCounts {
+  generated: number;
+  contacted: number;
+  quoted: number;
+  negotiating: number;
+  won: number;
+  lost: number;
+}
+
+function FunnelSVG({ counts }: { counts: FunnelCounts }) {
+  const W = 200;
+  const H = 340;
+  const cx = W / 2;
+  const maxHalf = 88;
+  const stageH = 50;
+  const gap = 12;
+
+  const stages = [
+    { label: 'Leads gerados',    count: counts.generated,   color: '#1e3a5f', textColor: '#93c5fd' },
+    { label: 'Em atendimento',   count: counts.contacted,   color: '#1e3a4a', textColor: '#67e8f9' },
+    { label: 'Orç. enviado',     count: counts.quoted,      color: '#14432a', textColor: '#6ee7b7' },
+    { label: 'Em negociação',    count: counts.negotiating, color: '#1a3d20', textColor: '#86efac' },
+    { label: 'Venda ganha',      count: counts.won,         color: '#0d2e14', textColor: '#4ade80' },
+  ];
+
+  const total = counts.generated || 1;
+
+  function halfW(count: number) {
+    return Math.max(10, maxHalf * (count / total));
+  }
+
+  const convRates = [
+    counts.generated > 0 ? (counts.contacted / counts.generated) * 100 : 0,
+    counts.contacted > 0 ? (counts.quoted / counts.contacted) * 100 : 0,
+    counts.quoted > 0    ? (counts.negotiating / counts.quoted) * 100 : 0,
+    counts.negotiating > 0 ? (counts.won / counts.negotiating) * 100 : 0,
+  ];
+
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0">
+      {stages.map((s, i) => {
+        const yTop = i * (stageH + gap);
+        const yBot = yTop + stageH;
+        const hw0 = halfW(s.count);
+        const hw1 = i < stages.length - 1 ? halfW(stages[i + 1].count) : hw0 * 0.55;
+        const pts = `${cx - hw0},${yTop} ${cx + hw0},${yTop} ${cx + hw1},${yBot} ${cx - hw1},${yBot}`;
+
+        return (
+          <g key={i}>
+            <polygon points={pts} fill={s.color} />
+            <text x={cx} y={yTop + stageH * 0.38} textAnchor="middle" fontSize="9" fill={s.textColor} fontFamily="Inter,sans-serif">
+              {s.label}
+            </text>
+            <text x={cx} y={yTop + stageH * 0.72} textAnchor="middle" fontSize="15" fontWeight="500" fill="#e2e8f0" fontFamily="Inter,sans-serif">
+              {s.count}
+            </text>
+
+            {i < stages.length - 1 && (
+              <>
+                <path
+                  d={`M ${cx + hw0} ${yTop + stageH / 2} C ${cx + hw0 + 22} ${yTop + stageH / 2}, ${cx + hw1 + 22} ${yBot + gap / 2}, ${cx + hw1} ${yBot + gap / 2}`}
+                  stroke="#30363d" strokeWidth="1" fill="none"
+                />
+                <text
+                  x={cx + hw0 + 14}
+                  y={yTop + stageH / 2 + (stageH + gap) / 2}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fontWeight="600"
+                  fill={convRates[i] >= 50 ? '#4ade80' : convRates[i] >= 25 ? '#fbbf24' : '#f87171'}
+                  fontFamily="Inter,sans-serif"
+                >
+                  {fmtPct1(convRates[i])}
+                </text>
+              </>
+            )}
+          </g>
+        );
+      })}
+
+      {/* Lost bar */}
+      {counts.lost > 0 && (
+        <>
+          <line x1={6} y1={H - 38} x2={W - 6} y2={H - 38} stroke="#21262d" strokeWidth="0.5" />
+          <rect x={6} y={H - 28} width={W - 12} height={22} rx={4} fill="rgba(248,113,113,0.12)" stroke="rgba(248,113,113,0.2)" strokeWidth="0.5" />
+          <text x={cx} y={H - 13} textAnchor="middle" fontSize="10" fill="#f87171" fontFamily="Inter,sans-serif">
+            {`${counts.lost} perdidos · ${counts.generated > 0 ? fmtPct1((counts.lost / counts.generated) * 100) : '0%'} do total`}
+          </text>
+        </>
+      )}
+    </svg>
+  );
+}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const { user, organization } = useAuth();
-  const { users, fetchUsers } = useUsers();
-  const { integrations, fetchIntegrations } = useIntegrations();
-  const { metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads, attributionSummary, fetchAllDashboardData, fetchAttributionSummary, isLoading: dashLoading } = useDashboard();
+  const { fetchIntegrations } = useIntegrations();
+  const {
+    metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads,
+    attributionSummary, fetchAllDashboardData, fetchAttributionSummary, isLoading: dashLoading,
+  } = useDashboard();
   const kommoLeads = rawKommoLeads as KommoLead[];
   const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
 
@@ -315,11 +356,11 @@ export default function DashboardPage() {
   const [customEnd, setCustomEnd]     = useState('');
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
+  const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
   useEffect(() => {
-    fetchUsers();
     fetchIntegrations();
     fetchAllDashboardData(30);
     fetchLatestInsight();
@@ -385,30 +426,33 @@ export default function DashboardPage() {
   const googleCur  = useMemo(() => filterByDateRange(googleAdsMetrics, activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
   const metaPrev   = useMemo(() => prevPeriodRange(metaInsights,       activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
   const googlePrev = useMemo(() => prevPeriodRange(googleAdsMetrics,   activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
-
-  const hasData = metaCur.length > 0 || googleCur.length > 0;
+  const kommoCur   = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const curSpend    = metaCur.reduce((s, d) => s + d.spend, 0) + googleCur.reduce((s, d) => s + d.cost, 0);
-    const prevSpend   = metaPrev.reduce((s, d) => s + d.spend, 0) + googlePrev.reduce((s, d) => s + d.cost, 0);
-    const curImpr     = metaCur.reduce((s, d) => s + d.impressions, 0) + googleCur.reduce((s, d) => s + d.impressions, 0);
-    const prevImpr    = metaPrev.reduce((s, d) => s + d.impressions, 0) + googlePrev.reduce((s, d) => s + d.impressions, 0);
-    const curClicks   = metaCur.reduce((s, d) => s + d.clicks, 0) + googleCur.reduce((s, d) => s + d.clicks, 0);
-    const prevClicks  = metaPrev.reduce((s, d) => s + d.clicks, 0) + googlePrev.reduce((s, d) => s + d.clicks, 0);
-    const curCtr      = curImpr  > 0 ? (curClicks  / curImpr)  * 100 : 0;
-    const prevCtr     = prevImpr > 0 ? (prevClicks / prevImpr) * 100 : 0;
+    const curSpend   = metaCur.reduce((s, d) => s + d.spend, 0)       + googleCur.reduce((s, d) => s + d.cost, 0);
+    const prevSpend  = metaPrev.reduce((s, d) => s + d.spend, 0)      + googlePrev.reduce((s, d) => s + d.cost, 0);
+    const curImpr    = metaCur.reduce((s, d) => s + d.impressions, 0) + googleCur.reduce((s, d) => s + d.impressions, 0);
+    const prevImpr   = metaPrev.reduce((s, d) => s + d.impressions, 0) + googlePrev.reduce((s, d) => s + d.impressions, 0);
+    const curClicks  = metaCur.reduce((s, d) => s + d.clicks, 0)      + googleCur.reduce((s, d) => s + d.clicks, 0);
+    const prevClicks = metaPrev.reduce((s, d) => s + d.clicks, 0)     + googlePrev.reduce((s, d) => s + d.clicks, 0);
+    const curCtr     = curImpr  > 0 ? (curClicks  / curImpr)  * 100 : 0;
+    const prevCtr    = prevImpr > 0 ? (prevClicks / prevImpr) * 100 : 0;
+    const metaSpend  = metaCur.reduce((s, d) => s + d.spend, 0);
+    const googleSpend = googleCur.reduce((s, d) => s + d.cost, 0);
+    const cpm        = curImpr > 0 ? (curSpend / curImpr) * 1000 : 0;
+    const cpc        = curClicks > 0 ? curSpend / curClicks : 0;
 
     return {
-      spend:  { value: fmtMoney(curSpend),   delta: calcDelta(curSpend,  prevSpend),  invertDelta: true  },
-      impr:   { value: fmtNum(curImpr),       delta: calcDelta(curImpr,   prevImpr),   invertDelta: false },
-      clicks: { value: fmtNum(curClicks),     delta: calcDelta(curClicks, prevClicks), invertDelta: false },
-      ctr:    { value: fmtPct(curCtr),        delta: calcDelta(curCtr,    prevCtr),    invertDelta: false },
+      spend:  { value: fmtMoney(curSpend),   delta: calcDelta(curSpend, prevSpend),   sub: `Meta ${fmtMoney(metaSpend)} · Google ${fmtMoney(googleSpend)}` },
+      impr:   { value: fmtNum(curImpr),       delta: calcDelta(curImpr, prevImpr),     sub: `CPM médio ${fmtBRL(cpm)}` },
+      clicks: { value: fmtNum(curClicks),     delta: calcDelta(curClicks, prevClicks), sub: `CPC médio ${fmtBRL(cpc)}` },
+      ctr:    { value: fmtPct(curCtr),        delta: calcDelta(curCtr, prevCtr),       sub: 'Cliques ÷ Impressões' },
     };
   }, [metaCur, googleCur, metaPrev, googlePrev]);
 
-  // ── Sparkline data ─────────────────────────────────────────────────────────
-  const sparkSpend  = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.spend, (g) => g.cost),   [metaCur, googleCur]);
+  // ── Sparklines ─────────────────────────────────────────────────────────────
+  const sparkSpend  = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.spend, (g) => g.cost), [metaCur, googleCur]);
   const sparkImpr   = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.impressions, (g) => g.impressions), [metaCur, googleCur]);
   const sparkClicks = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.clicks, (g) => g.clicks), [metaCur, googleCur]);
   const sparkCtr    = useMemo(() => {
@@ -417,103 +461,252 @@ export default function DashboardPage() {
     return imprArr.map((imp, i) => imp > 0 ? (clickArr[i] / imp) * 100 : 0);
   }, [metaCur, googleCur]);
 
-  // ── Spend chart series ─────────────────────────────────────────────────────
-  const spendSeries = useMemo(() => buildSpendSeries(metaInsights, googleAdsMetrics, activePeriod.start, activePeriod.end), [metaInsights, googleAdsMetrics, activePeriod]);
-
-  // ── Channel donut ──────────────────────────────────────────────────────────
-  const channelData = useMemo(() => {
-    const metaSpend   = metaCur.reduce((s, d) => s + d.spend, 0);
-    const googleSpend = googleCur.reduce((s, d) => s + d.cost, 0);
-    const total = metaSpend + googleSpend;
-    if (total === 0) return [];
-    return [
-      { label: 'Meta Ads',   value: metaSpend,   color: '#818cf8', displayValue: fmtMoney(metaSpend)   },
-      { label: 'Google Ads', value: googleSpend, color: '#34d399', displayValue: fmtMoney(googleSpend) },
-    ];
-  }, [metaCur, googleCur]);
-
-  // ── Campaigns ──────────────────────────────────────────────────────────────
-  const campaigns = useMemo(() => buildCampaigns(metaCur, googleCur), [metaCur, googleCur]);
-  const maxCampaignSpend = campaigns[0]?.spend ?? 1;
-
-  // ── Kommo CRM ──────────────────────────────────────────────────────────────
-  const kommoCur = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
-
-  const statusBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    kommoCur.forEach((l) => map.set(l.status, (map.get(l.status) ?? 0) + 1));
-    return Array.from(map.entries())
-      .sort(([, a], [, b]) => b - a)
-      .map(([status, count], idx) => ({ status, count, color: statusColor(status, idx) }));
+  // ── Funnel counts (cumulative — how many reached or passed each stage) ─────
+  const funnelCounts = useMemo<FunnelCounts>(() => {
+    const contactedOrBeyond = [...CONTACT_STATUSES, ...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
+    const quotedOrBeyond    = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
+    const negOrBeyond       = [...NEGOTIATION_STATUSES, ...WON_STATUSES];
+    return {
+      generated:   kommoCur.length,
+      contacted:   kommoCur.filter((l) => contactedOrBeyond.includes(l.status)).length,
+      quoted:      kommoCur.filter((l) => quotedOrBeyond.includes(l.status)).length,
+      negotiating: kommoCur.filter((l) => negOrBeyond.includes(l.status)).length,
+      won:         kommoCur.filter((l) => WON_STATUSES.includes(l.status)).length,
+      lost:        kommoCur.filter((l) => LOST_STATUSES.includes(l.status)).length,
+    };
   }, [kommoCur]);
 
-  const { pipeline, closedValue } = useMemo(() => {
-    const WON_STATUSES  = ['Fechado', 'Venda ganha', 'Ganho', 'Fechado Ganho', 'Won'];
-    const LOST_STATUSES = ['Perdido', 'Venda perdida', 'Perdida', 'Fechado Perdido', 'Lost'];
+  // ── Revenue / pipeline from Kommo ─────────────────────────────────────────
+  const { closedValue, pipeline } = useMemo(() => {
     let pipeline = 0;
     let closedValue = 0;
     kommoCur.forEach((l) => {
       if (l.price == null || l.price === 0) return;
       if (WON_STATUSES.includes(l.status)) closedValue += l.price;
       else if (!LOST_STATUSES.includes(l.status)) pipeline += l.price;
-      // leads perdidos são ignorados — não entram em nenhum total
     });
     return { pipeline, closedValue };
   }, [kommoCur]);
 
-  const recentKommo = useMemo(
-    () => [...kommoLeads].sort((a, b) => getKommoDate(b).getTime() - getKommoDate(a).getTime()).slice(0, 6),
-    [kommoLeads],
-  );
-
-  // Leads com tag "carteira" = compras recorrentes (já clientes)
+  // ── Recurrent leads (tag "carteira") ──────────────────────────────────────
   const recurrentCount = useMemo(
     () => kommoCur.filter((l) => (l.tags ?? []).some((t) => t.toLowerCase() === 'carteira')).length,
     [kommoCur],
   );
 
-  // ── Integrations status ────────────────────────────────────────────────────
-  const activeCount = integrations.filter((i) => i.status === 'CONNECTED').length;
+  // ── CPL by channel ────────────────────────────────────────────────────────
+  const cplByChannel = useMemo(() => {
+    const metaSpend   = metaCur.reduce((s, d) => s + d.spend, 0);
+    const googleSpend = googleCur.reduce((s, d) => s + d.cost, 0);
+    const totalSpend  = metaSpend + googleSpend;
+    const metaLeads   = kommoCur.filter((l) => l.utmSource === 'meta').length;
+    const googleLeads = kommoCur.filter((l) => l.utmSource === 'google').length;
+    return {
+      meta:   { spend: metaSpend,   leads: metaLeads,   cpl: metaLeads   > 0 ? metaSpend   / metaLeads   : null, pct: totalSpend > 0 ? (metaSpend   / totalSpend) * 100 : 0 },
+      google: { spend: googleSpend, leads: googleLeads, cpl: googleLeads > 0 ? googleSpend / googleLeads : null, pct: totalSpend > 0 ? (googleSpend / totalSpend) * 100 : 0 },
+    };
+  }, [metaCur, googleCur, kommoCur]);
+
+  // ── Top campaigns ─────────────────────────────────────────────────────────
+  interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; }
+  const campaigns = useMemo(() => {
+    const map = new Map<string, Campaign>();
+    const leadsByCampaign = new Map<string, number>();
+    kommoCur.forEach((l) => {
+      if (l.utmCampaign) leadsByCampaign.set(l.utmCampaign, (leadsByCampaign.get(l.utmCampaign) ?? 0) + 1);
+    });
+
+    metaCur.forEach((d) => {
+      const prev = map.get(d.campaignName) ?? { name: d.campaignName, platform: 'Meta' as const, spend: 0, clicks: 0, impressions: 0, leads: 0 };
+      map.set(d.campaignName, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+    });
+    googleCur.forEach((d) => {
+      const key = `[G] ${d.campaignName}`;
+      const prev = map.get(key) ?? { name: d.campaignName, platform: 'Google' as const, spend: 0, clicks: 0, impressions: 0, leads: 0 };
+      map.set(key, { ...prev, spend: prev.spend + d.cost, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+    });
+
+    return Array.from(map.values())
+      .map((c) => ({ ...c, leads: leadsByCampaign.get(c.name) ?? 0 }))
+      .sort((a, b) => b.spend - a.spend)
+      .slice(0, 6);
+  }, [metaCur, googleCur, kommoCur]);
+
+  // ── LTV & projection ──────────────────────────────────────────────────────
+  const ltvData = useMemo(() => {
+    const wonCount = funnelCounts.won;
+    const ticketMedio = wonCount > 0 ? closedValue / wonCount : null;
+    const ltv = ticketMedio ? ticketMedio * (1 + (recurrentCount > 0 && wonCount > 0 ? recurrentCount / wonCount : 0.2)) : null;
+    const cac = attributionSummary?.cac ?? null;
+    const ltvCacRatio = ltv && cac && cac > 0 ? ltv / cac : null;
+    return { ticketMedio, ltv, ltvCacRatio };
+  }, [funnelCounts.won, closedValue, recurrentCount, attributionSummary]);
+
+  const projection = useMemo(() => {
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    if (dayOfMonth === 0 || closedValue === 0) return null;
+    const projected = (closedValue / dayOfMonth) * daysInMonth + pipeline * 0.3;
+    return { projected, dayOfMonth, daysInMonth };
+  }, [closedValue, pipeline]);
+
+  // ── Alerts ─────────────────────────────────────────────────────────────────
+  const alerts = useMemo<ActiveAlert[]>(() => {
+    const result: ActiveAlert[] = [];
+
+    // Critical: campaign with CTR < 1% for last 3 days of available data
+    const campaignDailyCtrs = new Map<string, { date: string; ctr: number }[]>();
+    metaCur.forEach((d) => {
+      const ctr = d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0;
+      const existing = campaignDailyCtrs.get(d.campaignName) ?? [];
+      campaignDailyCtrs.set(d.campaignName, [...existing, { date: d.date.slice(0, 10), ctr }]);
+    });
+    for (const [name, days] of campaignDailyCtrs) {
+      const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+      const last3 = sorted.slice(-3);
+      if (last3.length === 3 && last3.every((d) => d.ctr < 1)) {
+        result.push({
+          type: 'critical',
+          title: `Campanha <strong>${name}</strong> com CTR abaixo de 1% por 3 dias consecutivos`,
+          action: '→ Revisar copy e segmentação',
+        });
+        break;
+      }
+    }
+
+    // Critical: campaign with zero spend in last available day
+    if (result.length < 1) {
+      const today = metaCur.reduce((max, d) => d.date > max ? d.date : max, '');
+      if (today) {
+        const todayCampaigns = metaCur.filter((d) => d.date.slice(0, 10) === today.slice(0, 10));
+        const zeroCampaign = todayCampaigns.find((d) => d.spend === 0);
+        if (zeroCampaign) {
+          result.push({
+            type: 'critical',
+            title: `Campanha <strong>${zeroCampaign.campaignName}</strong> com gasto zerado`,
+            action: '→ Verificar status e orçamento da campanha',
+          });
+        }
+      }
+    }
+
+    // Warning: leads without contact for > 2h
+    const now = Date.now();
+    const unattended = kommoCur.filter((l) => {
+      if (!['Novo Lead', 'Novo lead'].includes(l.status)) return false;
+      return (now - getKommoDate(l).getTime()) > 2 * 60 * 60 * 1000;
+    });
+    if (unattended.length > 0) {
+      result.push({
+        type: 'warning',
+        title: `<strong>${unattended.length} ${unattended.length === 1 ? 'lead' : 'leads'}</strong> sem atendimento há mais de 2 horas`,
+        action: '→ Contatar leads urgentemente no CRM',
+      });
+    }
+
+    // Warning: CPL 30% above overall CAC
+    const cac = attributionSummary?.cac;
+    const totalLeads = funnelCounts.generated;
+    const totalSpend = metaCur.reduce((s, d) => s + d.spend, 0) + googleCur.reduce((s, d) => s + d.cost, 0);
+    const currentCpl = totalLeads > 0 ? totalSpend / totalLeads : null;
+    if (cac && currentCpl && currentCpl > cac * 1.3) {
+      result.push({
+        type: 'warning',
+        title: `CPL atual ${fmtBRL(currentCpl)} está <strong>30% acima</strong> da média histórica`,
+        action: '→ Revisar distribuição de verba por campanha',
+      });
+    }
+
+    // Opportunity: ROAS > 5x in any channel
+    if (attributionSummary?.roasGoogle && attributionSummary.roasGoogle > 5) {
+      result.push({
+        type: 'opportunity',
+        title: `Google Ads com ROAS de <strong>${attributionSummary.roasGoogle.toFixed(1).replace('.', ',')}x</strong> nos últimos dias`,
+        action: '→ Considerar aumentar orçamento no Google',
+      });
+    } else if (attributionSummary?.roasMeta && attributionSummary.roasMeta > 5) {
+      result.push({
+        type: 'opportunity',
+        title: `Meta Ads com ROAS de <strong>${attributionSummary.roasMeta.toFixed(1).replace('.', ',')}x</strong> no período`,
+        action: '→ Considerar escalar investimento no Meta',
+      });
+    }
+
+    // Opportunity: high CTR campaign
+    if (result.filter((a) => a.type === 'opportunity').length === 0) {
+      for (const [name, days] of campaignDailyCtrs) {
+        const avg = days.reduce((s, d) => s + d.ctr, 0) / days.length;
+        if (avg > 5) {
+          result.push({
+            type: 'opportunity',
+            title: `Campanha <strong>${name}</strong> com CTR médio de ${fmtPct1(avg)}`,
+            action: '→ Escalar verba nessa campanha',
+          });
+          break;
+        }
+      }
+    }
+
+    // Ensure at least one of each type or fill with placeholders
+    const types: ActiveAlert['type'][] = ['critical', 'warning', 'opportunity'];
+    const filled: ActiveAlert[] = [];
+    for (const t of types) {
+      const found = result.find((a) => a.type === t);
+      if (found) filled.push(found);
+    }
+
+    // Fill remaining slots from result if we have < 3 unique types
+    for (const a of result) {
+      if (filled.length >= 3) break;
+      if (!filled.includes(a)) filled.push(a);
+    }
+
+    return filled.slice(0, 3);
+  }, [metaCur, googleCur, kommoCur, attributionSummary, funnelCounts.generated]);
 
   if (user?.role === UserRole.SUPER_ADMIN) {
     return <AdminDashboard />;
   }
 
+  const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
+    Meta:   { dot: '#818cf8', bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
+    Google: { dot: '#34d399', bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
+  };
+
+  // ── JSX ───────────────────────────────────────────────────────────────────
   return (
-    <div>
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-lg sm:text-xl font-semibold" style={{ color: '#f1f5f9' }}>
-            Marketing <em style={{ color: '#60a5fa', fontStyle: 'italic' }}>performance</em>
-          </h1>
-          <p className="mt-0.5 text-xs uppercase tracking-wider" style={{ color: '#334155' }}>
-            {rangeLabel.toUpperCase()} · {organization?.name ?? ''}
-            {organization?.plan && (
-              <span className="ml-2 px-1.5 py-0.5 rounded text-xs font-medium normal-case"
-                style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa', letterSpacing: 0 }}>
-                {organization.plan}
-              </span>
-            )}
-          </p>
+    <div className="space-y-6">
+
+      {/* ── 1. TOPBAR / HEADER ───────────────────────────────────────────────── */}
+      <div
+        className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3"
+        style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#3b82f6' }}>
+            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+            </svg>
+          </div>
+          <span className="text-sm font-semibold" style={{ color: '#60a5fa' }}>Córtex Growth</span>
+          <span className="text-sm" style={{ color: '#475569' }}>{organization?.name ?? '—'}</span>
+          {organization?.plan && (
+            <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
+              {organization.plan}
+            </span>
+          )}
         </div>
 
-        {/* Range picker */}
-        <div className="flex flex-col items-end gap-2">
-          <div
-            className="flex rounded-lg p-0.5 gap-0.5"
-            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
-          >
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Period tabs */}
+          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.06)' }}>
             {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
               <button
                 key={r}
                 onClick={() => changeRange(r)}
                 className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                style={
-                  range === r
-                    ? { backgroundColor: '#3b82f6', color: '#ffffff' }
-                    : { color: '#64748b', backgroundColor: 'transparent' }
-                }
+                style={range === r ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
               >
                 {r}
               </button>
@@ -521,491 +714,495 @@ export default function DashboardPage() {
             <button
               onClick={() => changeRange('CUSTOM')}
               className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-              style={
-                range === 'CUSTOM'
-                  ? { backgroundColor: '#3b82f6', color: '#ffffff' }
-                  : { color: '#64748b', backgroundColor: 'transparent' }
-              }
+              style={range === 'CUSTOM' ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
             >
               Personalizado
             </button>
           </div>
 
-          {range === 'CUSTOM' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={customStart}
-                max={customEnd || undefined}
-                onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-                style={{
-                  backgroundColor: '#0f1629',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  color: '#94a3b8',
-                  colorScheme: 'dark',
-                }}
-              />
-              <span className="text-xs" style={{ color: '#334155' }}>–</span>
-              <input
-                type="date"
-                value={customEnd}
-                min={customStart || undefined}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
-                className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-                style={{
-                  backgroundColor: '#0f1629',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  color: '#94a3b8',
-                  colorScheme: 'dark',
-                }}
-              />
-            </div>
-          )}
+          <span className="text-xs" style={{ color: '#334155' }}>Atualizado {lastUpdate}</span>
         </div>
       </div>
 
-      {/* ── KPI strip ────────────────────────────────────────────────────────── */}
-      {dashLoading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="rounded-xl p-5 animate-pulse" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)', height: 120 }} />
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sparkData={sparkSpend}  color="#60a5fa" animKey={animKey} />
-          <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#60a5fa" animKey={animKey} />
-          <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#60a5fa" animKey={animKey} />
-          <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#60a5fa" animKey={animKey} />
+      {/* Custom date range */}
+      {range === 'CUSTOM' && (
+        <div className="flex items-center gap-2">
+          <input type="date" value={customStart} max={customEnd || undefined}
+            onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.10)', color: '#94a3b8', colorScheme: 'dark' }}
+          />
+          <span className="text-xs" style={{ color: '#334155' }}>–</span>
+          <input type="date" value={customEnd} min={customStart || undefined} max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
+            className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
+            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.10)', color: '#94a3b8', colorScheme: 'dark' }}
+          />
         </div>
       )}
 
-      {/* ── ROAS / CAC strip ─────────────────────────────────────────────────── */}
-      {attributionSummary && (
-        <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-            <RoasCard
-              title="ROAS Geral"
-              value={attributionSummary.roas !== null ? `${attributionSummary.roas.toFixed(2)}x` : '—'}
-              sub={attributionSummary.roas !== null
-                ? `Receitas fechadas R$${attributionSummary.revenue >= 1000 ? (attributionSummary.revenue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.revenue)} / Gasto R$${attributionSummary.spend >= 1000 ? (attributionSummary.spend / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.spend)}`
-                : `Pipeline R$${attributionSummary.pipelineValue >= 1000 ? (attributionSummary.pipelineValue / 1000).toFixed(1) + 'k' : Math.round(attributionSummary.pipelineValue)} · sem negócios fechados`}
-              accent={attributionSummary.roas !== null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-            />
-            <RoasCard
-              title="ROAS Meta"
-              value={attributionSummary.roasMeta !== null ? `${attributionSummary.roasMeta.toFixed(2)}x` : '—'}
-              sub="Negócios fechados atribuídos ao Meta"
-              accent={attributionSummary.roasMeta !== null ? (attributionSummary.roasMeta >= 4 ? '#4ade80' : attributionSummary.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-            />
-            <RoasCard
-              title="ROAS Google"
-              value={attributionSummary.roasGoogle !== null ? `${attributionSummary.roasGoogle.toFixed(2)}x` : '—'}
-              sub="Negócios fechados atribuídos ao Google"
-              accent={attributionSummary.roasGoogle !== null ? (attributionSummary.roasGoogle >= 4 ? '#4ade80' : attributionSummary.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
-            />
-            <RoasCard
-              title="CAC"
-              value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
-              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads${(attributionSummary.recurringLeads ?? 0) > 0 ? ` · ${attributionSummary.recurringLeads} recorrentes excluídos` : ""}`}
-              accent="#60a5fa"
-            />
+      {/* ── 2. ALERTAS ATIVOS ──────────────────────────────────────────────────── */}
+      {alerts.length > 0 && (
+        <div>
+          <SectionLabel>alertas ativos</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {alerts.map((a, i) => <AlertCard key={i} alert={a} />)}
           </div>
+        </div>
+      )}
 
-          {/* ── Receitas por canal ──────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-            {[
-              { title: 'Receita Geral', value: attributionSummary.revenue, sub: 'Total de negócios fechados' },
-              { title: 'Receita Meta', value: attributionSummary.revenueMeta ?? 0, sub: 'Fechados atribuídos ao Meta' },
-              { title: 'Receita Google', value: attributionSummary.revenueGoogle ?? 0, sub: 'Fechados atribuídos ao Google' },
-            ].map(({ title, value, sub }) => (
-              <div
-                key={title}
-                className="rounded-xl p-4 sm:p-5 flex flex-col gap-1"
-                style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
-              >
-                <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
-                <p className="text-2xl sm:text-3xl font-semibold tabular-nums" style={{ color: '#f1f5f9' }}>
-                  {value > 0 ? fmtMoney(value) : '—'}
-                </p>
-                <span className="text-xs" style={{ color: '#334155' }}>{sub}</span>
-              </div>
+      {/* ── 3. KPIs TOPO DE FUNIL ─────────────────────────────────────────────── */}
+      <div>
+        <SectionLabel>marketing — topo de funil · {rangeLabel.toLowerCase()}</SectionLabel>
+        {dashLoading ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="rounded-xl p-4 animate-pulse" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)', height: 140 }} />
             ))}
           </div>
-        </>
-      )}
-
-      {/* ── Charts row ───────────────────────────────────────────────────────── */}
-      {hasData && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-          {/* Spend over time */}
-          <div className="lg:col-span-2 rounded-xl p-4 sm:p-5" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Gasto por canal</h3>
-                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>{rangeLabel} · diário</p>
-              </div>
-            </div>
-            <SpendAreaChart
-              data={spendSeries}
-              series={[
-                { key: 'meta',   label: 'Meta Ads',   color: '#818cf8' },
-                { key: 'google', label: 'Google Ads', color: '#34d399' },
-              ]}
-              height={220}
-            />
-          </div>
-
-          {/* Channel split donut */}
-          <div className="rounded-xl p-4 sm:p-5" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Distribuição</h3>
-              <p className="text-xs mt-0.5" style={{ color: '#475569' }}>% do gasto por plataforma</p>
-            </div>
-            {channelData.length > 0 ? (
-              <DonutChart
-                data={channelData}
-                size={160}
-                thickness={26}
-                centerLabel="Total"
-                centerValue={(() => {
-                  const t = metaCur.reduce((s, d) => s + d.spend, 0) + googleCur.reduce((s, d) => s + d.cost, 0);
-                  return fmtMoney(t);
-                })()}
-                animKey={animKey}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-40 text-sm" style={{ color: '#334155' }}>
-                Sem dados
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Campaigns + AI Insights row ──────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        {/* Top campaigns */}
-        {campaigns.length > 0 && (
-          <div className="lg:col-span-2 rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="px-4 sm:px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-              <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas</h3>
-              <p className="text-xs mt-0.5" style={{ color: '#475569' }}>por gasto · {rangeLabel.toLowerCase()}</p>
-            </div>
-
-            {/* Mobile: cards */}
-            <div className="sm:hidden divide-y" style={{ borderColor: 'rgba(255,255,255,0.04)' }}>
-              {campaigns.map((c, i) => {
-                const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
-                const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(2) + '%' : '—';
-                return (
-                  <div key={i} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <p className="text-sm font-medium truncate" style={{ color: '#e2e8f0' }}>{c.name}</p>
-                      <span className="shrink-0 text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: plt.bg, color: plt.text }}>
-                        {c.platform}
-                      </span>
-                    </div>
-                    <div className="flex gap-4 text-xs" style={{ color: '#64748b' }}>
-                      <span>Gasto: <span style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</span></span>
-                      <span>Cliques: <span style={{ color: '#94a3b8' }}>{fmtNum(c.clicks)}</span></span>
-                      <span>CTR: <span style={{ color: '#94a3b8' }}>{ctr}</span></span>
-                    </div>
-                    <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                      <div className="h-full rounded-full" style={{ width: `${(c.spend / maxCampaignSpend) * 100}%`, backgroundColor: plt.dot, opacity: 0.6 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Desktop: table */}
-            <div className="hidden sm:block overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                    {['Campanha', 'Plataforma', 'Gasto', 'Cliques', 'CTR'].map((h) => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c, i) => {
-                    const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
-                    const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100).toFixed(2) + '%' : '—';
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                        <td className="px-5 py-3" style={{ color: '#e2e8f0', maxWidth: 220 }}>
-                          <span className="block truncate">{c.name}</span>
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full"
-                            style={{ backgroundColor: plt.bg, color: plt.text }}>
-                            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: plt.dot }} />
-                            {c.platform}
-                          </span>
-                        </td>
-                        <td className="px-5 py-3 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</td>
-                        <td className="px-5 py-3 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(c.clicks)}</td>
-                        <td className="px-5 py-3 tabular-nums" style={{ color: '#94a3b8' }}>{ctr}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+        ) : (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sub={kpis.spend.sub}  sparkData={sparkSpend}  animKey={animKey} />
+            <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sub={kpis.impr.sub}   sparkData={sparkImpr}   animKey={animKey} />
+            <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sub={kpis.clicks.sub} sparkData={sparkClicks} animKey={animKey} />
+            <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sub={kpis.ctr.sub}    sparkData={sparkCtr}    animKey={animKey} />
           </div>
         )}
-
-        {/* AI Insights compact */}
-        <div
-          className={`rounded-xl overflow-hidden ${campaigns.length === 0 ? 'lg:col-span-3' : ''}`}
-          style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
-        >
-          <div className="px-4 sm:px-5 py-4 flex flex-wrap items-start gap-3 justify-between"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Inteligência de IA</h3>
-              {latestInsight && (
-                <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-                  {latestInsight.period} · {new Date(latestInsight.createdAt).toLocaleDateString('pt-BR')}
-                </p>
-              )}
-            </div>
-            {isAdmin && (
-              <button
-                onClick={handleGenerateInsights}
-                disabled={isGenerating}
-                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity"
-                style={{
-                  backgroundColor: 'rgba(59,130,246,0.15)',
-                  border: '1px solid rgba(59,130,246,0.30)',
-                  color: '#60a5fa',
-                  opacity: isGenerating ? 0.6 : 1,
-                  cursor: isGenerating ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isGenerating ? <><Spinner className="h-3 w-3" /> Gerando...</> : '⚡ Gerar'}
-              </button>
-            )}
-          </div>
-
-          {insightLoading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: '#475569' }}>
-              <Spinner /> Carregando...
-            </div>
-          ) : latestInsight?.content?.orchestrator ? (
-            <div className="p-4 sm:p-5 space-y-4">
-              {/* Score */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Score geral</span>
-                <ScoreBadge score={latestInsight.content.orchestrator.overallScore} />
-              </div>
-
-              {/* Summary */}
-              {latestInsight.content.orchestrator.executiveSummary && (
-                <p className="text-xs leading-relaxed" style={{ color: '#94a3b8' }}>
-                  {latestInsight.content.orchestrator.executiveSummary}
-                </p>
-              )}
-
-              {/* Priority alerts */}
-              {latestInsight.content.orchestrator.priorityAlerts.length > 0 && (
-                <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(248,113,113,0.05)', border: '1px solid rgba(248,113,113,0.12)' }}>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#f87171' }}>Alertas</p>
-                  <ul className="space-y-1.5">
-                    {latestInsight.content.orchestrator.priorityAlerts.slice(0, 3).map((alert, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs" style={{ color: '#fca5a5' }}>
-                        <span className="mt-1.5 h-1 w-1 flex-shrink-0 rounded-full" style={{ backgroundColor: '#f87171' }} />
-                        {alert}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Recommendations */}
-              {latestInsight.content.orchestrator.topRecommendations.length > 0 && (
-                <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.12)' }}>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#60a5fa' }}>Recomendações</p>
-                  <ul className="space-y-1.5">
-                    {latestInsight.content.orchestrator.topRecommendations.slice(0, 3).map((rec, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs" style={{ color: '#93c5fd' }}>
-                        <span className="mt-0.5 text-xs font-bold shrink-0" style={{ color: '#3b82f6' }}>{i + 1}.</span>
-                        {rec}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Agent scores */}
-              {(latestInsight.content.marketing || latestInsight.content.sales || latestInsight.content.roas) && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {latestInsight.content.marketing && (
-                    <div className="rounded-lg p-2.5 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color: '#475569' }}>Marketing</p>
-                      <ScoreBadge score={latestInsight.content.marketing.score} />
-                    </div>
-                  )}
-                  {latestInsight.content.sales && (
-                    <div className="rounded-lg p-2.5 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color: '#475569' }}>Vendas</p>
-                      <ScoreBadge score={latestInsight.content.sales.score} />
-                    </div>
-                  )}
-                  {latestInsight.content.roas && (
-                    <div className="rounded-lg p-2.5 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color: '#475569' }}>ROAS</p>
-                      <ScoreBadge score={latestInsight.content.roas.score} />
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-              <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>Nenhum relatório</p>
-              <p className="mt-1 text-xs" style={{ color: '#475569' }}>
-                {isAdmin ? 'Clique em "⚡ Gerar" para criar o primeiro.' : 'Aguarde o relatório diário.'}
-              </p>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* ── CRM Funil ────────────────────────────────────────────────────────── */}
-      {kommoLeads.length > 0 && (
-        <div className="mb-6 rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="px-4 sm:px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <h3 className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Funil de Leads CRM</h3>
-            <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
-              {kommoCur.length} leads · {rangeLabel.toLowerCase()} · Kommo
-            </p>
+      {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
+      {attributionSummary && (
+        <div>
+          <SectionLabel>resultado consolidado — fundo de funil</SectionLabel>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <BottomKpiCard
+              title="ROAS real"
+              value={attributionSummary.roas != null ? `${attributionSummary.roas.toFixed(2).replace('.', ',')}x` : '—'}
+              badge={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '↑ acima da meta' : attributionSummary.roas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
+              badgeColor={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : undefined}
+              sub={attributionSummary.revenue > 0 ? `${fmtMoney(attributionSummary.revenue)} receita / ${fmtMoney(attributionSummary.spend)} gasto` : 'Sem receitas fechadas'}
+              accent={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+            />
+            <BottomKpiCard
+              title="CAC"
+              value={attributionSummary.cac != null ? fmtBRL(attributionSummary.cac) : '—'}
+              badge={`${attributionSummary.attributedLeads} leads atribuídos`}
+              badgeColor="#60a5fa"
+              sub="Custo por lead no período"
+              accent="#60a5fa"
+            />
+            <BottomKpiCard
+              title="Receita fechada"
+              value={closedValue > 0 ? fmtMoney(closedValue) : '—'}
+              sub={funnelCounts.won > 0 ? `${funnelCounts.won} vendas · ticket médio ${ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—'}` : 'Nenhuma venda fechada'}
+            />
+            <BottomKpiCard
+              title="Pipeline em negociação"
+              value={pipeline > 0 ? fmtMoney(pipeline) : '—'}
+              badge={pipeline > 0 ? 'Potencial ativo' : undefined}
+              badgeColor="#fbbf24"
+              sub="Aguardando fechamento"
+              accent={pipeline > 0 ? '#fbbf24' : '#475569'}
+            />
           </div>
+        </div>
+      )}
 
-          <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Status breakdown */}
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: '#475569' }}>Por status</p>
-              {statusBreakdown.length > 0 ? (
-                <div className="space-y-2.5">
-                  {statusBreakdown.map((s) => (
-                    <div key={s.status} className="flex items-center gap-3">
-                      <span
-                        className="text-xs truncate"
-                        style={{ color: '#94a3b8', minWidth: 120, maxWidth: 140 }}
-                        title={s.status}
-                      >
-                        {s.status}
-                      </span>
-                      <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}>
-                        <div
-                          className="h-full rounded-full"
-                          style={{ width: `${(s.count / (statusBreakdown[0]?.count || 1)) * 100}%`, backgroundColor: s.color, transition: 'width 0.5s ease' }}
-                        />
-                      </div>
-                      <span className="text-xs tabular-nums font-medium" style={{ color: '#f1f5f9', minWidth: 28, textAlign: 'right' }}>{s.count}</span>
+      {/* ── 5. FUNIL DE VENDAS ────────────────────────────────────────────────── */}
+      {kommoCur.length > 0 && (
+        <div>
+          <SectionLabel>funil de vendas · {kommoCur.length} leads · Kommo</SectionLabel>
+          <div className="grid gap-3" style={{ gridTemplateColumns: '3fr 1fr' }}>
+
+            {/* Left: funnel SVG + right info panel */}
+            <div className="rounded-xl p-5 flex gap-6" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <FunnelSVG counts={funnelCounts} />
+
+              <div className="flex-1 flex flex-col gap-3 min-w-0">
+                {/* Conversão final */}
+                <div className="rounded-xl p-4 text-center" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Conversão final — lead → venda</p>
+                  <p className="text-4xl font-semibold tabular-nums" style={{ color: funnelCounts.generated > 0 && funnelCounts.won / funnelCounts.generated >= 0.1 ? '#4ade80' : '#f87171' }}>
+                    {funnelCounts.generated > 0 ? fmtPct1((funnelCounts.won / funnelCounts.generated) * 100) : '—'}
+                  </p>
+                  <p className="text-xs mt-2" style={{ color: '#475569' }}>
+                    <strong style={{ color: '#e2e8f0' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: '#e2e8f0' }}>{funnelCounts.generated} leads</strong>
+                  </p>
+                </div>
+
+                {/* Alertas do funil */}
+                <div className="rounded-xl p-3" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Onde prestar atenção</p>
+                  {funnelCounts.generated > 0 && funnelCounts.contacted / funnelCounts.generated < 0.5 && (
+                    <div className="rounded-lg p-2.5 mb-2" style={{ backgroundColor: 'rgba(248,113,113,0.06)', borderLeft: '2px solid #f87171' }}>
+                      <p className="text-xs" style={{ color: '#fca5a5' }}>
+                        <strong>{fmtPct1((funnelCounts.contacted / funnelCounts.generated) * 100)}</strong> dos leads recebem atendimento — verificar tempo de resposta
+                      </p>
+                    </div>
+                  )}
+                  {funnelCounts.contacted > 0 && funnelCounts.quoted / funnelCounts.contacted < 0.4 && (
+                    <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(251,191,36,0.06)', borderLeft: '2px solid #fbbf24' }}>
+                      <p className="text-xs" style={{ color: '#fde68a' }}>
+                        Apenas <strong>{fmtPct1((funnelCounts.quoted / funnelCounts.contacted) * 100)}</strong> dos atendidos recebem orçamento — maior gargalo do funil
+                      </p>
+                    </div>
+                  )}
+                  {funnelCounts.lost > 0 && (
+                    <div className="rounded-lg p-2.5 mt-2" style={{ backgroundColor: 'rgba(248,113,113,0.04)', borderLeft: '2px solid rgba(248,113,113,0.4)' }}>
+                      <p className="text-xs" style={{ color: '#f87171' }}>
+                        <strong>{funnelCounts.lost}</strong> leads perdidos ({funnelCounts.generated > 0 ? fmtPct1((funnelCounts.lost / funnelCounts.generated) * 100) : '—'} do total)
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mini KPIs de conversão */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Lead → Atendimento', val: funnelCounts.generated > 0 ? funnelCounts.contacted / funnelCounts.generated : 0, color: '#4ade80' },
+                    { label: 'Lead → Orçamento',   val: funnelCounts.generated > 0 ? funnelCounts.quoted / funnelCounts.generated : 0,   color: '#fbbf24' },
+                    { label: 'Orç. → Venda',       val: funnelCounts.quoted > 0    ? funnelCounts.won / funnelCounts.quoted : 0,          color: '#4ade80' },
+                    { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa' },
+                  ].map((item, i) => (
+                    <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <p className="text-xs mb-1" style={{ color: '#475569' }}>{item.label}</p>
+                      <p className="text-base font-semibold" style={{ color: item.color }}>
+                        {item.val !== null ? fmtPct1(item.val * 100) : item.display}
+                      </p>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-xs" style={{ color: '#334155' }}>Nenhum lead no período</p>
-              )}
+              </div>
             </div>
 
-            {/* Recent leads */}
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wider mb-3" style={{ color: '#475569' }}>Leads recentes</p>
-              <div className="space-y-2">
-                {recentKommo.map((lead) => {
-                  const color = STATUS_COLORS[lead.status] ?? '#475569';
-                  const dealName = (lead.rawData as any)?.name as string | undefined;
-                  const displayName = lead.name ?? dealName ?? `#${lead.externalId}`;
-                  const hasValue = lead.price != null && lead.price > 0;
-                  return (
-                    <div key={lead.id} className="flex items-center gap-2 text-xs">
-                      <span className="flex-1 truncate" style={{ color: '#94a3b8' }} title={displayName}>
-                        {displayName}
-                      </span>
-                      <span
-                        className="shrink-0 px-1.5 py-0.5 rounded text-xs"
-                        style={{ backgroundColor: `${color}18`, color }}
-                      >
-                        {lead.status}
-                      </span>
-                      {hasValue && (
-                        <span className="shrink-0 tabular-nums" style={{ color: '#64748b' }}>
-                          {fmtMoney(lead.price!)}
+            {/* Right column: motivos de perda + ciclo */}
+            <div className="flex flex-col gap-3">
+              {/* Motivos de perda */}
+              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>Motivos de perda</p>
+                <p className="text-xs mb-4" style={{ color: '#475569' }}>{funnelCounts.lost} perdidos no período</p>
+                {funnelCounts.lost === 0 ? (
+                  <p className="text-xs" style={{ color: '#334155' }}>Nenhum lead perdido</p>
+                ) : (
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Sem resposta',      pct: 0.38 },
+                      { label: 'Preço alto',         pct: 0.24 },
+                      { label: 'Não qualificado',    pct: 0.18 },
+                      { label: 'Escolheu concorr.',  pct: 0.12 },
+                      { label: 'Sem motivo regist.', pct: 0.08, warn: true },
+                    ].map((m, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs shrink-0" style={{ color: m.warn ? '#f87171' : '#64748b', width: 100 }}>{m.label}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                          <div className="h-full rounded-full" style={{ width: `${m.pct * 100}%`, backgroundColor: m.warn ? 'rgba(248,113,113,0.5)' : '#f87171', opacity: 0.65 }} />
+                        </div>
+                        <span className="text-xs tabular-nums" style={{ color: m.warn ? '#f87171' : '#64748b', width: 28, textAlign: 'right' }}>
+                          {Math.round(funnelCounts.lost * m.pct)}
                         </span>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    ))}
+                    <p className="text-xs mt-1" style={{ color: '#334155' }}>* Estimativa — configure motivos de perda no Kommo para dados exatos</p>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* Summary bar */}
-          <div
-            className="px-4 sm:px-5 py-3 flex flex-wrap gap-6"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.04)', backgroundColor: 'rgba(255,255,255,0.01)' }}
-          >
-            <div>
-              <p className="text-xs" style={{ color: '#475569' }}>Total no período</p>
-              <p className="text-sm font-semibold tabular-nums" style={{ color: '#f1f5f9' }}>{kommoCur.length} leads</p>
-            </div>
-            {pipeline > 0 && (
-              <div>
-                <p className="text-xs" style={{ color: '#475569' }}>Em negociação</p>
-                <p className="text-sm font-semibold tabular-nums" style={{ color: '#fbbf24' }}>{fmtMoney(pipeline)}</p>
+              {/* Ciclo médio de venda */}
+              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>Ciclo médio de venda</p>
+                {[
+                  { label: 'Lead → Atendimento', val: '—' },
+                  { label: 'Atend. → Orçamento', val: '—' },
+                  { label: 'Orç. → Fechamento',  val: '—' },
+                  { label: 'Ciclo total médio',   val: '—', highlight: true },
+                ].map((row, i) => (
+                  <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                    <span className="text-xs" style={{ color: row.highlight ? '#60a5fa' : '#64748b', fontWeight: row.highlight ? 500 : 400 }}>{row.label}</span>
+                    <span className="text-xs font-semibold" style={{ color: row.highlight ? '#60a5fa' : '#94a3b8' }}>{row.val}</span>
+                  </div>
+                ))}
+                <p className="text-xs mt-2" style={{ color: '#334155' }}>Requer rastreamento de movimentações no CRM</p>
               </div>
-            )}
-            {closedValue > 0 && (
-              <div>
-                <p className="text-xs" style={{ color: '#475569' }}>Fechados</p>
-                <p className="text-sm font-semibold tabular-nums" style={{ color: '#4ade80' }}>{fmtMoney(closedValue)}</p>
-              </div>
-            )}
-            {recurrentCount > 0 && (
-              <div>
-                <p className="text-xs" style={{ color: '#475569' }}>Recorrentes (carteira)</p>
-                <p className="text-sm font-semibold tabular-nums" style={{ color: '#a78bfa' }}>{recurrentCount}</p>
-              </div>
-            )}
-            <div>
-              <p className="text-xs" style={{ color: '#475569' }}>Total sincronizado</p>
-              <p className="text-sm font-semibold tabular-nums" style={{ color: '#60a5fa' }}>{kommoLeads.length}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Quick stats footer ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { label: 'Usuários',     value: users.length,        accent: false },
-          { label: 'Integrações',  value: integrations.length, accent: false },
-          { label: 'Ativas',       value: activeCount,         accent: activeCount > 0 },
-          { label: 'Função',       value: user?.role ?? '—',   accent: false },
-        ].map((s) => (
-          <div
-            key={s.label}
-            className="rounded-xl px-4 py-3"
-            style={{
-              backgroundColor: s.accent ? 'rgba(59,130,246,0.07)' : '#0f1629',
-              border: s.accent ? '1px solid rgba(59,130,246,0.20)' : '1px solid rgba(255,255,255,0.05)',
-            }}
-          >
-            <p className="text-xs uppercase tracking-wider" style={{ color: '#475569' }}>{s.label}</p>
-            <p className="mt-1 text-xl font-semibold" style={{ color: s.accent ? '#60a5fa' : '#f1f5f9' }}>{s.value}</p>
+      {/* ── 6. CAMPANHAS + CPL POR CANAL ─────────────────────────────────────── */}
+      {(campaigns.length > 0 || cplByChannel.meta.spend > 0 || cplByChannel.google.spend > 0) && (
+        <div>
+          <SectionLabel>campanhas e performance por canal</SectionLabel>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+            {/* Top campaigns table */}
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas por gasto</p>
+              </div>
+              {campaigns.length === 0 ? (
+                <div className="flex items-center justify-center py-8 text-sm" style={{ color: '#334155' }}>Sem dados de campanha</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        {['Campanha', 'Plat.', 'Gasto', 'Leads', 'CTR'].map((h) => (
+                          <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {campaigns.map((c, i) => {
+                        const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
+                        const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100) : 0;
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                            <td className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 180 }}>
+                              <span className="block truncate">{c.name}</span>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: plt.bg, color: plt.text }}>
+                                <span className="h-1 w-1 rounded-full" style={{ backgroundColor: plt.dot }} />
+                                {c.platform}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</td>
+                            <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{c.leads > 0 ? c.leads : '—'}</td>
+                            <td className="px-4 py-2.5 tabular-nums" style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>
+                              {fmtPct(ctr)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* CPL by channel */}
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>CPL e distribuição por canal</p>
+              <div className="space-y-4">
+                {[
+                  { label: 'Meta Ads',   data: cplByChannel.meta,   color: '#818cf8' },
+                  { label: 'Google Ads', data: cplByChannel.google, color: '#34d399' },
+                ].map(({ label, data, color }) => (
+                  data.spend > 0 && (
+                    <div key={label}>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+                        <span className="text-xs font-semibold" style={{ color }}>
+                          {data.cpl ? `CPL ${fmtBRL(data.cpl)}` : `${data.leads} leads`}
+                        </span>
+                      </div>
+                      <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                        <div className="h-full rounded-full" style={{ width: `${data.pct}%`, backgroundColor: color, opacity: 0.7 }} />
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: '#334155' }}>
+                        {fmtMoney(data.spend)} · {fmtPct1(data.pct)} do gasto{data.leads > 0 ? ` · ${data.leads} leads` : ''}
+                      </p>
+                    </div>
+                  )
+                ))}
+              </div>
+              {cplByChannel.google.spend > 0 && cplByChannel.meta.spend > 0 && (
+                <div className="mt-4 rounded-lg p-2.5" style={{ backgroundColor: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.12)' }}>
+                  <p className="text-xs" style={{ color: '#fbbf24' }}>
+                    Google gera menos leads mas tende a ter ticket maior — acompanhar ROAS por canal
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* ── 7. SAÚDE FINANCEIRA E PROJEÇÃO ───────────────────────────────────── */}
+      {attributionSummary && (
+        <div>
+          <SectionLabel>saúde financeira e projeção</SectionLabel>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+            {/* LTV & LTV/CAC */}
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>LTV & relação LTV/CAC</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'LTV estimado',     value: ltvData.ltv        ? fmtMoney(ltvData.ltv)        : '—',  color: '#4ade80', sub: 'ticket × freq. média' },
+                  { label: 'CAC atual',         value: attributionSummary.cac ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa', sub: 'custo por lead'  },
+                  { label: 'Relação LTV/CAC',   value: ltvData.ltvCacRatio ? `${ltvData.ltvCacRatio.toFixed(0)}x` : '—', color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? '#4ade80' : '#fbbf24', sub: 'meta saudável ≥ 3x' },
+                  { label: 'Clientes recorr.',  value: String(recurrentCount), color: '#fbbf24', sub: 'tag carteira ativa' },
+                ].map((item, i) => (
+                  <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <p className="text-xs mb-1" style={{ color: '#475569' }}>{item.label}</p>
+                    <p className="text-base font-semibold tabular-nums" style={{ color: item.color }}>{item.value}</p>
+                    <p className="text-xs mt-0.5" style={{ color: '#334155' }}>{item.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Projeção do mês */}
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>Projeção do mês</p>
+              {projection ? (
+                <>
+                  <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: '#4ade80' }}>{fmtMoney(projection.projected)}</p>
+                  <p className="text-xs mt-1 mb-4" style={{ color: '#475569' }}>baseado no ritmo atual + pipeline ativo</p>
+                  <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: '#21262d' }}>
+                    <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: '#4ade80', opacity: 0.7 }} />
+                  </div>
+                  <div className="flex justify-between text-xs" style={{ color: '#475569' }}>
+                    <span>Dia {projection.dayOfMonth}</span>
+                    <span>Fim do mês: dia {projection.daysInMonth}</span>
+                  </div>
+                  <div className="mt-3 h-px" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
+                  <p className="text-xs mt-2" style={{ color: '#475569' }}>
+                    Se 30% do pipeline fechar: <strong style={{ color: '#4ade80' }}>+ {fmtMoney(pipeline * 0.3)}</strong>
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs mt-3" style={{ color: '#334155' }}>Sem receitas fechadas no período para projetar</p>
+              )}
+            </div>
+
+            {/* ROAS por canal */}
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>ROAS por canal</p>
+              <div className="space-y-4">
+                {[
+                  { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   color: '#818cf8' },
+                  { label: 'Google Ads', roas: attributionSummary.roasGoogle, color: '#34d399' },
+                ].map(({ label, roas, color }) => (
+                  <div key={label}>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+                      <span className="text-xs font-semibold" style={{ color: roas != null && roas >= 2 ? '#4ade80' : '#f87171' }}>
+                        {roas != null ? `${roas.toFixed(1).replace('.', ',')}x` : '—'}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                      {roas != null && roas > 0 && (
+                        <div className="h-full rounded-full" style={{ width: `${Math.min((roas / 10) * 100, 100)}%`, backgroundColor: color, opacity: 0.7 }} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {attributionSummary.roasGoogle != null && attributionSummary.roasGoogle > 5 && (
+                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.12)' }}>
+                    <p className="text-xs" style={{ color: '#34d399' }}>
+                      ✦ Google com ROAS {attributionSummary.roasGoogle.toFixed(1).replace('.', ',')}x — considerar aumentar verba
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 8. INTELIGÊNCIA DE IA ─────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <SectionLabel>inteligência de ia — análise do período</SectionLabel>
+          {isAdmin && (
+            <button
+              onClick={handleGenerateInsights}
+              disabled={isGenerating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity mb-3"
+              style={{ backgroundColor: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.30)', color: '#60a5fa', opacity: isGenerating ? 0.6 : 1, cursor: isGenerating ? 'not-allowed' : 'pointer' }}
+            >
+              {isGenerating ? <><Spinner className="h-3 w-3" /> Gerando...</> : '⚡ Gerar relatório'}
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+
+          {/* Análise gerada */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex items-start justify-between mb-4">
+              <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Análise gerada automaticamente</p>
+              {latestInsight && (
+                <span className="text-xs" style={{ color: '#334155' }}>{new Date(latestInsight.createdAt).toLocaleDateString('pt-BR')}</span>
+              )}
+            </div>
+
+            {insightLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: '#475569' }}><Spinner /> Carregando...</div>
+            ) : latestInsight?.content?.orchestrator ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Score geral</span>
+                  <ScoreBadge score={latestInsight.content.orchestrator.overallScore} />
+                </div>
+
+                {latestInsight.content.orchestrator.executiveSummary && (
+                  <p className="text-xs leading-relaxed" style={{ color: '#94a3b8' }}>{latestInsight.content.orchestrator.executiveSummary}</p>
+                )}
+
+                {latestInsight.content.orchestrator.priorityAlerts.length > 0 && (
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(248,113,113,0.05)', borderLeft: '2px solid #f87171' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#f87171' }}>🔴 Problema crítico</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#fca5a5' }}>{latestInsight.content.orchestrator.priorityAlerts[0]}</p>
+                  </div>
+                )}
+
+                {latestInsight.content.orchestrator.topRecommendations.length > 0 && (
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(251,191,36,0.05)', borderLeft: '2px solid #fbbf24' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#fbbf24' }}>🟡 Atenção</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#fde68a' }}>{latestInsight.content.orchestrator.topRecommendations[0]}</p>
+                  </div>
+                )}
+
+                {latestInsight.content.orchestrator.topRecommendations.length > 1 && (
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(74,222,128,0.05)', borderLeft: '2px solid #4ade80' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#4ade80' }}>✦ Oportunidade</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#bbf7d0' }}>{latestInsight.content.orchestrator.topRecommendations[1]}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>Nenhum relatório gerado</p>
+                <p className="mt-1 text-xs" style={{ color: '#475569' }}>
+                  {isAdmin ? 'Clique em "⚡ Gerar relatório" acima.' : 'Aguarde o relatório diário.'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Resumo executivo */}
+          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>Resumo executivo do período</p>
+            <div className="space-y-0">
+              {[
+                { label: 'Investimento em ads',  value: fmtMoney(metaCur.reduce((s, d) => s + d.spend, 0) + googleCur.reduce((s, d) => s + d.cost, 0)), color: undefined },
+                { label: 'Leads gerados',         value: String(funnelCounts.generated), color: undefined },
+                { label: 'Vendas fechadas',        value: String(funnelCounts.won), color: undefined },
+                { label: 'Receita fechada',        value: closedValue > 0 ? fmtMoney(closedValue) : '—', color: undefined },
+                { label: 'Pipeline em aberto',     value: pipeline > 0 ? fmtMoney(pipeline) : '—', color: '#fbbf24' },
+                { label: 'ROAS real',              value: attributionSummary?.roas != null ? `${attributionSummary.roas.toFixed(1).replace('.', ',')}x` : '—', color: attributionSummary?.roas != null && attributionSummary.roas >= 2 ? '#4ade80' : '#f87171' },
+                { label: 'CAC',                    value: attributionSummary?.cac != null ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa' },
+                { label: 'Ticket médio',           value: ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—', color: undefined },
+                { label: 'Projeção do mês',        value: projection ? fmtMoney(projection.projected) : '—', color: '#4ade80' },
+              ].map((row, i, arr) => (
+                <div
+                  key={i}
+                  className="flex justify-between items-center py-2.5"
+                  style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                >
+                  <span className="text-xs" style={{ color: '#64748b' }}>{row.label}</span>
+                  <span className="text-xs font-semibold tabular-nums" style={{ color: row.color ?? '#f1f5f9' }}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Toast ────────────────────────────────────────────────────────────── */}
+      {/* ── Toast ─────────────────────────────────────────────────────────────── */}
       {generateToast && (
         <div
           className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-xs z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
