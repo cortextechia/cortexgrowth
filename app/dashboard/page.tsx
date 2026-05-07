@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -609,7 +609,7 @@ export default function DashboardPage() {
             <RoasCard
               title="CAC"
               value={attributionSummary.cac !== null ? `R$${Math.round(attributionSummary.cac)}` : '—'}
-              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads · ${attributionSummary.recurringLeads ?? 0} recorrentes excluídos`}
+              sub={`${attributionSummary.attributedLeads} de ${attributionSummary.totalLeads} leads${(attributionSummary.recurringLeads ?? 0) > 0 ? ` · ${attributionSummary.recurringLeads} recorrentes excluídos` : ""}`}
               accent="#60a5fa"
             />
           </div>
