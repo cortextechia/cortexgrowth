@@ -580,9 +580,21 @@ export default function DashboardPage() {
     // do que vendas fechadas no período (clientes recorrentes que ainda não fecharam)
     const repeatRate = wonCount > 0 ? Math.min(recurrentCount / wonCount, 1.0) : 0.2;
     const ltv = ticketMedio ? ticketMedio * (1 + repeatRate) : null;
-    const cac = attributionSummary?.cac ?? null;
-    const ltvCacRatio = ltv && cac && cac > 0 ? ltv / cac : null;
-    return { ticketMedio, ltv, ltvCacRatio, wonTotal };
+
+    // CAC real = gasto em anúncios / clientes efetivamente adquiridos via Meta ou Google.
+    // Dividir LTV por CPL (gasto/leads) produziria um ratio sem sentido — um lead não é
+    // um cliente. O custo real por cliente inclui todos os leads que não converteram.
+    const wonFromPaid = kommoCur.filter(
+      (l) => WON_STATUSES.includes(l.status) &&
+             (l.utmSource === 'meta' || l.utmSource === 'google'),
+    );
+    const totalAdSpend = attributionSummary?.spend ?? 0;
+    const cacReal = wonFromPaid.length > 0 && totalAdSpend > 0
+      ? totalAdSpend / wonFromPaid.length
+      : null;
+
+    const ltvCacRatio = ltv && cacReal && cacReal > 0 ? ltv / cacReal : null;
+    return { ticketMedio, ltv, ltvCacRatio, wonTotal, cacReal, wonFromPaidCount: wonFromPaid.length };
   }, [kommoCur, closedValue, recurrentCount, attributionSummary]);
 
   const projection = useMemo(() => {
@@ -1143,17 +1155,17 @@ export default function DashboardPage() {
                     sub: `ticket × freq. (${ltvData.wonTotal} vendas no período)`,
                   },
                   {
-                    label: 'CAC atual',
-                    value: attributionSummary.cac ? fmtBRL(attributionSummary.cac) : '—',
+                    label: 'CAC real',
+                    value: ltvData.cacReal ? fmtBRL(ltvData.cacReal) : '—',
                     color: '#60a5fa',
-                    sub: `gasto ÷ leads (Meta${attributionSummary.spendGoogle > 0 ? ' + Google' : ''})`,
+                    sub: ltvData.wonFromPaidCount > 0
+                      ? `gasto ÷ ${ltvData.wonFromPaidCount} vendas pagas`
+                      : 'sem vendas via anúncio no período',
                   },
                   {
                     label: 'Relação LTV/CAC',
                     value: ltvData.ltvCacRatio
-                      ? ltvData.ltvCacRatio > 99
-                        ? `${ltvData.ltvCacRatio.toFixed(0)}x`
-                        : `${ltvData.ltvCacRatio.toFixed(1)}x`
+                      ? `${ltvData.ltvCacRatio.toFixed(1)}x`
                       : '—',
                     color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? '#4ade80' : '#fbbf24',
                     sub: 'meta saudável ≥ 3x',
