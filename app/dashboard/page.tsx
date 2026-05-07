@@ -575,10 +575,10 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sparkData={sparkSpend}  color="#94a3b8" animKey={animKey} />
-          <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#94a3b8" animKey={animKey} />
-          <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#94a3b8" animKey={animKey} />
-          <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#94a3b8" animKey={animKey} />
+          <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sparkData={sparkSpend}  color="#60a5fa" animKey={animKey} />
+          <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sparkData={sparkImpr}               color="#60a5fa" animKey={animKey} />
+          <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sparkData={sparkClicks}             color="#60a5fa" animKey={animKey} />
+          <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sparkData={sparkCtr}                color="#60a5fa" animKey={animKey} />
         </div>
       )}
 
