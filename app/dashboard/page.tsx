@@ -251,12 +251,14 @@ interface FunnelCounts {
 }
 
 function FunnelSVG({ counts }: { counts: FunnelCounts }) {
-  const W = 200;
+  // W aumentado para acomodar curvas e labels dentro do viewBox (antes extravasavam)
+  const W = 260;
   const H = 340;
   const cx = W / 2;
   const maxHalf = 88;
   const stageH = 50;
   const gap = 12;
+  const curveOff = 26;
 
   const stages = [
     { label: 'Leads gerados',    count: counts.generated,   color: '#1e3a5f', textColor: '#93c5fd' },
@@ -288,6 +290,14 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
         const hw1 = i < stages.length - 1 ? halfW(stages[i + 1].count) : hw0 * 0.55;
         const pts = `${cx - hw0},${yTop} ${cx + hw0},${yTop} ${cx + hw1},${yBot} ${cx - hw1},${yBot}`;
 
+        // Ponto médio exato da curva bezier (t=0.5):
+        // x = cx + (hw0+hw1)/2 + 0.75*curveOff  (derivado da fórmula cúbica)
+        // y = (yConnStart + yConnEnd) / 2
+        const yConnStart = yTop + stageH / 2;
+        const yConnEnd   = yBot + gap / 2;
+        const labelX     = cx + (hw0 + hw1) / 2 + curveOff * 0.75;
+        const labelY     = (yConnStart + yConnEnd) / 2;
+
         return (
           <g key={i}>
             <polygon points={pts} fill={s.color} />
@@ -301,12 +311,12 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
             {i < stages.length - 1 && (
               <>
                 <path
-                  d={`M ${cx + hw0} ${yTop + stageH / 2} C ${cx + hw0 + 22} ${yTop + stageH / 2}, ${cx + hw1 + 22} ${yBot + gap / 2}, ${cx + hw1} ${yBot + gap / 2}`}
+                  d={`M ${cx + hw0} ${yConnStart} C ${cx + hw0 + curveOff} ${yConnStart}, ${cx + hw1 + curveOff} ${yConnEnd}, ${cx + hw1} ${yConnEnd}`}
                   stroke="#30363d" strokeWidth="1" fill="none"
                 />
                 <text
-                  x={cx + hw0 + 14}
-                  y={yTop + stageH / 2 + (stageH + gap) / 2}
+                  x={labelX}
+                  y={labelY + 4}
                   textAnchor="middle"
                   fontSize="11"
                   fontWeight="600"
