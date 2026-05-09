@@ -197,6 +197,11 @@ class ApiService {
     return response.data;
   }
 
+  async backfillMetaForOrg(orgId: string, since: string, until: string): Promise<{ success: boolean; message: string; data?: { count: number; since: string; until: string } }> {
+    const response = await this.client.post(`/admin/backfill/meta/${orgId}`, null, { params: { since, until } });
+    return response.data;
+  }
+
   // ─── Usuários ────────────────────────────────────────────────────────────────
 
   async getUsers(): Promise<{ success: boolean; users: User[] }> {

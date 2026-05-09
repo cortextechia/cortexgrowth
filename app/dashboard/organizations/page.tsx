@@ -117,6 +117,11 @@ export default function OrganizationsPage() {
   // Meta sync
   const [syncingMetaId, setSyncingMetaId] = useState<string | null>(null);
 
+  // Backfill histórico Meta
+  const today = new Date().toISOString().slice(0, 10);
+  const [backfillModal, setBackfillModal] = useState<{ org: Organization; since: string; until: string } | null>(null);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+
   // Users modal
   const [usersModal, setUsersModal] = useState<UsersModal | null>(null);
 
@@ -276,6 +281,20 @@ export default function OrganizationsPage() {
       showToast(err instanceof Error ? err.message : 'Erro ao deletar.', 'error');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleBackfillMeta = async () => {
+    if (!backfillModal) return;
+    setIsBackfilling(true);
+    try {
+      const res = await apiService.backfillMetaForOrg(backfillModal.org.id, backfillModal.since, backfillModal.until);
+      showToast(res.message, 'success');
+      setBackfillModal(null);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro no backfill Meta Ads.', 'error');
+    } finally {
+      setIsBackfilling(false);
     }
   };
 
@@ -477,6 +496,12 @@ export default function OrganizationsPage() {
                       >
                         {syncingMetaId === org.id ? <Spinner className="h-3 w-3" /> : 'Sync Meta'}
                       </button>
+                      <button
+                        onClick={() => setBackfillModal({ org, since: '2025-01-01', until: today })}
+                        className="text-xs text-amber-600 hover:underline"
+                      >
+                        Backfill
+                      </button>
                       <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">Editar</button>
                       <button
                         onClick={() => void handleDelete(org)}
@@ -538,6 +563,12 @@ export default function OrganizationsPage() {
                             {syncingMetaId === org.id && <Spinner className="h-3 w-3" />}
                             Sync Meta
                           </button>
+                          <button
+                            onClick={() => setBackfillModal({ org, since: '2025-01-01', until: today })}
+                            className="text-xs text-amber-600 hover:underline"
+                          >
+                            Backfill
+                          </button>
                           <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">
                             Editar
                           </button>
@@ -559,6 +590,58 @@ export default function OrganizationsPage() {
           </>
         )}
       </div>
+
+      {/* Backfill Modal */}
+      {backfillModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">Backfill histórico Meta Ads</h2>
+            <p className="text-xs text-gray-500 mb-4">
+              <span className="font-medium">{backfillModal.org.name}</span> — busca dados da API Meta para o período selecionado e substitui registros existentes no banco.
+            </p>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">De (since)</label>
+                  <input
+                    type="date"
+                    value={backfillModal.since}
+                    onChange={(e) => setBackfillModal((p) => p ? { ...p, since: e.target.value } : p)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Até (until)</label>
+                  <input
+                    type="date"
+                    value={backfillModal.until}
+                    onChange={(e) => setBackfillModal((p) => p ? { ...p, until: e.target.value } : p)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">A Meta API suporta dados históricos de até ~37 meses.</p>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                onClick={() => setBackfillModal(null)}
+                disabled={isBackfilling}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void handleBackfillMeta()}
+                disabled={isBackfilling || !backfillModal.since || !backfillModal.until}
+                className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {isBackfilling && <Spinner />}
+                {isBackfilling ? 'Executando...' : 'Executar backfill'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editModal && (
