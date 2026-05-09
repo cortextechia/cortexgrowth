@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute, PermissionGuard } from '@/components/ProtectedRoute';
+import { apiService } from '@/lib/api';
+import { TrafficManagerClient, UserRole } from '@/types';
 
 const NAV_ITEMS = [
   {
@@ -38,6 +40,26 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'SUPER_ADMIN'] as string[],
   },
   {
+    href: '/dashboard/gestor',
+    label: 'Meu Código',
+    icon: (
+      <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+      </svg>
+    ),
+    roles: ['TRAFFIC_MANAGER'] as string[],
+  },
+  {
+    href: '/dashboard/historico',
+    label: 'Evolução',
+    icon: (
+      <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
+      </svg>
+    ),
+    roles: null,
+  },
+  {
     href: '/dashboard/reports',
     label: 'Relatórios',
     icon: (
@@ -65,6 +87,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Estado para TRAFFIC_MANAGER: lista de clientes e org selecionada
+  const isTrafficManager = user?.role === UserRole.TRAFFIC_MANAGER;
+  const [clientOrgs, setClientOrgs] = useState<TrafficManagerClient[]>([]);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+
+  useEffect(() => {
+    if (!isTrafficManager) return;
+    apiService.getMyClients().then((res) => {
+      if (res.success && res.data.length > 0) {
+        setClientOrgs(res.data);
+        const saved = apiService.getSelectedClientOrgId();
+        const valid = res.data.find((o) => o.id === saved);
+        const initial = valid ? valid.id : res.data[0].id;
+        setSelectedOrgId(initial);
+        apiService.setSelectedClientOrgId(initial);
+      }
+    }).catch(() => {});
+  }, [isTrafficManager]);
+
+  const handleClientChange = (orgId: string) => {
+    setSelectedOrgId(orgId);
+    apiService.setSelectedClientOrgId(orgId);
+    // Navegação completa para forçar remount de todos os hooks de dados
+    window.location.href = window.location.pathname;
+  };
 
   const handleLogout = () => {
     logout();
@@ -237,14 +285,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </svg>
               </button>
 
-              <span className="text-sm font-medium flex-1 truncate" style={{ color: '#f1f5f9' }}>
-                {organization?.name ?? 'Dashboard'}
-              </span>
+              {/* TRAFFIC_MANAGER: seletor de cliente — ocupa o espaço central */}
+              {isTrafficManager ? (
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#60a5fa' }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                  </svg>
+                  <span className="text-xs shrink-0" style={{ color: '#475569' }}>Cliente:</span>
+                  {clientOrgs.length === 0 ? (
+                    <span className="text-sm" style={{ color: '#64748b' }}>Carregando...</span>
+                  ) : (
+                    <select
+                      value={selectedOrgId}
+                      onChange={(e) => handleClientChange(e.target.value)}
+                      className="text-sm rounded-md px-2 py-1 border-0 outline-none cursor-pointer min-w-0 flex-1 max-w-[200px]"
+                      style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
+                    >
+                      {clientOrgs.map((org) => (
+                        <option key={org.id} value={org.id} style={{ backgroundColor: '#0f172a', color: '#f1f5f9' }}>
+                          {org.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ) : (
+                <span className="text-sm font-medium flex-1 truncate" style={{ color: '#f1f5f9' }}>
+                  {organization?.name ?? 'Dashboard'}
+                </span>
+              )}
 
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <span
                   className="hidden sm:inline text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}
+                  style={{ backgroundColor: isTrafficManager ? 'rgba(168,85,247,0.12)' : 'rgba(59,130,246,0.12)', color: isTrafficManager ? '#c084fc' : '#60a5fa' }}
                 >
                   {user?.role ?? 'USER'}
                 </span>

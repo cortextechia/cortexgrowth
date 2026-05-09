@@ -8,7 +8,11 @@ import ConsolidatedChart from './ConsolidatedChart';
 export interface MetaInsight {
   id: string;
   date: string;
+  level: string; // "campaign" | "adset"
   campaignName: string;
+  campaignId?: string | null;
+  adsetName?: string | null;
+  adsetId?: string | null;
   impressions: number;
   clicks: number;
   spend: number;

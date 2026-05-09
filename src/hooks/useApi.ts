@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { AiAnalysis, AttributionSummary } from '@/types';
+import type { AiAnalysis, AttributionSummary, HistoricoData } from '@/types';
 
 // Hook para gerenciar usuários
 export function useUsers() {
@@ -354,4 +354,28 @@ export function useAiInsights() {
     fetchInsights,
     generateInsights,
   };
+}
+
+// Hook para Evolução Histórica
+export function useHistorico() {
+  const { isAuthenticated } = useAuth();
+  const [data, setData] = useState<HistoricoData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHistorico = useCallback(async (months: number) => {
+    if (!isAuthenticated) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.getHistorico(months);
+      if (response.success) setData(response.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar histórico');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAuthenticated]);
+
+  return { data, isLoading, error, fetchHistorico };
 }

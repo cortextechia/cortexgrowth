@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect } from 'react';
 import { useUsers } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { PermissionGuard } from '@/components/ProtectedRoute';
-import { Plan } from '@/types';
+import { Plan, UserRole } from '@/types';
+import { apiService } from '@/lib/api';
 
 const PLAN_USER_LIMITS: Record<Plan, number> = {
   [Plan.STARTER]:      1,
@@ -48,7 +49,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function UsersPage() {
-  const { organization } = useAuth();
+  const { user: currentUser, organization } = useAuth();
   const { users, isLoading, error, fetchUsers, createUser, deleteUser } = useUsers();
   const userLimit = organization?.plan ? (PLAN_USER_LIMITS[organization.plan] ?? Infinity) : Infinity;
   const atLimit = userLimit !== Infinity && users.length >= userLimit;
@@ -58,7 +59,55 @@ export default function UsersPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'USER' });
 
-  useEffect(() => { fetchUsers(); }, []);
+  // Gestores conectados (visível para ADMIN/SUPER_ADMIN)
+  const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.SUPER_ADMIN;
+  const [connectedManagers, setConnectedManagers] = useState<{ id: string; name: string; email: string; status: string; connectedAt: string }[]>([]);
+  const [connectCode, setConnectCode] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+
+  const fetchManagers = useCallback(async () => {
+    try {
+      const res = await apiService.getConnectedManagers();
+      setConnectedManagers(res.data);
+    } catch { /* sem gestores ou sem permissão — ignora */ }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+    if (isAdmin) fetchManagers();
+  }, [isAdmin]);
+
+  const handleConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = connectCode.trim().toUpperCase();
+    if (code.length !== 8) return;
+    setIsConnecting(true);
+    try {
+      const res = await apiService.connectManager(code);
+      showToast(res.message);
+      setConnectCode('');
+      void fetchManagers();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Código inválido ou expirado.', 'error');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async (managerId: string, name: string) => {
+    if (!confirm(`Desconectar gestor "${name}"?`)) return;
+    setDisconnectingId(managerId);
+    try {
+      await apiService.disconnectManager(managerId);
+      showToast('Gestor desconectado.');
+      void fetchManagers();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro ao desconectar.', 'error');
+    } finally {
+      setDisconnectingId(null);
+    }
+  };
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -307,6 +356,69 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Gestores de Tráfego Conectados (ADMIN/SUPER_ADMIN) ─── */}
+      {isAdmin && (
+        <div className="mt-8">
+          <div className="mb-4">
+            <h2 className="text-base font-semibold text-gray-900">Gestores de Tráfego</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Conecte um gestor externo usando o código gerado por ele.
+            </p>
+          </div>
+
+          {/* Connect form */}
+          <form onSubmit={handleConnect} className="mb-4 flex items-center gap-3">
+            <input
+              type="text"
+              value={connectCode}
+              onChange={(e) => setConnectCode(e.target.value.toUpperCase())}
+              maxLength={8}
+              placeholder="CÓDIGO DO GESTOR"
+              className="w-44 rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono tracking-widest text-gray-900 placeholder-gray-300 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <button
+              type="submit"
+              disabled={isConnecting || connectCode.length !== 8}
+              className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isConnecting && <Spinner className="h-3.5 w-3.5" />}
+              {isConnecting ? 'Conectando...' : 'Conectar gestor'}
+            </button>
+          </form>
+
+          {/* Connected managers list */}
+          {connectedManagers.length === 0 ? (
+            <p className="text-sm text-gray-400 py-2">Nenhum gestor conectado ainda.</p>
+          ) : (
+            <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+              {connectedManagers.map((m) => (
+                <div key={m.id} className="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900">{m.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                  </div>
+                  <div className="flex items-center gap-4 shrink-0">
+                    <span
+                      className="hidden sm:inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                      style={{ backgroundColor: 'rgba(168,85,247,0.08)', color: '#a855f7' }}
+                    >
+                      Gestor
+                    </span>
+                    <button
+                      onClick={() => void handleDisconnect(m.id, m.name)}
+                      disabled={disconnectingId === m.id}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                    >
+                      {disconnectingId === m.id ? <Spinner className="h-3 w-3" /> : 'Desconectar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

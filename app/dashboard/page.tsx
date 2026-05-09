@@ -7,6 +7,7 @@ import Sparkline from '@/components/charts/Sparkline';
 import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -345,6 +346,211 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
   );
 }
 
+// ─── Campaign Drill-down Drawer ───────────────────────────────────────────────
+
+interface CampaignDrawerProps {
+  campaign: { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number } | null;
+  campaignRows: MetaInsight[];   // campaign-level daily rows
+  adsetRows: MetaInsight[];      // adset-level rows for this campaign
+  onClose: () => void;
+}
+
+function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: CampaignDrawerProps) {
+  if (!campaign) return null;
+
+  const daily = useMemo(() => {
+    const map = new Map<string, { date: string; spend: number; clicks: number; impressions: number }>();
+    campaignRows.forEach((d) => {
+      const k = d.date.slice(0, 10);
+      const prev = map.get(k) ?? { date: k, spend: 0, clicks: 0, impressions: 0 };
+      map.set(k, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+    });
+    return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [campaignRows]);
+
+  const adsets = useMemo(() => {
+    const map = new Map<string, { name: string; spend: number; clicks: number; impressions: number }>();
+    adsetRows.forEach((d) => {
+      const key = d.adsetName ?? 'Sem nome';
+      const prev = map.get(key) ?? { name: key, spend: 0, clicks: 0, impressions: 0 };
+      map.set(key, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+    });
+    return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
+  }, [adsetRows]);
+
+  const totalSpend = campaign.spend;
+  const totalImpr  = campaign.impressions;
+  const totalClicks = campaign.clicks;
+  const ctr  = totalImpr  > 0 ? (totalClicks / totalImpr)  * 100 : 0;
+  const cpc  = totalClicks > 0 ? totalSpend / totalClicks : 0;
+  const cpm  = totalImpr  > 0 ? (totalSpend / totalImpr)  * 1000 : 0;
+
+  const fmtDate = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+
+  const platformColor = campaign.platform === 'Meta' ? '#818cf8' : '#34d399';
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+
+      {/* Drawer */}
+      <div
+        className="fixed right-0 top-0 h-full z-50 flex flex-col overflow-y-auto"
+        style={{ width: 'min(680px, 95vw)', backgroundColor: '#0a0f1e', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-6 py-4"
+          style={{ backgroundColor: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: `${platformColor}18`, color: platformColor }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: platformColor }} />
+              {campaign.platform}
+            </span>
+            <h2 className="font-semibold text-sm truncate" style={{ color: '#f1f5f9' }}>{campaign.name}</h2>
+          </div>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/5" style={{ color: '#64748b' }}>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 px-6 py-5 space-y-6">
+
+          {/* KPI row */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Gasto total',   value: fmtMoney(totalSpend) },
+              { label: 'Impressões',    value: fmtNum(totalImpr) },
+              { label: 'Cliques',       value: fmtNum(totalClicks) },
+              { label: 'CTR',           value: fmtPct(ctr) },
+              { label: 'CPC',           value: fmtMoney(cpc) },
+              { label: 'CPM',           value: fmtMoney(cpm) },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded-xl p-3" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#475569' }}>{label}</p>
+                <p className="text-base font-semibold tabular-nums" style={{ color: '#e2e8f0' }}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Trend chart */}
+          {daily.length > 1 && (
+            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#475569' }}>Evolução diária</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={daily} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="left"  tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} width={48} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} width={36} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11 }}
+                    labelStyle={{ color: '#94a3b8' }}
+                    labelFormatter={(label: unknown) => fmtDate(String(label))}
+                    formatter={(value: unknown, name: unknown) => [
+                      name === 'spend' ? fmtMoney(Number(value)) : fmtNum(Number(value)),
+                      name === 'spend' ? 'Gasto' : 'Cliques',
+                    ]}
+                  />
+                  <Line yAxisId="left"  type="monotone" dataKey="spend"  stroke={platformColor} strokeWidth={2} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="clicks" stroke="#fbbf24" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-2">
+                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#94a3b8' }}>
+                  <span className="h-0.5 w-4 rounded" style={{ backgroundColor: platformColor }} /> Gasto
+                </span>
+                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#94a3b8' }}>
+                  <span className="h-0.5 w-4 rounded border-t border-dashed" style={{ borderColor: '#fbbf24' }} /> Cliques
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Adset breakdown */}
+          {adsets.length > 0 && (
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+                  Conjuntos de anúncios ({adsets.length})
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      {['Conjunto', 'Gasto', 'Impressões', 'Cliques', 'CTR', 'CPC'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {adsets.map((a) => {
+                      const aCtr = a.impressions > 0 ? (a.clicks / a.impressions) * 100 : 0;
+                      const aCpc = a.clicks > 0 ? a.spend / a.clicks : 0;
+                      return (
+                        <tr key={a.name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <td className="px-4 py-2.5 max-w-[180px]" style={{ color: '#e2e8f0' }}>
+                            <span className="block truncate">{a.name}</span>
+                          </td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(a.spend)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(a.impressions)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(a.clicks)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: aCtr >= 2 ? '#4ade80' : aCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(aCtr)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(aCpc)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Daily breakdown table */}
+          {daily.length > 0 && (
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>Detalhamento diário</p>
+              </div>
+              <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0" style={{ backgroundColor: '#0f1629' }}>
+                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      {['Data', 'Gasto', 'Impressões', 'Cliques', 'CTR', 'CPC'].map((h) => (
+                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...daily].reverse().map((d) => {
+                      const dCtr = d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0;
+                      const dCpc = d.clicks > 0 ? d.spend / d.clicks : 0;
+                      return (
+                        <tr key={d.date} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtDate(d.date)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#e2e8f0' }}>{fmtMoney(d.spend)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(d.impressions)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(d.clicks)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: dCtr >= 2 ? '#4ade80' : dCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(dCtr)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(dCpc)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -364,6 +570,7 @@ export default function DashboardPage() {
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
+  const [selectedCampaign, setSelectedCampaign] = useState<typeof campaigns[0] | null>(null);
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
@@ -429,9 +636,11 @@ export default function DashboardPage() {
   }, [range, customStart, customEnd]);
 
   // ── Filtered data ──────────────────────────────────────────────────────────
-  const metaCur    = useMemo(() => filterByDateRange(metaInsights,     activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
+  const metaAll    = useMemo(() => filterByDateRange(metaInsights,     activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
+  // Apenas linhas de campanha para KPIs/totais — adset seria double-count
+  const metaCur    = useMemo(() => metaAll.filter((d) => !d.level || d.level === 'campaign'), [metaAll]);
   const googleCur  = useMemo(() => filterByDateRange(googleAdsMetrics, activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
-  const metaPrev   = useMemo(() => prevPeriodRange(metaInsights,       activePeriod.start, activePeriod.end), [metaInsights,     activePeriod]);
+  const metaPrev   = useMemo(() => prevPeriodRange(metaInsights,       activePeriod.start, activePeriod.end).filter((d) => !d.level || d.level === 'campaign'), [metaInsights, activePeriod]);
   const googlePrev = useMemo(() => prevPeriodRange(googleAdsMetrics,   activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
   const kommoCur   = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
 
@@ -474,6 +683,21 @@ export default function DashboardPage() {
     if (funnelTab === 'google') return kommoCur.filter((l) => l.utmSource === 'google');
     return kommoCur;
   }, [kommoCur, funnelTab]);
+
+  // ── Lead distribution by UTM source ─────────────────────────────────────
+  const leadsByOrigin = useMemo(() => {
+    const meta      = kommoCur.filter((l) => l.utmSource === 'meta').length;
+    const google    = kommoCur.filter((l) => l.utmSource === 'google').length;
+    const whatsapp  = kommoCur.filter((l) => l.utmSource === 'WhatsApp').length;
+    const noUtm     = kommoCur.filter((l) => !l.utmSource).length;
+    const total     = kommoCur.length || 1;
+    return [
+      { label: 'Meta Ads',  count: meta,     color: '#818cf8', pct: (meta     / total) * 100 },
+      { label: 'Google Ads',count: google,   color: '#34d399', pct: (google   / total) * 100 },
+      { label: 'WhatsApp',  count: whatsapp, color: '#4ade80', pct: (whatsapp / total) * 100 },
+      { label: 'Sem UTM',   count: noUtm,    color: '#475569', pct: (noUtm    / total) * 100 },
+    ];
+  }, [kommoCur]);
 
   // ── Funnel counts (cumulative — how many reached or passed each stage) ─────
   const funnelCounts = useMemo<FunnelCounts>(() => {
@@ -894,8 +1118,10 @@ export default function DashboardPage() {
           <div className="grid gap-3" style={{ gridTemplateColumns: '3fr 1fr' }}>
 
             {/* Left: funnel SVG + right info panel */}
-            <div className="rounded-xl p-5 flex gap-6" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <FunnelSVG counts={funnelCounts} />
+            <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="flex flex-col justify-center">
+                <FunnelSVG counts={funnelCounts} />
+              </div>
 
               <div className="flex-1 flex flex-col gap-3 min-w-0">
                 {/* Conversão final */}
@@ -950,6 +1176,68 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+
+                {/* Distribuição por origem */}
+                <div className="flex-1 flex flex-col rounded-xl p-3" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Origem dos leads</p>
+                  <div className="flex-1 flex gap-4 items-center">
+                    {/* Donut chart */}
+                    {(() => {
+                      const R = 44; const r = 28; const cx = 52; const cy = 52;
+                      const active = leadsByOrigin.filter((o) => o.count > 0);
+                      const total = active.reduce((s, o) => s + o.count, 0) || 1;
+                      let cumAngle = -90;
+                      const slices = active.map((o) => {
+                        const angle = (o.count / total) * 360;
+                        const start = cumAngle;
+                        cumAngle += angle;
+                        return { ...o, start, angle };
+                      });
+                      function arc(startDeg: number, angleDeg: number, outerR: number, innerR: number) {
+                        const toRad = (d: number) => (d * Math.PI) / 180;
+                        const a1 = toRad(startDeg), a2 = toRad(startDeg + angleDeg - 0.5);
+                        const x1o = cx + outerR * Math.cos(a1), y1o = cy + outerR * Math.sin(a1);
+                        const x2o = cx + outerR * Math.cos(a2), y2o = cy + outerR * Math.sin(a2);
+                        const x1i = cx + innerR * Math.cos(a2), y1i = cy + innerR * Math.sin(a2);
+                        const x2i = cx + innerR * Math.cos(a1), y2i = cy + innerR * Math.sin(a1);
+                        const lg = angleDeg > 180 ? 1 : 0;
+                        return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${lg} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${lg} 0 ${x2i} ${y2i} Z`;
+                      }
+                      return (
+                        <svg width={104} height={104} className="shrink-0">
+                          {slices.map((s) => (
+                            <path key={s.label} d={arc(s.start, s.angle, R, r)} fill={s.color} opacity={0.85} />
+                          ))}
+                          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="#e2e8f0" fontFamily="Inter,sans-serif">
+                            {total}
+                          </text>
+                          <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" fill="#475569" fontFamily="Inter,sans-serif">
+                            leads
+                          </text>
+                        </svg>
+                      );
+                    })()}
+                    {/* Bars */}
+                    <div className="flex-1 space-y-2.5">
+                      {leadsByOrigin.filter((o) => o.count > 0).map((o) => (
+                        <div key={o.label}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
+                              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: o.color }} />
+                              {o.label}
+                            </span>
+                            <span className="text-xs font-semibold tabular-nums" style={{ color: o.color }}>
+                              {o.count} · {fmtPct1(o.pct)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                            <div className="h-full rounded-full" style={{ width: `${o.pct}%`, backgroundColor: o.color, opacity: 0.7 }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1065,8 +1353,9 @@ export default function DashboardPage() {
 
             {/* Top campaigns table */}
             <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas por gasto</p>
+                <span className="text-xs" style={{ color: '#334155' }}>Clique para detalhes</span>
               </div>
               {campaigns.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm" style={{ color: '#334155' }}>Sem dados de campanha</div>
@@ -1075,7 +1364,7 @@ export default function DashboardPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        {['Campanha', 'Plat.', 'Gasto', 'Leads', 'CTR'].map((h) => (
+                        {['Campanha', 'Plat.', 'Gasto', 'Leads', 'CTR', ''].map((h) => (
                           <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
                         ))}
                       </tr>
@@ -1085,7 +1374,14 @@ export default function DashboardPage() {
                         const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
                         const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100) : 0;
                         return (
-                          <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+                          <tr
+                            key={i}
+                            onClick={() => setSelectedCampaign(c)}
+                            className="cursor-pointer transition-colors"
+                            style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+                          >
                             <td className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 180 }}>
                               <span className="block truncate">{c.name}</span>
                             </td>
@@ -1099,6 +1395,11 @@ export default function DashboardPage() {
                             <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{c.leads > 0 ? c.leads : '—'}</td>
                             <td className="px-4 py-2.5 tabular-nums" style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>
                               {fmtPct(ctr)}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: '#334155' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
                             </td>
                           </tr>
                         );
@@ -1227,7 +1528,7 @@ export default function DashboardPage() {
                 {([
                   { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   spend: attributionSummary.spendMeta,   color: '#818cf8', accent: 'rgba(129,140,248,0.12)' },
                   { label: 'Google Ads', roas: attributionSummary.roasGoogle, spend: attributionSummary.spendGoogle, color: '#34d399', accent: 'rgba(52,211,153,0.12)'  },
-                ] as const).map(({ label, roas, spend, color, accent }) => {
+                ] as const).map(({ label, roas, spend, color }) => {
                   const hasSpend  = spend > 0;
                   const roasColor = roas != null && roas >= 2 ? '#4ade80' : roas != null ? '#f87171' : '#475569';
                   const roasLabel = roas != null
@@ -1361,6 +1662,20 @@ export default function DashboardPage() {
         >
           {generateToast}
         </div>
+      )}
+
+      {/* ── Campaign Drawer ──────────────────────────────────────────────────── */}
+      {selectedCampaign && (
+        <CampaignDrawer
+          campaign={selectedCampaign}
+          campaignRows={metaAll.filter(
+            (d) => (!d.level || d.level === 'campaign') && d.campaignName === selectedCampaign.name
+          )}
+          adsetRows={metaAll.filter(
+            (d) => d.level === 'adset' && d.campaignName === selectedCampaign.name
+          )}
+          onClose={() => setSelectedCampaign(null)}
+        />
       )}
     </div>
   );

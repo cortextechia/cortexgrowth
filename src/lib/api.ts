@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -20,6 +20,13 @@ class ApiService {
     this.client.interceptors.request.use((config) => {
       const token = this.getAccessToken();
       if (token) config.headers.Authorization = `Bearer ${token}`;
+
+      // Para TRAFFIC_MANAGER: injeta org do cliente selecionado
+      if (typeof window !== 'undefined') {
+        const orgId = sessionStorage.getItem('traffic_manager_org_id');
+        if (orgId) config.headers['X-Org-Id'] = orgId;
+      }
+
       return config;
     });
 
@@ -322,6 +329,11 @@ class ApiService {
 
   // ─── AI Insights ─────────────────────────────────────────────────────────
 
+  async getHistorico(months: number): Promise<{ success: boolean; data: HistoricoData }> {
+    const response = await this.client.get('/ads/historico', { params: { months } });
+    return response.data;
+  }
+
   async generateInsights(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
     const response = await this.client.post('/ai/insights/generate');
     return response.data;
@@ -340,6 +352,79 @@ class ApiService {
   async getInsight(id: string): Promise<{ success: boolean; data: AiAnalysis }> {
     const response = await this.client.get(`/ai/insights/${id}`);
     return response.data;
+  }
+
+  // ─── Gestores de Tráfego ────────────────────────────────────────────────────
+
+  async getManagers(): Promise<{ success: boolean; data: TrafficManagerWithClients[] }> {
+    const response = await this.client.get('/managers');
+    return response.data;
+  }
+
+  async createManager(data: { email: string; password: string; name: string }): Promise<{ success: boolean; data: User }> {
+    const response = await this.client.post('/managers', data);
+    return response.data;
+  }
+
+  async deleteManager(id: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/managers/${id}`);
+    return response.data;
+  }
+
+  async addManagerClient(managerId: string, orgId: string): Promise<{ success: boolean }> {
+    const response = await this.client.post(`/managers/${managerId}/clients/${orgId}`);
+    return response.data;
+  }
+
+  async removeManagerClient(managerId: string, orgId: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/managers/${managerId}/clients/${orgId}`);
+    return response.data;
+  }
+
+  async getMyClients(): Promise<{ success: boolean; data: TrafficManagerClient[] }> {
+    const response = await this.client.get('/managers/my-clients');
+    return response.data;
+  }
+
+  async getMyInvite(): Promise<{ success: boolean; data: { code: string; expiresAt: string } }> {
+    const response = await this.client.get('/managers/my-invite');
+    return response.data;
+  }
+
+  async regenerateInvite(): Promise<{ success: boolean; data: { code: string; expiresAt: string } }> {
+    const response = await this.client.post('/managers/my-invite/regenerate');
+    return response.data;
+  }
+
+  async connectManager(code: string): Promise<{ success: boolean; message: string; data: { managerId: string; managerName: string; managerEmail: string } }> {
+    const response = await this.client.post('/managers/connect', { code });
+    return response.data;
+  }
+
+  async disconnectManager(managerId: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/managers/disconnect/${managerId}`);
+    return response.data;
+  }
+
+  async getConnectedManagers(): Promise<{ success: boolean; data: { id: string; name: string; email: string; status: string; connectedAt: string }[] }> {
+    const response = await this.client.get('/managers/connected');
+    return response.data;
+  }
+
+  // Helpers para sessão do gestor
+  getSelectedClientOrgId(): string | null {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('traffic_manager_org_id');
+  }
+
+  setSelectedClientOrgId(orgId: string): void {
+    if (typeof window === 'undefined') return;
+    sessionStorage.setItem('traffic_manager_org_id', orgId);
+  }
+
+  clearSelectedClientOrgId(): void {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem('traffic_manager_org_id');
   }
 }
 

@@ -4,6 +4,7 @@ export enum UserRole {
   ADMIN = 'ADMIN',
   USER = 'USER',
   VIEWER = 'VIEWER',
+  TRAFFIC_MANAGER = 'TRAFFIC_MANAGER',
 }
 
 export enum UserStatus {
@@ -169,6 +170,47 @@ export interface AttributionSummary {
   paidChannelLeads: number;
   totalLeads: number;
   recurringLeads: number;
+}
+
+// ===== EVOLUÇÃO HISTÓRICA =====
+export interface HistoricoPoint {
+  m: string;
+  inv: number;
+  rec: number;
+  roas: number;
+  leads: number;
+  vendas: number;
+  conv: number;
+}
+
+export interface HistoricoData {
+  months: string[];
+  total: HistoricoPoint[];
+  meta: HistoricoPoint[];
+  google: HistoricoPoint[];
+}
+
+
+// ===== GESTOR DE TRAFEGO =====
+export interface TrafficManagerClient {
+  id: string;
+  name: string;
+  plan: Plan;
+  status: OrgStatus;
+  slug: string;
+}
+
+export interface TrafficManagerWithClients {
+  id: string;
+  name: string;
+  email: string;
+  status: string;
+  createdAt: Date;
+  managedOrgs: {
+    id: string;
+    createdAt: Date;
+    organization: TrafficManagerClient;
+  }[];
 }
 
 // ===== ADMIN METRICS =====
