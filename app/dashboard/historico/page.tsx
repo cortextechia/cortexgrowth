@@ -143,6 +143,7 @@ function makeLVPlugin() {
 function buildIRConfig(d: HistoricoPoint[], invColor: string): ChartConfiguration {
   const maxVal = Math.max(...d.map((r) => Math.max(r.rec, r.inv))) * 1.35 || 10;
   return {
+    type: 'bar',
     plugins: [makeIRPlugin(invColor)] as any,
     data: {
       labels: d.map((r) => r.m),
@@ -168,6 +169,7 @@ function buildIRConfig(d: HistoricoPoint[], invColor: string): ChartConfiguratio
 function buildLVConfig(d: HistoricoPoint[]): ChartConfiguration {
   const maxVal = Math.max(...d.map((r) => r.leads)) * 1.35 || 10;
   return {
+    type: 'bar',
     plugins: [makeLVPlugin()] as any,
     data: {
       labels: d.map((r) => r.m),
