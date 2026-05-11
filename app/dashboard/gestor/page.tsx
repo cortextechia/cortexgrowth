@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
-import { UserRole } from '@/types';
+import { UserRole, type TrafficManagerClient } from '@/types';
+
+const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
+const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -19,30 +22,47 @@ function formatDate(d: string) {
   return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const card = { backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' };
+
 export default function GestorPage() {
   const { user } = useAuth();
   const router = useRouter();
 
   const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingInvite, setLoadingInvite] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  const [clients, setClients] = useState<TrafficManagerClient[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
   };
 
   const fetchInvite = useCallback(async () => {
-    setLoading(true);
+    setLoadingInvite(true);
     try {
       const res = await apiService.getMyInvite();
       setInvite(res.data);
     } catch {
       showToast('Erro ao carregar código de convite.', 'error');
     } finally {
-      setLoading(false);
+      setLoadingInvite(false);
+    }
+  }, []);
+
+  const fetchClients = useCallback(async () => {
+    setLoadingClients(true);
+    try {
+      const res = await apiService.getMyClients();
+      setClients(res.data);
+    } catch {
+      /* mantém vazio */
+    } finally {
+      setLoadingClients(false);
     }
   }, []);
 
@@ -52,7 +72,8 @@ export default function GestorPage() {
       return;
     }
     void fetchInvite();
-  }, [user, router, fetchInvite]);
+    void fetchClients();
+  }, [user, router, fetchInvite, fetchClients]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -74,10 +95,15 @@ export default function GestorPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleManageReports = (client: TrafficManagerClient) => {
+    apiService.setSelectedClientOrgId(client.id);
+    router.push('/dashboard/relatorios');
+  };
+
   if (user?.role !== UserRole.TRAFFIC_MANAGER) return null;
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="space-y-6">
       {toast && (
         <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
           toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
@@ -86,107 +112,135 @@ export default function GestorPage() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Meu Código de Convite</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Compartilhe este código com seus clientes para que conectem você à conta deles.
-        </p>
-      </div>
+      {/* ─── Seção: Código de Convite ─────────────────────────────────────── */}
+      <div className="rounded-xl p-5 space-y-4" style={card}>
+        <div>
+          <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Meu Código de Convite</p>
+          <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+            Compartilhe com seus clientes para que conectem você à conta deles.
+          </p>
+        </div>
 
-      {/* Invite card */}
-      <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-8">
-        {loading ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-400">
+        {loadingInvite ? (
+          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: '#475569' }}>
             <Spinner /> Carregando...
           </div>
         ) : invite ? (
-          <div className="space-y-6">
-            {/* Code display */}
-            <div className="text-center">
-              <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Seu código</p>
-              <div
-                className="inline-flex items-center gap-4 rounded-2xl px-8 py-5 cursor-pointer select-all"
-                style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1.5px dashed rgba(59,130,246,0.3)' }}
-                onClick={handleCopy}
-                title="Clique para copiar"
-              >
-                <span className="text-4xl font-bold tracking-[0.25em] font-mono" style={{ color: '#1d4ed8' }}>
-                  {invite.code}
-                </span>
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
-                  style={copied
-                    ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#16a34a' }
-                    : { backgroundColor: 'rgba(59,130,246,0.1)', color: '#3b82f6' }
-                  }
-                >
-                  {copied ? (
-                    <>
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                      Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                      </svg>
-                      Copiar
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Expiry info */}
-            <div className="flex items-center justify-center gap-2 text-sm text-gray-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Expira em {formatDate(invite.expiresAt)}
-            </div>
-
-            {/* Instructions */}
-            <div className="rounded-xl p-4 text-sm" style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-              <p className="font-medium text-gray-700 mb-2">Como usar:</p>
-              <ol className="space-y-1 text-gray-500 list-decimal list-inside">
-                <li>Copie o código acima</li>
-                <li>Envie ao seu cliente (WhatsApp, email, etc.)</li>
-                <li>O cliente ADMIN acessa a aba <strong>Usuários</strong> no dashboard deles</li>
-                <li>Clica em <strong>"Conectar Gestor"</strong> e digita o código</li>
-                <li>Você terá acesso imediato ao dashboard do cliente</li>
-              </ol>
-            </div>
-
-            {/* Regenerate button */}
-            <div className="flex justify-center pt-2">
+          <div className="space-y-3">
+            <div
+              className="inline-flex items-center gap-4 rounded-xl px-6 py-4 cursor-pointer w-full justify-between"
+              style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1.5px dashed rgba(59,130,246,0.3)' }}
+              onClick={handleCopy}
+            >
+              <span className="text-3xl font-bold tracking-[0.25em] font-mono" style={{ color: '#60a5fa' }}>
+                {invite.code}
+              </span>
               <button
-                onClick={handleRegenerate}
-                disabled={regenerating}
-                className="flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 hover:border-gray-300 disabled:opacity-50 transition-colors"
+                onClick={e => { e.stopPropagation(); handleCopy(); }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex-shrink-0"
+                style={copied
+                  ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }
+                  : { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
               >
-                {regenerating ? <Spinner className="h-3.5 w-3.5" /> : (
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                  </svg>
-                )}
-                {regenerating ? 'Regenerando...' : 'Gerar novo código'}
+                {copied ? '✓ Copiado!' : 'Copiar'}
               </button>
             </div>
-          </div>
-        ) : (
-          <div className="text-center py-8">
-            <p className="text-sm text-gray-400 mb-4">Nenhum código ativo.</p>
+
+            <p className="text-xs" style={{ color: '#475569' }}>
+              Expira em {formatDate(invite.expiresAt)}
+            </p>
+
             <button
-              onClick={fetchInvite}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="flex items-center gap-2 text-xs transition-colors"
+              style={{ color: '#475569' }}
             >
-              Gerar código
+              {regenerating ? <Spinner className="h-3 w-3" /> : null}
+              {regenerating ? 'Regenerando...' : '↻ Gerar novo código'}
             </button>
           </div>
+        ) : (
+          <button onClick={fetchInvite} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+            Gerar código
+          </button>
         )}
+      </div>
+
+      {/* ─── Seção: Clientes ──────────────────────────────────────────────── */}
+      <div className="rounded-xl p-5 space-y-4" style={card}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Meus Clientes</p>
+            <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+              Gerencie os relatórios automatizados de cada cliente.
+            </p>
+          </div>
+          {!loadingClients && (
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+              {clients.length} {clients.length === 1 ? 'cliente' : 'clientes'}
+            </span>
+          )}
+        </div>
+
+        {loadingClients ? (
+          <div className="flex items-center gap-2 py-6 text-sm" style={{ color: '#475569' }}>
+            <Spinner /> Carregando clientes...
+          </div>
+        ) : clients.length === 0 ? (
+          <div className="rounded-xl p-8 flex flex-col items-center text-center" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <p className="text-sm" style={{ color: '#475569' }}>Nenhum cliente conectado ainda.</p>
+            <p className="text-xs mt-1" style={{ color: '#334155' }}>
+              Compartilhe seu código de convite para que clientes te conectem.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {clients.map(client => (
+              <div key={client.id}
+                className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+                style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
+                    <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>
+                      {client.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>{client.name}</p>
+                    <span className="text-xs" style={{ color: PLAN_COLORS[client.plan] ?? '#64748b' }}>
+                      {PLAN_LABELS[client.plan] ?? client.plan}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleManageReports(client)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-colors"
+                  style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Relatórios
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Instruções de uso ────────────────────────────────────────────── */}
+      <div className="rounded-xl p-4" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(59,130,246,0.1)' }}>
+        <p className="text-xs font-medium mb-2" style={{ color: '#60a5fa' }}>Como funciona</p>
+        <ol className="space-y-1 text-xs list-decimal list-inside" style={{ color: '#475569' }}>
+          <li>Copie o código de convite e envie ao cliente (WhatsApp, email etc.)</li>
+          <li>O cliente ADMIN acessa <strong style={{ color: '#94a3b8' }}>Usuários → Conectar Gestor</strong> e digita o código</li>
+          <li>O cliente aparece na lista acima — clique em <strong style={{ color: '#94a3b8' }}>Relatórios</strong> para gerenciar</li>
+          <li>Configure Telegram ou WhatsApp e defina a frequência de envio para cada cliente</li>
+        </ol>
       </div>
     </div>
   );

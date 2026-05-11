@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
@@ -394,10 +395,13 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
 // ─── Página principal ──────────────────────────────────────────────────────────
 
 export default function RelatoriosPage() {
-  const { organization } = useAuth();
+  const { organization, user } = useAuth();
+  const router = useRouter();
   const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+
+  const isGestorContext = typeof window !== 'undefined' && !!sessionStorage.getItem('traffic_manager_org_id') && user?.role === 'TRAFFIC_MANAGER';
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [registeringWebhook, setRegisteringWebhook] = useState(false);
 
@@ -442,6 +446,21 @@ export default function RelatoriosPage() {
 
   return (
     <div className="space-y-6">
+
+      {/* Banner gestor */}
+      {isGestorContext && (
+        <div className="rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
+          style={{ backgroundColor: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)' }}>
+          <p className="text-xs" style={{ color: '#c084fc' }}>
+            Gerenciando relatórios de <strong>{organization?.name}</strong>
+          </p>
+          <button onClick={() => { apiService.setSelectedClientOrgId(''); router.push('/dashboard/gestor'); }}
+            className="text-xs px-2.5 py-1 rounded-lg transition-colors"
+            style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.2)' }}>
+            ← Voltar ao Gestor
+          </button>
+        </div>
+      )}
 
       {/* Header */}
       <div className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3" style={card}>
