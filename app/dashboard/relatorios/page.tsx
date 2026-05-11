@@ -398,9 +398,20 @@ export default function RelatoriosPage() {
   const [schedules, setSchedules] = useState<ReportSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [registeringWebhook, setRegisteringWebhook] = useState(false);
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); };
+
+  const handleRegisterWebhook = async () => {
+    setRegisteringWebhook(true);
+    try {
+      const { message } = await apiService.registerTelegramWebhook();
+      showToast(message, true);
+    } catch {
+      showToast('Erro ao registrar webhook. Verifique BACKEND_URL no Render.', false);
+    } finally { setRegisteringWebhook(false); }
+  };
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -456,11 +467,17 @@ export default function RelatoriosPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" style={{ color: '#64748b' }}>
           <div>
             <p className="font-medium mb-1" style={{ color: '#94a3b8' }}>✈️ Telegram</p>
-            <ol className="space-y-0.5 list-decimal list-inside">
+            <ol className="space-y-0.5 list-decimal list-inside mb-2">
+              <li>Clique em <strong style={{ color: '#e2e8f0' }}>"Registrar Webhook"</strong> abaixo (uma vez só)</li>
               <li>Adicione o bot <code style={{ color: '#818cf8' }}>@CortexGrowthBot</code> ao grupo desejado</li>
               <li>Ao criar um agendamento, clique em <strong style={{ color: '#e2e8f0' }}>"Conectar via QR Code"</strong></li>
               <li>Escaneie o QR Code com o Telegram — a conexão é automática</li>
             </ol>
+            <button onClick={handleRegisterWebhook} disabled={registeringWebhook}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+              style={{ backgroundColor: 'rgba(129,140,248,0.12)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.25)', opacity: registeringWebhook ? 0.6 : 1 }}>
+              {registeringWebhook ? 'Registrando...' : '⚡ Registrar Webhook'}
+            </button>
           </div>
           <div>
             <p className="font-medium mb-1" style={{ color: '#94a3b8' }}>📱 WhatsApp (Z-API)</p>
@@ -512,8 +529,8 @@ export default function RelatoriosPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg" style={{ backgroundColor: '#1D9E75', color: '#fff' }}>
-          {toast}
+        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg" style={{ backgroundColor: toast.ok ? '#1D9E75' : '#dc2626', color: '#fff' }}>
+          {toast.msg}
         </div>
       )}
     </div>
