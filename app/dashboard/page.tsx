@@ -571,6 +571,33 @@ export default function DashboardPage() {
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
   const [selectedCampaign, setSelectedCampaign] = useState<typeof campaigns[0] | null>(null);
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+  const OPTIONAL_COLS = [
+    { key: 'spend',       label: 'Gasto'       },
+    { key: 'leads',       label: 'Leads'       },
+    { key: 'ctr',         label: 'CTR'         },
+    { key: 'cpc',         label: 'CPC'         },
+    { key: 'cpl',         label: 'CPL'         },
+    { key: 'impressions', label: 'Impressões'  },
+    { key: 'clicks',      label: 'Cliques'     },
+  ] as const;
+  type ColKey = typeof OPTIONAL_COLS[number]['key'];
+  const DEFAULT_COLS: ColKey[] = ['spend', 'leads', 'ctr'];
+  const [visibleCols, setVisibleCols] = useState<ColKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_COLS;
+    try {
+      const saved = localStorage.getItem('campaign_table_cols');
+      if (saved) return JSON.parse(saved) as ColKey[];
+    } catch { /* ignore */ }
+    return DEFAULT_COLS;
+  });
+  const toggleCol = (key: ColKey) => {
+    setVisibleCols((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      localStorage.setItem('campaign_table_cols', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
 
@@ -1352,10 +1379,63 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
             {/* Top campaigns table */}
-            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="rounded-xl" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
                 <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas por gasto</p>
-                <span className="text-xs" style={{ color: '#334155' }}>Clique para detalhes</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: '#334155' }}>Clique para detalhes</span>
+                  {/* Column picker */}
+                  <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setColPickerOpen(false); }}>
+                    <button
+                      onClick={() => setColPickerOpen((o) => !o)}
+                      title="Configurar colunas"
+                      className="flex items-center justify-center rounded-md transition-colors"
+                      style={{ width: 26, height: 26, backgroundColor: colPickerOpen ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)', color: colPickerOpen ? '#3b82f6' : '#475569' }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ width: 13, height: 13 }}>
+                        <rect x="1" y="3" width="14" height="1.5" rx="0.75" />
+                        <rect x="1" y="7.25" width="14" height="1.5" rx="0.75" />
+                        <rect x="1" y="11.5" width="14" height="1.5" rx="0.75" />
+                        <circle cx="5"  cy="3.75"  r="1.5" fill="currentColor" stroke="none" />
+                        <circle cx="11" cy="8"     r="1.5" fill="currentColor" stroke="none" />
+                        <circle cx="7"  cy="12.25" r="1.5" fill="currentColor" stroke="none" />
+                      </svg>
+                    </button>
+                    {colPickerOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setColPickerOpen(false)} />
+                        <div
+                          className="absolute right-0 z-50 rounded-xl py-2 shadow-xl"
+                          style={{ top: 32, minWidth: 160, backgroundColor: '#131d35', border: '1px solid rgba(255,255,255,0.1)' }}
+                        >
+                        <p className="px-3 pb-1.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#475569', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Colunas visíveis</p>
+                        {OPTIONAL_COLS.map(({ key, label }) => (
+                          <button
+                            key={key}
+                            onClick={() => toggleCol(key)}
+                            className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors text-left"
+                            style={{ color: visibleCols.includes(key) ? '#e2e8f0' : '#475569' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)')}
+                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+                          >
+                            <span
+                              className="flex-shrink-0 rounded"
+                              style={{ width: 13, height: 13, border: '1px solid', borderColor: visibleCols.includes(key) ? '#3b82f6' : '#334155', backgroundColor: visibleCols.includes(key) ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            >
+                              {visibleCols.includes(key) && (
+                                <svg viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" style={{ width: 8, height: 8 }}>
+                                  <polyline points="1.5,5 4,7.5 8.5,2" />
+                                </svg>
+                              )}
+                            </span>
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
               {campaigns.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm" style={{ color: '#334155' }}>Sem dados de campanha</div>
@@ -1364,15 +1444,29 @@ export default function DashboardPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        {['Campanha', 'Plat.', 'Gasto', 'Leads', 'CTR', ''].map((h) => (
-                          <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Campanha</th>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Plat.</th>
+                        {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key, label }) => (
+                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{label}</th>
                         ))}
+                        <th />
                       </tr>
                     </thead>
                     <tbody>
                       {campaigns.map((c, i) => {
                         const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
-                        const ctr = c.impressions > 0 ? ((c.clicks / c.impressions) * 100) : 0;
+                        const ctr = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
+                        const cpc = c.clicks > 0 ? c.spend / c.clicks : 0;
+                        const cpl = c.leads > 0 ? c.spend / c.leads : 0;
+                        const cellVal: Record<ColKey, React.ReactNode> = {
+                          spend:       <span style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</span>,
+                          leads:       <span style={{ color: '#94a3b8' }}>{c.leads > 0 ? c.leads : '—'}</span>,
+                          ctr:         <span style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(ctr)}</span>,
+                          cpc:         <span style={{ color: '#94a3b8' }}>{cpc > 0 ? fmtMoney(cpc) : '—'}</span>,
+                          cpl:         <span style={{ color: '#94a3b8' }}>{cpl > 0 ? fmtMoney(cpl) : '—'}</span>,
+                          impressions: <span style={{ color: '#94a3b8' }}>{c.impressions > 0 ? c.impressions.toLocaleString('pt-BR') : '—'}</span>,
+                          clicks:      <span style={{ color: '#94a3b8' }}>{c.clicks > 0 ? c.clicks.toLocaleString('pt-BR') : '—'}</span>,
+                        };
                         return (
                           <tr
                             key={i}
@@ -1391,11 +1485,9 @@ export default function DashboardPage() {
                                 {c.platform}
                               </span>
                             </td>
-                            <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</td>
-                            <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{c.leads > 0 ? c.leads : '—'}</td>
-                            <td className="px-4 py-2.5 tabular-nums" style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>
-                              {fmtPct(ctr)}
-                            </td>
+                            {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key }) => (
+                              <td key={key} className="px-4 py-2.5 tabular-nums">{cellVal[key]}</td>
+                            ))}
                             <td className="px-4 py-2.5">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: '#334155' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />

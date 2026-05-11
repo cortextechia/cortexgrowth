@@ -265,3 +265,31 @@ export interface PaginatedResponse<T> {
   page: number;
   pageSize: number;
 }
+
+// ===== RELATÓRIOS AGENDADOS =====
+export type ChannelType = 'TELEGRAM' | 'WHATSAPP';
+export type ReportFrequency = 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
+export interface ReportLog {
+  id: string;
+  status: 'SUCCESS' | 'FAILED';
+  error?: string;
+  sentAt: string;
+}
+
+export interface ReportSchedule {
+  id: string;
+  organizationId: string;
+  channelType: ChannelType;
+  destination: string;
+  destinationName: string;
+  frequency: ReportFrequency;
+  hour: number;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  isActive: boolean;
+  lastSentAt?: string;
+  createdAt: string;
+  createdBy: { name: string; email: string };
+  logs: ReportLog[];
+}

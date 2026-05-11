@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -413,6 +413,74 @@ class ApiService {
 
   async getConnectedManagers(): Promise<{ success: boolean; data: { id: string; name: string; email: string; status: string; connectedAt: string }[] }> {
     const response = await this.client.get('/managers/connected');
+    return response.data;
+  }
+
+  // ─── Relatórios Agendados ────────────────────────────────────────────────────
+
+  async getReportSchedules(): Promise<{ success: boolean; data: ReportSchedule[] }> {
+    const response = await this.client.get('/report-schedules');
+    return response.data;
+  }
+
+  async createReportSchedule(data: {
+    channelType: string; destination: string; destinationName: string;
+    frequency: string; hour: number; dayOfWeek?: number; dayOfMonth?: number;
+  }): Promise<{ success: boolean; data: ReportSchedule }> {
+    const response = await this.client.post('/report-schedules', data);
+    return response.data;
+  }
+
+  async updateReportSchedule(id: string, data: Partial<{
+    isActive: boolean; hour: number; frequency: string;
+    dayOfWeek: number; dayOfMonth: number; destination: string; destinationName: string;
+  }>): Promise<{ success: boolean }> {
+    const response = await this.client.put(`/report-schedules/${id}`, data);
+    return response.data;
+  }
+
+  async deleteReportSchedule(id: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/report-schedules/${id}`);
+    return response.data;
+  }
+
+  async sendReportNow(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/report-schedules/${id}/send`);
+    return response.data;
+  }
+
+  async getReportPreview(): Promise<{ success: boolean; data: { text: string } }> {
+    const response = await this.client.get('/report-schedules/preview');
+    return response.data;
+  }
+
+  async createTelegramInvite(): Promise<{ success: boolean; data: { token: string; deepLink: string; expiresAt: string } }> {
+    const response = await this.client.post('/report-schedules/telegram/invite');
+    return response.data;
+  }
+
+  async getTelegramInviteStatus(token: string): Promise<{ success: boolean; data: { connected: boolean; chatId?: string; chatName?: string; expired: boolean } }> {
+    const response = await this.client.get(`/report-schedules/telegram/invite/${token}/status`);
+    return response.data;
+  }
+
+  async registerTelegramWebhook(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/report-schedules/telegram/webhook/register');
+    return response.data;
+  }
+
+  async getTelegramChats(): Promise<{ success: boolean; data: { chatId: string; chatName: string; type: string }[] }> {
+    const response = await this.client.get('/report-schedules/telegram/chats');
+    return response.data;
+  }
+
+  async getTelegramBot(): Promise<{ success: boolean; data: { username: string; id: number } }> {
+    const response = await this.client.get('/report-schedules/telegram/bot');
+    return response.data;
+  }
+
+  async getWhatsAppStatus(): Promise<{ success: boolean; data: { connected: boolean; phone?: string } }> {
+    const response = await this.client.get('/report-schedules/whatsapp/status');
     return response.data;
   }
 

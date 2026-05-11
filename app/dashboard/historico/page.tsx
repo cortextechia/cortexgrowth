@@ -46,33 +46,33 @@ function makeIRPlugin(invColor: string) {
 
         // Valor da barra (receita)
         ctx.save();
-        ctx.font = '600 10px Inter,sans-serif';
+        ctx.font = '600 12px Inter,sans-serif';
         ctx.fillStyle = '#1D9E75';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(fmtK(rv), xPos, yBar - 3);
+        ctx.fillText(fmtK(rv), xPos, yBar - 4);
         ctx.restore();
 
         // Valor da linha (investimento) — acima do círculo
         ctx.save();
-        ctx.font = '600 10px Inter,sans-serif';
+        ctx.font = '600 12px Inter,sans-serif';
         ctx.fillStyle = invColor;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(fmtK(inv), xPos, yInv - 17);
+        ctx.fillText(fmtK(inv), xPos, yInv - 21);
         ctx.restore();
 
         // Círculo com ROAS
         ctx.save();
         ctx.beginPath();
-        ctx.arc(xPos, yInv, 13, 0, 2 * Math.PI);
+        ctx.arc(xPos, yInv, 16, 0, 2 * Math.PI);
         ctx.fillStyle = '#0f1629';
         ctx.fill();
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = col;
-        ctx.font = '600 9px Inter,sans-serif';
+        ctx.font = '700 11px Inter,sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${roas.toFixed(1)}x`, xPos, yInv);
@@ -103,33 +103,33 @@ function makeLVPlugin() {
 
         // Valor da barra (leads)
         ctx.save();
-        ctx.font = '600 10px Inter,sans-serif';
+        ctx.font = '600 12px Inter,sans-serif';
         ctx.fillStyle = '#7F77DD';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(String(lv), xPos, yBar - 3);
+        ctx.fillText(String(lv), xPos, yBar - 4);
         ctx.restore();
 
         // Valor da linha (vendas) — acima do círculo
         ctx.save();
-        ctx.font = '600 10px Inter,sans-serif';
+        ctx.font = '600 12px Inter,sans-serif';
         ctx.fillStyle = '#1D9E75';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(String(venda), xPos, yVenda - 17);
+        ctx.fillText(String(venda), xPos, yVenda - 21);
         ctx.restore();
 
         // Círculo com taxa de conversão
         ctx.save();
         ctx.beginPath();
-        ctx.arc(xPos, yVenda, 13, 0, 2 * Math.PI);
+        ctx.arc(xPos, yVenda, 16, 0, 2 * Math.PI);
         ctx.fillStyle = '#0f1629';
         ctx.fill();
         ctx.strokeStyle = col;
         ctx.lineWidth = 1.5;
         ctx.stroke();
         ctx.fillStyle = col;
-        ctx.font = '600 9px Inter,sans-serif';
+        ctx.font = '700 11px Inter,sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`${Math.round(conv)}%`, xPos, yVenda);
@@ -155,11 +155,11 @@ function buildIRConfig(d: HistoricoPoint[], invColor: string): ChartConfiguratio
     } as any,
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 30, left: 4, right: 4 } },
+      layout: { padding: { top: 34, left: 4, right: 4 } },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
-        y: { min: 0, max: maxVal, ticks: { callback: (v: any) => fmtK(v), font: { size: 10 }, color: '#475569' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } },
-        x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false, color: '#475569' }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: maxVal, ticks: { callback: (v: any) => fmtK(v), font: { size: 11 }, color: '#475569' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } },
+        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: '#475569' }, grid: { display: false }, border: { display: false } },
       },
     },
   };
@@ -181,11 +181,11 @@ function buildLVConfig(d: HistoricoPoint[]): ChartConfiguration {
     } as any,
     options: {
       responsive: true, maintainAspectRatio: false,
-      layout: { padding: { top: 30, left: 4, right: 4 } },
+      layout: { padding: { top: 34, left: 4, right: 4 } },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
-        y: { min: 0, max: maxVal, ticks: { font: { size: 10 }, color: '#475569' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } },
-        x: { ticks: { font: { size: 10 }, maxRotation: 40, autoSkip: false, color: '#475569' }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: maxVal, ticks: { font: { size: 11 }, color: '#475569' }, grid: { color: 'rgba(255,255,255,0.04)' }, border: { display: false } },
+        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: '#475569' }, grid: { display: false }, border: { display: false } },
       },
     },
   };
