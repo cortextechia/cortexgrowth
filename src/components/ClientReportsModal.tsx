@@ -74,9 +74,9 @@ function TelegramQRModal({ onConnected, onClose }: {
         </div>
 
         {phase === 'loading' && (
-          <div className="py-10 flex flex-col items-center gap-3">
-            <Spinner className="h-6 w-6 text-blue-400" />
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gerando link seguro...</p>
+          <div className="py-10 flex flex-col items-center gap-3" style={{ color: 'var(--text-muted)' }}>
+            <Spinner className="h-6 w-6" />
+            <p className="text-xs">Gerando link seguro...</p>
           </div>
         )}
 
@@ -86,17 +86,18 @@ function TelegramQRModal({ onConnected, onClose }: {
               Escaneie o QR Code com o Telegram para conectar este chat ao agendamento.
             </p>
             <div className="flex justify-center py-2">
+              {/* QR code sempre tem fundo branco — requisito do padrão QR */}
               <div className="p-3 rounded-xl" style={{ backgroundColor: '#fff' }}>
                 <QRCodeSVG value={deepLink} size={180} />
               </div>
             </div>
             <a href={deepLink} target="_blank" rel="noreferrer"
               className="block text-xs truncate px-3 py-2 rounded-lg"
-              style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--chart-tertiary)', border: '1px solid var(--border-md)' }}>
               {deepLink}
             </a>
             <div className="flex items-center gap-2 justify-center pt-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
+              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão... (expira em 24h)</p>
             </div>
           </>
@@ -104,20 +105,20 @@ function TelegramQRModal({ onConnected, onClose }: {
 
         {phase === 'connected' && (
           <div className="py-8 flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(34,197,94,0.15)' }}>
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="#4ade80" strokeWidth={2.5}>
+            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--badge-success-bg)' }}>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} style={{ stroke: 'var(--badge-success-text)' }}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-sm font-medium" style={{ color: '#4ade80' }}>Conectado!</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--badge-success-text)' }}>Conectado!</p>
           </div>
         )}
 
         {phase === 'error' && (
           <div className="py-8 flex flex-col items-center gap-3">
-            <p className="text-sm" style={{ color: '#f87171' }}>Link expirado ou inválido.</p>
+            <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Link expirado ou inválido.</p>
             <button onClick={() => setPhase('loading')} className="text-xs px-4 py-2 rounded-lg"
-              style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' }}>
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--chart-tertiary)', border: '1px solid var(--border-md)' }}>
               Gerar novo link
             </button>
           </div>
@@ -158,7 +159,10 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
     finally { setLoading(false); }
   };
 
-  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
+  const inputStyle = {
+    backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13,
+  };
   const labelStyle = { color: 'var(--text-muted)', fontSize: 12, marginBottom: 4, display: 'block' as const };
 
   return (
@@ -179,9 +183,13 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
               <button key={c} onClick={() => { setChannel(c); setDestination(''); setDestinationName(''); }}
                 className="flex-1 py-2 rounded-lg text-xs font-medium transition-all"
                 style={{
-                  backgroundColor: channel === c ? (c === 'TELEGRAM' ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.15)') : 'rgba(255,255,255,0.04)',
-                  color: channel === c ? (c === 'TELEGRAM' ? '#60a5fa' : '#4ade80') : 'var(--text-muted)',
-                  border: `1px solid ${channel === c ? (c === 'TELEGRAM' ? 'rgba(59,130,246,0.4)' : 'rgba(34,197,94,0.3)') : 'var(--border)'}`,
+                  backgroundColor: channel === c
+                    ? (c === 'TELEGRAM' ? 'var(--accent-dim)' : 'var(--badge-success-bg)')
+                    : 'var(--input-bg)',
+                  color: channel === c
+                    ? (c === 'TELEGRAM' ? 'var(--chart-tertiary)' : 'var(--badge-success-text)')
+                    : 'var(--text-muted)',
+                  border: `1px solid ${channel === c ? 'var(--border-md)' : 'var(--border)'}`,
                 }}>
                 {c === 'TELEGRAM' ? '✈️ Telegram' : '📱 WhatsApp'}
               </button>
@@ -194,14 +202,19 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
           <div className="space-y-2">
             <span style={labelStyle}>Chat / Grupo do Telegram</span>
             {destination ? (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                <span className="text-xs flex-1" style={{ color: '#4ade80' }}>✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span></span>
-                <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: 'var(--text-muted)' }}>Trocar</button>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--border-md)' }}>
+                <span className="text-xs flex-1" style={{ color: 'var(--badge-success-text)' }}>
+                  ✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span>
+                </span>
+                <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Trocar
+                </button>
               </div>
             ) : (
               <button onClick={() => setShowQR(true)}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium"
-                style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px dashed rgba(59,130,246,0.3)' }}>
+                style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--chart-tertiary)', border: '1px dashed var(--border-md)' }}>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
                 </svg>
@@ -241,9 +254,9 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
               <button key={k} onClick={() => setFrequency(k)}
                 className="py-2 rounded-lg text-xs font-medium transition-all"
                 style={{
-                  backgroundColor: frequency === k ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-                  color: frequency === k ? '#60a5fa' : 'var(--text-muted)',
-                  border: `1px solid ${frequency === k ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
+                  backgroundColor: frequency === k ? 'var(--accent-dim)' : 'var(--input-bg)',
+                  color: frequency === k ? 'var(--chart-tertiary)' : 'var(--text-muted)',
+                  border: `1px solid ${frequency === k ? 'var(--border-md)' : 'var(--border)'}`,
                 }}>
                 {v}
               </button>
@@ -277,15 +290,15 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
           )}
         </div>
 
-        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium"
-            style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+            style={{ backgroundColor: 'var(--input-bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
             Cancelar
           </button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: loading ? 0.6 : 1 }}>
+            style={{ backgroundColor: 'var(--accent)', color: '#fff', opacity: loading ? 0.6 : 1 }}>
             {loading ? 'Criando...' : 'Criar agendamento'}
           </button>
         </div>
@@ -325,15 +338,15 @@ function ScheduleRow({ schedule, onToggle, onDelete, onSendNow }: {
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{describeSchedule(schedule)}</p>
           </div>
         </div>
-        {/* Toggle */}
+        {/* Toggle: knob branco funciona em ambos os temas */}
         <button onClick={onToggle} className="shrink-0 rounded-full transition-colors relative"
-          style={{ width: 32, height: 18, backgroundColor: schedule.isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)' }}>
+          style={{ width: 32, height: 18, backgroundColor: schedule.isActive ? 'var(--accent)' : 'var(--border-md)' }}>
           <span style={{ position: 'absolute', top: 2, left: schedule.isActive ? 16 : 2, width: 14, height: 14, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
         </button>
       </div>
 
       {lastLog && (
-        <p className="text-xs" style={{ color: lastLog.status === 'SUCCESS' ? '#4ade80' : '#f87171' }}>
+        <p className="text-xs" style={{ color: lastLog.status === 'SUCCESS' ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
           {lastLog.status === 'SUCCESS' ? '✓' : '✗'} Último: {new Date(lastLog.sentAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
         </p>
       )}
@@ -342,14 +355,14 @@ function ScheduleRow({ schedule, onToggle, onDelete, onSendNow }: {
         <button onClick={handleSend} disabled={sending}
           className="flex-1 py-1 rounded-lg text-xs font-medium transition-colors"
           style={{
-            backgroundColor: sendResult === 'ok' ? 'rgba(34,197,94,0.15)' : sendResult === 'err' ? 'rgba(248,113,113,0.15)' : 'rgba(59,130,246,0.1)',
-            color: sendResult === 'ok' ? '#4ade80' : sendResult === 'err' ? '#f87171' : '#60a5fa',
-            border: '1px solid rgba(59,130,246,0.2)',
+            backgroundColor: sendResult === 'ok' ? 'var(--badge-success-bg)' : sendResult === 'err' ? 'var(--badge-error-bg)' : 'var(--accent-dim)',
+            color: sendResult === 'ok' ? 'var(--badge-success-text)' : sendResult === 'err' ? 'var(--badge-error-text)' : 'var(--chart-tertiary)',
+            border: '1px solid var(--border-md)',
           }}>
           {sending ? 'Enviando...' : sendResult === 'ok' ? '✓ Enviado' : sendResult === 'err' ? '✗ Erro' : 'Enviar agora'}
         </button>
         <button onClick={onDelete} className="px-2.5 py-1 rounded-lg text-xs transition-colors"
-          style={{ backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.15)' }}>
+          style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--border)' }}>
           Remover
         </button>
       </div>
@@ -414,13 +427,13 @@ export default function ClientReportsModal({ clientName, onClose }: {
           <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
             <div>
               <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios Automatizados</p>
-              <p className="text-xs mt-0.5" style={{ color: '#60a5fa' }}>{clientName}</p>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--chart-tertiary)' }}>{clientName}</p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setShowCreate(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+                style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                 Novo
@@ -439,7 +452,7 @@ export default function ClientReportsModal({ clientName, onClose }: {
               </div>
             ) : schedules.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center gap-3">
-                <svg className="w-10 h-10 opacity-20" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={1.5}>
+                <svg className="w-10 h-10 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: 'var(--text-secondary)' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum agendamento configurado</p>
@@ -461,7 +474,7 @@ export default function ClientReportsModal({ clientName, onClose }: {
           {/* Footer */}
           <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Adicione o bot <span style={{ color: '#818cf8' }}>@CortexGrowthBot</span> ao grupo do Telegram antes de conectar.
+              Adicione o bot <strong style={{ color: 'var(--accent)' }}>@CortexGrowthBot</strong> ao grupo do Telegram antes de conectar.
             </p>
           </div>
         </div>
@@ -474,8 +487,10 @@ export default function ClientReportsModal({ clientName, onClose }: {
         />
       )}
 
+      {/* Toast: sempre colorido independente do tema */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-80 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg" style={{ backgroundColor: toast.ok ? '#1D9E75' : '#dc2626', color: '#fff' }}>
+        <div className="fixed bottom-6 right-6 z-80 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg"
+          style={{ backgroundColor: toast.ok ? '#1D9E75' : '#dc2626', color: '#fff' }}>
           {toast.msg}
         </div>
       )}
