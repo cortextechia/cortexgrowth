@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients, TrafficManagerClient } from '@/types';
+import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients } from '@/types';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -68,6 +68,7 @@ interface EditModal {
   name: string;
   plan: Plan;
   status: OrgStatus;
+  subscriptionEnds: string; // YYYY-MM-DD ou '' para limpar
 }
 
 interface UsersModal {
@@ -243,7 +244,8 @@ export default function OrganizationsPage() {
   };
 
   const openEdit = (org: Organization) => {
-    setEditModal({ org, name: org.name, plan: org.plan, status: org.status });
+    const ends = org.subscriptionEnds ? new Date(org.subscriptionEnds).toISOString().slice(0, 10) : '';
+    setEditModal({ org, name: org.name, plan: org.plan, status: org.status, subscriptionEnds: ends });
   };
 
   const handleSave = async () => {
@@ -254,6 +256,7 @@ export default function OrganizationsPage() {
         name: editModal.name,
         plan: editModal.plan,
         status: editModal.status,
+        subscriptionEnds: editModal.subscriptionEnds ? new Date(editModal.subscriptionEnds) : undefined,
       });
       setEditModal(null);
       showToast('Organização atualizada.');
@@ -681,6 +684,18 @@ export default function OrganizationsPage() {
                     <option key={s} value={s}>{STATUS_LABEL[s]}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                  Assinatura válida até
+                  <span className="ml-1 text-gray-400 font-normal">(deixe em branco para sem vencimento)</span>
+                </label>
+                <input
+                  type="date"
+                  value={editModal.subscriptionEnds}
+                  onChange={(e) => setEditModal((p) => p ? { ...p, subscriptionEnds: e.target.value } : p)}
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">

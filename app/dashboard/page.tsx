@@ -35,13 +35,13 @@ const PRESETS: Record<Exclude<Range, 'CUSTOM'>, { days: number; label: string }>
 // ─── Funnel stage mappings ─────────────────────────────────────────────────────
 
 const WON_STATUSES  = ['Fechado', 'Venda ganha', 'Ganho', 'Fechado Ganho', 'Won'];
-const LOST_STATUSES = ['Perdido', 'Venda perdida', 'Perdida', 'Fechado Perdido', 'Lost', 'Não Qualificado'];
+const LOST_STATUSES = ['Perdido', 'Venda perdida', 'Perdida', 'Fechado Perdido', 'Lost', 'Não Qualificado', 'Status 74023059'];
 const NEGOTIATION_STATUSES = ['Negociando', 'Em negociação', 'Inicial B2B'];
 const QUOTE_STATUSES = ['Proposta Enviada', 'Orçamento Enviado', 'Aguardando Orçamento'];
 const CONTACT_STATUSES = [
   'Contato Feito', 'Contato inicial', 'Contato Inicial',
   'Follow- Up 1', 'Follow - Up 1', 'Follow - Up 2', 'Follow - Up 3',
-  'Qualificado',
+  'Qualificado', 'Aguardando Informações',
 ];
 
 interface ActiveAlert {
@@ -362,8 +362,6 @@ interface CampaignDrawerProps {
 }
 
 function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: CampaignDrawerProps) {
-  if (!campaign) return null;
-
   const daily = useMemo(() => {
     const map = new Map<string, { date: string; spend: number; clicks: number; impressions: number }>();
     campaignRows.forEach((d) => {
@@ -383,6 +381,8 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
     });
     return Array.from(map.values()).sort((a, b) => b.spend - a.spend);
   }, [adsetRows]);
+
+  if (!campaign) return null;
 
   const totalSpend = campaign.spend;
   const totalImpr  = campaign.impressions;
@@ -613,6 +613,7 @@ export default function DashboardPage() {
     fetchIntegrations();
     fetchAllDashboardData(30);
     fetchLatestInsight();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const changeRange = (r: Range) => {
@@ -659,6 +660,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchAttributionSummary(activeDays);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDays]);
 
   const rangeLabel = useMemo(() => {
