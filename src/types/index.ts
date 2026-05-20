@@ -192,6 +192,18 @@ export interface HistoricoData {
 
 
 // ===== GESTOR DE TRAFEGO =====
+export interface ManagerStats {
+  mrr: number;
+  annualProjection: number;
+  averageTicket: number;
+  clientCount: number;
+  planBreakdown: { plan: string; count: number; unitCommission: number; totalCommission: number }[];
+  growthHistory: { month: string; newClients: number; cumulative: number }[];
+  reportsThisMonth: number;
+  activeSchedules: number;
+}
+
+
 export interface TrafficManagerClient {
   id: string;
   name: string;

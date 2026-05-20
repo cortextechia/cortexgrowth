@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
 import { UserRole, type TrafficManagerClient } from '@/types';
 import ClientReportsModal from '@/components/ClientReportsModal';
+import GestorStatsCard from '@/components/GestorStatsCard';
 
 const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
@@ -120,6 +121,8 @@ export default function GestorPage() {
           {toast.message}
         </div>
       )}
+
+      <GestorStatsCard />
 
       {/* ─── Seção: Código de Convite ─────────────────────────────────────── */}
       <div className="rounded-xl p-5 space-y-4" style={card}>

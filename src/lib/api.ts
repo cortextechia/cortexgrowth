@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -383,6 +383,11 @@ class ApiService {
 
   async removeManagerClient(managerId: string, orgId: string): Promise<{ success: boolean }> {
     const response = await this.client.delete(`/managers/${managerId}/clients/${orgId}`);
+    return response.data;
+  }
+
+  async getManagerStats(): Promise<{ success: boolean; data: ManagerStats }> {
+    const response = await this.client.get('/managers/my-stats');
     return response.data;
   }
 
