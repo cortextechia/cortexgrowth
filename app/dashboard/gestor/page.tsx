@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
 import { UserRole, type TrafficManagerClient } from '@/types';
+import ClientReportsModal from '@/components/ClientReportsModal';
 
 const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
@@ -35,6 +36,7 @@ export default function GestorPage() {
 
   const [clients, setClients] = useState<TrafficManagerClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
+  const [reportClient, setReportClient] = useState<TrafficManagerClient | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -97,7 +99,7 @@ export default function GestorPage() {
 
   const handleManageReports = (client: TrafficManagerClient) => {
     apiService.setSelectedClientOrgId(client.id);
-    router.push('/dashboard/relatorios');
+    setReportClient(client);
   };
 
   const handleViewDashboard = (client: TrafficManagerClient) => {
@@ -108,6 +110,7 @@ export default function GestorPage() {
   if (user?.role !== UserRole.TRAFFIC_MANAGER) return null;
 
   return (
+    <>
     <div className="space-y-6">
       {toast && (
         <div
@@ -143,7 +146,7 @@ export default function GestorPage() {
               </span>
               <button
                 onClick={e => { e.stopPropagation(); handleCopy(); }}
-                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors flex-shrink-0"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors shrink-0"
                 style={copied
                   ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }
                   : { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
@@ -208,7 +211,7 @@ export default function GestorPage() {
                 style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                     style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
                     <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>
                       {client.name.charAt(0).toUpperCase()}
@@ -261,5 +264,13 @@ export default function GestorPage() {
         </ol>
       </div>
     </div>
+
+    {reportClient && (
+      <ClientReportsModal
+        clientName={reportClient.name}
+        onClose={() => { setReportClient(null); apiService.clearSelectedClientOrgId(); }}
+      />
+    )}
+    </>
   );
 }
