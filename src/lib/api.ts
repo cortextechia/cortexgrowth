@@ -489,6 +489,13 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Onboarding ──────────────────────────────────────────────────────────────
+
+  async completeOnboarding(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.patch('/organizations/current/onboarding/complete');
+    return response.data;
+  }
+
   // ─── SEO / AIO ───────────────────────────────────────────────────────────────
 
   async getSeoConfig(): Promise<{ success: boolean; data: SeoConfig }> {

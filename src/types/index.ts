@@ -67,6 +67,8 @@ export interface Organization {
   status: OrgStatus;
   stripeCustomerId?: string;
   subscriptionEnds?: Date;
+  websiteUrl?: string;
+  onboardingCompletedAt?: string;
   createdAt: Date;
   updatedAt: Date;
   _count?: { users: number; integrations: number };

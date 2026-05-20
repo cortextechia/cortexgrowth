@@ -38,7 +38,10 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       const response = await register(formData);
-      if (response.success) router.push('/dashboard');
+      if (response.success) {
+        sessionStorage.setItem('onboarding_new_account', 'true');
+        router.push('/onboarding');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar conta. Tente novamente.');
     } finally {

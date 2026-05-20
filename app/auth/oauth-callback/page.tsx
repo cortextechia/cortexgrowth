@@ -23,18 +23,22 @@ function OAuthCallbackContent() {
   const providerLabel = PROVIDER_LABELS[provider] ?? provider;
   const isSuccess = status === 'success';
 
+  const returnTo = typeof window !== 'undefined' && sessionStorage.getItem('onboarding_active')
+    ? '/onboarding'
+    : '/dashboard/integrations';
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCountdown((n) => {
         if (n <= 1) {
           clearInterval(interval);
-          router.push('/dashboard/integrations');
+          router.push(returnTo);
         }
         return n - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [router]);
+  }, [router, returnTo]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -76,10 +80,10 @@ function OAuthCallbackContent() {
         </p>
 
         <button
-          onClick={() => router.push('/dashboard/integrations')}
+          onClick={() => router.push(returnTo)}
           className="mt-4 w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
         >
-          Ir para Integrações
+          {returnTo === '/onboarding' ? 'Voltar à configuração' : 'Ir para Integrações'}
         </button>
       </div>
     </div>
