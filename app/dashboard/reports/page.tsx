@@ -30,20 +30,20 @@ function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' 
 
 function AgentSection({ label, data }: { label: string; data: AgentOutput }) {
   return (
-    <div className="rounded-xl p-4" style={{ backgroundColor: '#0a1020', border: '1px solid rgba(255,255,255,0.05)' }}>
+    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.05)' }}>
       <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium" style={{ color: '#94a3b8' }}>{label}</span>
+        <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
         <ScoreBadge score={data.score} size="sm" />
       </div>
       {data.summary && (
-        <p className="text-xs leading-relaxed mb-3" style={{ color: '#64748b' }}>{data.summary}</p>
+        <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{data.summary}</p>
       )}
       {data.alerts.length > 0 && (
         <div className="mb-2">
           <p className="text-xs font-medium mb-1" style={{ color: '#f59e0b' }}>Alertas</p>
           <ul className="space-y-1">
             {data.alerts.map((a, i) => (
-              <li key={i} className="text-xs flex gap-1.5" style={{ color: '#94a3b8' }}>
+              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
                 <span style={{ color: '#f59e0b' }}>•</span>{a}
               </li>
             ))}
@@ -55,7 +55,7 @@ function AgentSection({ label, data }: { label: string; data: AgentOutput }) {
           <p className="text-xs font-medium mb-1" style={{ color: '#3b82f6' }}>Recomendações</p>
           <ul className="space-y-1">
             {data.recommendations.map((r, i) => (
-              <li key={i} className="text-xs flex gap-1.5" style={{ color: '#94a3b8' }}>
+              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
                 <span style={{ color: '#3b82f6' }}>→</span>{r}
               </li>
             ))}
@@ -92,7 +92,7 @@ function ReportCard({
   });
 
   return (
-    <div className="rounded-xl overflow-hidden transition-all" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="rounded-xl overflow-hidden transition-all" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <button
         onClick={onToggle}
         className="w-full text-left p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-white/[0.02] transition-colors"
@@ -100,9 +100,9 @@ function ReportCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <ScoreBadge score={overall} size="lg" />
-            <span className="text-sm font-medium" style={{ color: '#f1f5f9' }}>Score geral</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Score geral</span>
           </div>
-          <p className="text-xs" style={{ color: '#475569' }}>{dateLabel} · período {report.period}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{dateLabel} · período {report.period}</p>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           <div className="flex gap-2">
@@ -113,13 +113,13 @@ function ReportCard({
             ].map(({ label, score }) => (
               <div key={label} className="text-center">
                 <ScoreBadge score={score} size="sm" />
-                <p className="text-xs mt-0.5" style={{ color: '#334155' }}>{label}</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{label}</p>
               </div>
             ))}
           </div>
           <svg
             className={`h-4 w-4 flex-shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`}
-            style={{ color: '#475569' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor"
           >
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
@@ -127,11 +127,11 @@ function ReportCard({
       </button>
 
       {expanded && (
-        <div className="px-4 sm:px-5 pb-5 space-y-4" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <div className="px-4 sm:px-5 pb-5 space-y-4" style={{ borderTop: '1px solid var(--border)' }}>
           {content.orchestrator?.executiveSummary && (
             <div className="pt-4">
-              <p className="text-xs font-medium mb-2 uppercase tracking-wide" style={{ color: '#475569' }}>Resumo executivo</p>
-              <p className="text-sm leading-relaxed" style={{ color: '#94a3b8' }}>{content.orchestrator.executiveSummary}</p>
+              <p className="text-xs font-medium mb-2 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Resumo executivo</p>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{content.orchestrator.executiveSummary}</p>
             </div>
           )}
           {(content.orchestrator?.priorityAlerts?.length || content.orchestrator?.topRecommendations?.length) ? (
@@ -141,7 +141,7 @@ function ReportCard({
                   <p className="text-xs font-medium mb-2" style={{ color: '#ef4444' }}>Alertas prioritários</p>
                   <ul className="space-y-1">
                     {content.orchestrator.priorityAlerts.map((a, i) => (
-                      <li key={i} className="text-xs flex gap-1.5" style={{ color: '#94a3b8' }}>
+                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
                         <span style={{ color: '#ef4444' }}>!</span>{a}
                       </li>
                     ))}
@@ -153,7 +153,7 @@ function ReportCard({
                   <p className="text-xs font-medium mb-2" style={{ color: '#60a5fa' }}>Top recomendações</p>
                   <ul className="space-y-1">
                     {content.orchestrator.topRecommendations.map((r, i) => (
-                      <li key={i} className="text-xs flex gap-1.5" style={{ color: '#94a3b8' }}>
+                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
                         <span style={{ color: '#60a5fa' }}>{i + 1}.</span>{r}
                       </li>
                     ))}
@@ -203,8 +203,8 @@ function ReportCard({
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg px-3 py-2 text-xs space-y-1" style={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)' }}>
-      <p style={{ color: '#64748b' }}>{label}</p>
+    <div className="rounded-lg px-3 py-2 text-xs space-y-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+      <p style={{ color: 'var(--text-muted)' }}>{label}</p>
       {payload.map((p: any) => (
         <p key={p.dataKey} style={{ color: p.color }}>{p.name}: <strong>{p.value}</strong></p>
       ))}
@@ -257,7 +257,7 @@ function CreativeAgentCard({ agent }: { agent: CreativeAgentDef }) {
     <div
       className="relative rounded-xl p-5 flex flex-col gap-3 select-none overflow-hidden"
       style={{
-        backgroundColor: '#0d1526',
+        backgroundColor: 'var(--bg-surface)',
         border: '1px solid rgba(168,85,247,0.12)',
       }}
     >
@@ -287,8 +287,8 @@ function CreativeAgentCard({ agent }: { agent: CreativeAgentDef }) {
 
       {/* Name + description */}
       <div className="relative">
-        <p className="text-sm font-semibold mb-1" style={{ color: '#e2d9f3' }}>{agent.name}</p>
-        <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>{agent.description}</p>
+        <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{agent.name}</p>
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{agent.description}</p>
       </div>
 
       {/* Output tags */}
@@ -309,7 +309,7 @@ function CreativeAgentCard({ agent }: { agent: CreativeAgentDef }) {
         <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#6b21a8" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <span className="text-xs" style={{ color: '#4a3f5c' }}>{agent.phase}</span>
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{agent.phase}</span>
       </div>
     </div>
   );
@@ -469,8 +469,8 @@ export default function ReportsPage() {
       {/* ── CABEÇALHO ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: '#f1f5f9' }}>Relatórios</h1>
-          <p className="mt-1 text-sm" style={{ color: '#475569' }}>
+          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
             Análises e inteligência criativa geradas pelos agentes de IA.
           </p>
         </div>
@@ -509,16 +509,16 @@ export default function ReportsPage() {
         {chartData.length > 1 && (
           <div
             className="rounded-2xl p-4 sm:p-6"
-            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
-            <p className="text-sm font-medium mb-4" style={{ color: '#94a3b8' }}>
+            <p className="text-sm font-medium mb-4" style={{ color: 'var(--text-secondary)' }}>
               Histórico de scores (últimos {chartData.length} relatórios)
             </p>
             <ResponsiveContainer width="100%" height={180}>
               <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} width={28} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={28} />
                 <Tooltip content={<ChartTooltip />} />
                 <Line type="monotone" dataKey="Geral"     stroke="#3b82f6" strokeWidth={2}   dot={false} />
                 <Line type="monotone" dataKey="Marketing" stroke="#a855f7" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
@@ -535,7 +535,7 @@ export default function ReportsPage() {
               ].map(({ label, color }) => (
                 <div key={label} className="flex items-center gap-1.5">
                   <div className="h-2 w-4 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="text-xs" style={{ color: '#475569' }}>{label}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
                 </div>
               ))}
             </div>
@@ -546,13 +546,13 @@ export default function ReportsPage() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: '#0f1629' }} />
+              <div key={i} className="h-20 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-surface)' }} />
             ))}
           </div>
         ) : reports.length === 0 ? (
           <div
             className="rounded-2xl p-10 flex flex-col items-center text-center"
-            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center mb-4"
@@ -562,8 +562,8 @@ export default function ReportsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               </svg>
             </div>
-            <h2 className="text-base font-semibold mb-2" style={{ color: '#f1f5f9' }}>Nenhum relatório ainda</h2>
-            <p className="text-sm mb-4" style={{ color: '#64748b' }}>
+            <h2 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Nenhum relatório ainda</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
               Clique em "Gerar relatório" para criar sua primeira análise de IA.
             </p>
             <button
@@ -601,7 +601,7 @@ export default function ReportsPage() {
         <div
           className="relative rounded-2xl p-5 overflow-hidden"
           style={{
-            backgroundColor: '#0d1526',
+            backgroundColor: 'var(--bg-surface)',
             border: '1px solid rgba(168,85,247,0.15)',
           }}
         >
@@ -622,10 +622,10 @@ export default function ReportsPage() {
               </svg>
             </div>
             <div className="flex-1">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: '#e2d9f3' }}>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>
                 Agentes de criação baseados em performance
               </p>
-              <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
                 A Inteligência Criativa usa os dados dos relatórios analíticos para gerar briefings, copy e ideias de criativo diretamente do que está convertendo na sua conta. Disponível na Fase 4 da plataforma.
               </p>
             </div>

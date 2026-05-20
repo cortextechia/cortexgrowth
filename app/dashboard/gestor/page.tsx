@@ -22,7 +22,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-const card = { backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' };
+const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
 
 export default function GestorPage() {
   const { user } = useAuth();
@@ -100,14 +100,20 @@ export default function GestorPage() {
     router.push('/dashboard/relatorios');
   };
 
+  const handleViewDashboard = (client: TrafficManagerClient) => {
+    apiService.setSelectedClientOrgId(client.id);
+    router.push('/dashboard');
+  };
+
   if (user?.role !== UserRole.TRAFFIC_MANAGER) return null;
 
   return (
     <div className="space-y-6">
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg text-white"
+          style={{ backgroundColor: toast.type === 'success' ? 'var(--bg-elevated)' : '#dc2626', border: '1px solid var(--border-md)' }}
+        >
           {toast.message}
         </div>
       )}
@@ -115,14 +121,14 @@ export default function GestorPage() {
       {/* ─── Seção: Código de Convite ─────────────────────────────────────── */}
       <div className="rounded-xl p-5 space-y-4" style={card}>
         <div>
-          <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Meu Código de Convite</p>
-          <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Meu Código de Convite</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Compartilhe com seus clientes para que conectem você à conta deles.
           </p>
         </div>
 
         {loadingInvite ? (
-          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: '#475569' }}>
+          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
             <Spinner /> Carregando...
           </div>
         ) : invite ? (
@@ -146,7 +152,7 @@ export default function GestorPage() {
               </button>
             </div>
 
-            <p className="text-xs" style={{ color: '#475569' }}>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Expira em {formatDate(invite.expiresAt)}
             </p>
 
@@ -154,7 +160,7 @@ export default function GestorPage() {
               onClick={handleRegenerate}
               disabled={regenerating}
               className="flex items-center gap-2 text-xs transition-colors"
-              style={{ color: '#475569' }}
+              style={{ color: 'var(--text-muted)' }}
             >
               {regenerating ? <Spinner className="h-3 w-3" /> : null}
               {regenerating ? 'Regenerando...' : '↻ Gerar novo código'}
@@ -171,8 +177,8 @@ export default function GestorPage() {
       <div className="rounded-xl p-5 space-y-4" style={card}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Meus Clientes</p>
-            <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Meus Clientes</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Gerencie os relatórios automatizados de cada cliente.
             </p>
           </div>
@@ -184,13 +190,13 @@ export default function GestorPage() {
         </div>
 
         {loadingClients ? (
-          <div className="flex items-center gap-2 py-6 text-sm" style={{ color: '#475569' }}>
+          <div className="flex items-center gap-2 py-6 text-sm" style={{ color: 'var(--text-muted)' }}>
             <Spinner /> Carregando clientes...
           </div>
         ) : clients.length === 0 ? (
-          <div className="rounded-xl p-8 flex flex-col items-center text-center" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}>
-            <p className="text-sm" style={{ color: '#475569' }}>Nenhum cliente conectado ainda.</p>
-            <p className="text-xs mt-1" style={{ color: '#334155' }}>
+          <div className="rounded-xl p-8 flex flex-col items-center text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nenhum cliente conectado ainda.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
               Compartilhe seu código de convite para que clientes te conectem.
             </p>
           </div>
@@ -199,7 +205,7 @@ export default function GestorPage() {
             {clients.map(client => (
               <div key={client.id}
                 className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
-                style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
@@ -209,23 +215,35 @@ export default function GestorPage() {
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>{client.name}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
                     <span className="text-xs" style={{ color: PLAN_COLORS[client.plan] ?? '#64748b' }}>
                       {PLAN_LABELS[client.plan] ?? client.plan}
                     </span>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleManageReports(client)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-colors"
-                  style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Relatórios
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => handleViewDashboard(client)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ color: 'var(--accent)', border: '1px solid var(--border-md)', backgroundColor: 'transparent' }}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                    </svg>
+                    Ver Dashboard
+                  </button>
+                  <button
+                    onClick={() => handleManageReports(client)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                    style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.2)' }}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Relatórios
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -233,12 +251,12 @@ export default function GestorPage() {
       </div>
 
       {/* ─── Instruções de uso ────────────────────────────────────────────── */}
-      <div className="rounded-xl p-4" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(59,130,246,0.1)' }}>
+      <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(59,130,246,0.2)' }}>
         <p className="text-xs font-medium mb-2" style={{ color: '#60a5fa' }}>Como funciona</p>
-        <ol className="space-y-1 text-xs list-decimal list-inside" style={{ color: '#475569' }}>
+        <ol className="space-y-1 text-xs list-decimal list-inside" style={{ color: 'var(--text-muted)' }}>
           <li>Copie o código de convite e envie ao cliente (WhatsApp, email etc.)</li>
-          <li>O cliente ADMIN acessa <strong style={{ color: '#94a3b8' }}>Usuários → Conectar Gestor</strong> e digita o código</li>
-          <li>O cliente aparece na lista acima — clique em <strong style={{ color: '#94a3b8' }}>Relatórios</strong> para gerenciar</li>
+          <li>O cliente ADMIN acessa <strong style={{ color: 'var(--text-secondary)' }}>Usuários → Conectar Gestor</strong> e digita o código</li>
+          <li>O cliente aparece na lista acima — clique em <strong style={{ color: 'var(--text-secondary)' }}>Relatórios</strong> para gerenciar</li>
           <li>Configure Telegram ou WhatsApp e defina a frequência de envio para cada cliente</li>
         </ol>
       </div>

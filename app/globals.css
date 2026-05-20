@@ -1,7 +1,10 @@
 @import "tailwindcss";
 
-:root {
+/* ─── Dark theme (padrão) ────────────────────────────────────────────────── */
+:root,
+[data-theme="dark"] {
   --bg-base:     #080d19;
+  --bg-sidebar:  #060c1a;
   --bg-surface:  #0f1629;
   --bg-elevated: #162036;
   --border:      rgba(255, 255, 255, 0.06);
@@ -17,6 +20,49 @@
   --chart-tertiary:  #60a5fa;
   --chart-grid:      rgba(255, 255, 255, 0.04);
   --chart-axis:      #475569;
+  --body-bg: linear-gradient(135deg, #080d19 0%, #0a1628 50%, #0d1f3c 100%);
+  --scrollbar-thumb: rgba(255,255,255,0.08);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.14);
+  --input-bg: rgba(255,255,255,0.04);
+  --input-border: rgba(255,255,255,0.08);
+  --badge-success-bg: rgba(34,197,94,0.1);
+  --badge-success-text: #4ade80;
+  --badge-error-bg: rgba(239,68,68,0.1);
+  --badge-error-text: #f87171;
+  --badge-warn-bg: rgba(234,179,8,0.1);
+  --badge-warn-text: #facc15;
+}
+
+/* ─── Light theme ────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-base:     #f1f5f9;
+  --bg-sidebar:  #ffffff;
+  --bg-surface:  #ffffff;
+  --bg-elevated: #f8fafc;
+  --border:      rgba(0, 0, 0, 0.07);
+  --border-md:   rgba(0, 0, 0, 0.12);
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #94a3b8;
+  --accent:      #2563eb;
+  --accent-dim:  rgba(37, 99, 235, 0.10);
+  --accent-dark: #1d4ed8;
+  --chart-primary:   #2563eb;
+  --chart-secondary: #1e40af;
+  --chart-tertiary:  #3b82f6;
+  --chart-grid:      rgba(0, 0, 0, 0.04);
+  --chart-axis:      #94a3b8;
+  --body-bg: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #dbeafe 100%);
+  --scrollbar-thumb: rgba(0,0,0,0.12);
+  --scrollbar-thumb-hover: rgba(0,0,0,0.20);
+  --input-bg: #ffffff;
+  --input-border: rgba(0,0,0,0.12);
+  --badge-success-bg: #dcfce7;
+  --badge-success-text: #16a34a;
+  --badge-error-bg: #fee2e2;
+  --badge-error-text: #dc2626;
+  --badge-warn-bg: #fef9c3;
+  --badge-warn-text: #ca8a04;
 }
 
 @theme inline {
@@ -27,15 +73,15 @@
 }
 
 body {
-  background: linear-gradient(135deg, #080d19 0%, #0a1628 50%, #0d1f3c 100%);
+  background: var(--body-bg);
   background-attachment: fixed;
   color: var(--text-primary);
   font-family: Arial, Helvetica, sans-serif;
   min-height: 100vh;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-/* Scrollbar sutil no tema dark */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }

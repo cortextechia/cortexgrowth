@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute, PermissionGuard } from '@/components/ProtectedRoute';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { apiService } from '@/lib/api';
 import { TrafficManagerClient, UserRole } from '@/types';
 
@@ -41,7 +42,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/dashboard/gestor',
-    label: 'Meu Código',
+    label: 'Meus Clientes',
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
@@ -140,11 +141,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${!expanded ? 'justify-center' : ''}`}
           style={
             isActive
-              ? { backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa', borderLeft: '2px solid #3b82f6', paddingLeft: '8px' }
-              : { color: '#64748b' }
+              ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', borderLeft: '2px solid var(--accent)', paddingLeft: '8px' }
+              : { color: 'var(--text-muted)' }
           }
-          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#94a3b8'; } }}
-          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#64748b'; } }}
+          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
           title={!expanded ? item.label : undefined}
         >
           {item.icon}
@@ -179,24 +180,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className={`fixed inset-y-0 left-0 z-50 w-64 flex flex-col md:hidden transition-transform duration-200 ${
             mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
-          style={{ backgroundColor: '#060c1a', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ backgroundColor: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}
         >
           <div
             className="flex items-center justify-between px-4 h-14 shrink-0"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ borderBottom: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: '#3b82f6' }}>
+              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent)' }}>
                 <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                 </svg>
               </div>
-              <span className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Córtex Growth</span>
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
               className="p-1.5 rounded-md transition-colors"
-              style={{ color: '#475569' }}
+              style={{ color: 'var(--text-muted)' }}
               aria-label="Fechar menu"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -207,13 +208,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
             {renderNavLinks(true)}
           </nav>
-          <div className="p-2 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-2 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
             <button
               onClick={handleLogout}
               className="flex items-center gap-3 w-full rounded-lg px-2.5 py-2 text-sm transition-colors"
-              style={{ color: '#475569' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#94a3b8'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569'; }}
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
             >
               <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
@@ -226,26 +227,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Desktop sidebar */}
         <aside
           className={`${sidebarOpen ? 'w-56' : 'w-16'} fixed h-screen flex flex-col transition-all duration-200 z-20 max-md:hidden`}
-          style={{ backgroundColor: '#060c1a', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+          style={{ backgroundColor: 'var(--bg-sidebar)', borderRight: '1px solid var(--border)' }}
         >
           <div
             className={`flex items-center h-14 shrink-0 ${sidebarOpen ? 'justify-between px-4' : 'justify-center'}`}
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+            style={{ borderBottom: '1px solid var(--border)' }}
           >
             {sidebarOpen && (
               <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: '#3b82f6' }}>
+                <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent)' }}>
                   <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                   </svg>
                 </div>
-                <span className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Córtex Growth</span>
+                <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
               </div>
             )}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-1.5 rounded-md transition-colors"
-              style={{ color: '#475569' }}
+              style={{ color: 'var(--text-muted)' }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               aria-label="Toggle sidebar"
@@ -258,13 +259,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <nav className="flex-1 py-4 space-y-0.5 px-2 overflow-y-auto">
             {renderNavLinks(sidebarOpen)}
           </nav>
-          <div className="p-2 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="p-2 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
             <button
               onClick={handleLogout}
               className={`flex items-center gap-3 w-full rounded-lg px-2.5 py-2 text-sm transition-colors ${!sidebarOpen ? 'justify-center' : ''}`}
-              style={{ color: '#475569' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = '#94a3b8'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#475569'; }}
+              style={{ color: 'var(--text-muted)' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; }}
               title={!sidebarOpen ? 'Sair' : undefined}
             >
               <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -280,13 +281,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Topbar */}
           <div
             className="sticky top-0 z-10"
-            style={{ backgroundColor: 'rgba(6,12,26,0.85)', borderBottom: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)' }}
+            style={{ backgroundColor: 'color-mix(in srgb, var(--bg-sidebar) 85%, transparent)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(12px)' }}
           >
             <div className="px-4 sm:px-6 h-14 flex items-center gap-3">
               {/* Mobile hamburger */}
               <button
                 className="md:hidden p-1.5 rounded-md shrink-0"
-                style={{ color: '#475569' }}
+                style={{ color: 'var(--text-muted)' }}
                 onClick={() => setMobileMenuOpen(true)}
                 aria-label="Abrir menu"
               >
@@ -301,9 +302,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#60a5fa' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                   </svg>
-                  <span className="text-xs shrink-0" style={{ color: '#475569' }}>Cliente:</span>
+                  <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Cliente:</span>
                   {clientOrgs.length === 0 ? (
-                    <span className="text-sm" style={{ color: '#64748b' }}>Carregando...</span>
+                    <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span>
                   ) : (
                     <select
                       value={selectedOrgId}
@@ -320,7 +321,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )}
                 </div>
               ) : (
-                <span className="text-sm font-medium flex-1 truncate" style={{ color: '#f1f5f9' }}>
+                <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text-primary)' }}>
                   {organization?.name ?? 'Dashboard'}
                 </span>
               )}
@@ -328,11 +329,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                 <span
                   className="hidden sm:inline text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: isTrafficManager ? 'rgba(168,85,247,0.12)' : 'rgba(59,130,246,0.12)', color: isTrafficManager ? '#c084fc' : '#60a5fa' }}
+                  style={{ backgroundColor: isTrafficManager ? 'rgba(168,85,247,0.12)' : 'var(--accent-dim)', color: isTrafficManager ? '#c084fc' : 'var(--accent)' }}
                 >
                   {user?.role ?? 'USER'}
                 </span>
-                <span className="text-sm max-w-[120px] truncate" style={{ color: '#64748b' }}>{user?.name}</span>
+                <span className="text-sm max-w-[120px] truncate" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
+                <ThemeToggle />
               </div>
             </div>
           </div>

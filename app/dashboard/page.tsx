@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
 import Sparkline from '@/components/charts/Sparkline';
@@ -140,7 +141,7 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: '#334155', letterSpacing: '0.1em' }}>
+    <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
       {children}
     </p>
   );
@@ -161,14 +162,14 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
   const positive = invertDelta ? delta <= 0 : delta >= 0;
   const arrow = delta >= 0 ? '↑' : '↓';
   return (
-    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
+        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
         {delta !== 0 && (
           <span
             className="text-xs font-semibold px-1.5 py-0.5 rounded"
             style={neutralDelta
-              ? { backgroundColor: 'rgba(148,163,184,0.10)', color: '#94a3b8' }
+              ? { backgroundColor: 'rgba(148,163,184,0.10)', color: 'var(--text-secondary)' }
               : {
                   backgroundColor: positive ? 'rgba(34,197,94,0.10)' : 'rgba(248,113,113,0.10)',
                   color: positive ? '#4ade80' : '#f87171',
@@ -179,9 +180,9 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
           </span>
         )}
       </div>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: '#f1f5f9' }}>{value}</p>
+      <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</p>
       <Sparkline data={sparkData} color="#60a5fa" height={32} animKey={animKey} />
-      <p className="text-xs" style={{ color: '#334155' }}>{sub}</p>
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
     </div>
   );
 }
@@ -197,8 +198,8 @@ interface BottomKpiProps {
 
 function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = '#f1f5f9' }: BottomKpiProps) {
   return (
-    <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-      <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{title}</span>
+    <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
       {badge && (
         <span
           className="self-start text-xs px-2 py-0.5 rounded font-medium"
@@ -208,7 +209,7 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = '#f1f5f9
         </span>
       )}
       <p className="text-2xl font-semibold tabular-nums" style={{ color: accent }}>{value}</p>
-      <p className="text-xs" style={{ color: '#334155' }}>{sub}</p>
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
     </div>
   );
 }
@@ -222,7 +223,7 @@ function AlertCard({ alert }: { alert: ActiveAlert }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: styles.bg, border: `1px solid ${styles.border}30`, borderLeft: `3px solid ${styles.border}` }}>
       <p className="text-xs font-semibold" style={{ color: styles.titleColor }}>{styles.icon} {alert.type === 'critical' ? 'Crítico' : alert.type === 'warning' ? 'Atenção' : 'Oportunidade'}</p>
-      <p className="text-xs leading-relaxed" style={{ color: '#c9d1d9' }} dangerouslySetInnerHTML={{ __html: alert.title }} />
+      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: alert.title }} />
       <p className="text-xs font-medium" style={{ color: styles.titleColor }}>{alert.action}</p>
     </div>
   );
@@ -251,8 +252,7 @@ interface FunnelCounts {
   lost: number;
 }
 
-function FunnelSVG({ counts }: { counts: FunnelCounts }) {
-  // W aumentado para acomodar curvas e labels dentro do viewBox (antes extravasavam)
+function FunnelSVG({ counts, isDark }: { counts: FunnelCounts; isDark: boolean }) {
   const W = 260;
   const H = 340;
   const cx = W / 2;
@@ -261,12 +261,18 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
   const gap = 12;
   const curveOff = 26;
 
-  const stages = [
+  const stages = isDark ? [
     { label: 'Leads gerados',    count: counts.generated,   color: '#1e3a5f', textColor: '#93c5fd' },
     { label: 'Em atendimento',   count: counts.contacted,   color: '#1e3a4a', textColor: '#67e8f9' },
     { label: 'Orç. enviado',     count: counts.quoted,      color: '#14432a', textColor: '#6ee7b7' },
     { label: 'Em negociação',    count: counts.negotiating, color: '#1a3d20', textColor: '#86efac' },
     { label: 'Venda ganha',      count: counts.won,         color: '#0d2e14', textColor: '#4ade80' },
+  ] : [
+    { label: 'Leads gerados',    count: counts.generated,   color: 'rgba(59,130,246,0.18)',  textColor: '#1d4ed8' },
+    { label: 'Em atendimento',   count: counts.contacted,   color: 'rgba(6,182,212,0.18)',   textColor: '#0e7490' },
+    { label: 'Orç. enviado',     count: counts.quoted,      color: 'rgba(16,185,129,0.18)',  textColor: '#047857' },
+    { label: 'Em negociação',    count: counts.negotiating, color: 'rgba(34,197,94,0.18)',   textColor: '#15803d' },
+    { label: 'Venda ganha',      count: counts.won,         color: 'rgba(74,222,128,0.22)',  textColor: '#166534' },
   ];
 
   const total = counts.generated || 1;
@@ -305,7 +311,7 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
             <text x={cx} y={yTop + stageH * 0.38} textAnchor="middle" fontSize="9" fill={s.textColor} fontFamily="Inter,sans-serif">
               {s.label}
             </text>
-            <text x={cx} y={yTop + stageH * 0.72} textAnchor="middle" fontSize="15" fontWeight="500" fill="#e2e8f0" fontFamily="Inter,sans-serif">
+            <text x={cx} y={yTop + stageH * 0.72} textAnchor="middle" fontSize="15" fontWeight="500" fill="var(--text-primary)" fontFamily="Inter,sans-serif">
               {s.count}
             </text>
 
@@ -313,7 +319,7 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
               <>
                 <path
                   d={`M ${cx + hw0} ${yConnStart} C ${cx + hw0 + curveOff} ${yConnStart}, ${cx + hw1 + curveOff} ${yConnEnd}, ${cx + hw1} ${yConnEnd}`}
-                  stroke="#30363d" strokeWidth="1" fill="none"
+                  stroke="var(--border-md)" strokeWidth="1" fill="none"
                 />
                 <text
                   x={labelX}
@@ -335,7 +341,7 @@ function FunnelSVG({ counts }: { counts: FunnelCounts }) {
       {/* Lost bar */}
       {counts.lost > 0 && (
         <>
-          <line x1={6} y1={H - 38} x2={W - 6} y2={H - 38} stroke="#21262d" strokeWidth="0.5" />
+          <line x1={6} y1={H - 38} x2={W - 6} y2={H - 38} stroke="var(--border)" strokeWidth="0.5" />
           <rect x={6} y={H - 28} width={W - 12} height={22} rx={4} fill="rgba(248,113,113,0.12)" stroke="rgba(248,113,113,0.2)" strokeWidth="0.5" />
           <text x={cx} y={H - 13} textAnchor="middle" fontSize="10" fill="#f87171" fontFamily="Inter,sans-serif">
             {`${counts.lost} perdidos · ${counts.generated > 0 ? fmtPct1((counts.lost / counts.generated) * 100) : '0%'} do total`}
@@ -397,20 +403,20 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
       {/* Drawer */}
       <div
         className="fixed right-0 top-0 h-full z-50 flex flex-col overflow-y-auto"
-        style={{ width: 'min(680px, 95vw)', backgroundColor: '#0a0f1e', borderLeft: '1px solid rgba(255,255,255,0.08)' }}
+        style={{ width: 'min(680px, 95vw)', backgroundColor: 'var(--bg-base)', borderLeft: '1px solid var(--border-md)' }}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 px-6 py-4"
-          style={{ backgroundColor: '#0a0f1e', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full"
               style={{ backgroundColor: `${platformColor}18`, color: platformColor }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: platformColor }} />
               {campaign.platform}
             </span>
-            <h2 className="font-semibold text-sm truncate" style={{ color: '#f1f5f9' }}>{campaign.name}</h2>
+            <h2 className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }}>{campaign.name}</h2>
           </div>
-          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/5" style={{ color: '#64748b' }}>
+          <button onClick={onClose} className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-white/5" style={{ color: 'var(--text-muted)' }}>
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -429,26 +435,26 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
               { label: 'CPC',           value: fmtMoney(cpc) },
               { label: 'CPM',           value: fmtMoney(cpm) },
             ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl p-3" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: '#475569' }}>{label}</p>
-                <p className="text-base font-semibold tabular-nums" style={{ color: '#e2e8f0' }}>{value}</p>
+              <div key={label} className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <p className="text-xs uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                <p className="text-base font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</p>
               </div>
             ))}
           </div>
 
           {/* Trend chart */}
           {daily.length > 1 && (
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: '#475569' }}>Evolução diária</p>
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>Evolução diária</p>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={daily} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="left"  tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} width={48} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: '#475569' }} tickLine={false} axisLine={false} width={36} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
+                  <YAxis yAxisId="left"  tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} width={48} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={36} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 11 }}
-                    labelStyle={{ color: '#94a3b8' }}
+                    contentStyle={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', borderRadius: 8, fontSize: 11 }}
+                    labelStyle={{ color: 'var(--text-secondary)' }}
                     labelFormatter={(label: unknown) => fmtDate(String(label))}
                     formatter={(value: unknown, name: unknown) => [
                       name === 'spend' ? fmtMoney(Number(value)) : fmtNum(Number(value)),
@@ -460,10 +466,10 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-2">
-                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#94a3b8' }}>
+                <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <span className="h-0.5 w-4 rounded" style={{ backgroundColor: platformColor }} /> Gasto
                 </span>
-                <span className="flex items-center gap-1.5 text-xs" style={{ color: '#94a3b8' }}>
+                <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
                   <span className="h-0.5 w-4 rounded border-t border-dashed" style={{ borderColor: '#fbbf24' }} /> Cliques
                 </span>
               </div>
@@ -472,18 +478,18 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
 
           {/* Adset breakdown */}
           {adsets.length > 0 && (
-            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
                   Conjuntos de anúncios ({adsets.length})
                 </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                       {['Conjunto', 'Gasto', 'Impressões', 'Cliques', 'CTR', 'CPC'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -492,15 +498,15 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
                       const aCtr = a.impressions > 0 ? (a.clicks / a.impressions) * 100 : 0;
                       const aCpc = a.clicks > 0 ? a.spend / a.clicks : 0;
                       return (
-                        <tr key={a.name} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                          <td className="px-4 py-2.5 max-w-[180px]" style={{ color: '#e2e8f0' }}>
+                        <tr key={a.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="px-4 py-2.5 max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
                             <span className="block truncate">{a.name}</span>
                           </td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(a.spend)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(a.impressions)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(a.clicks)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(a.spend)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.impressions)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.clicks)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: aCtr >= 2 ? '#4ade80' : aCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(aCtr)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(aCpc)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(aCpc)}</td>
                         </tr>
                       );
                     })}
@@ -512,16 +518,16 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
 
           {/* Daily breakdown table */}
           {daily.length > 0 && (
-            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: '#475569' }}>Detalhamento diário</p>
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Detalhamento diário</p>
               </div>
               <div className="overflow-x-auto max-h-72 overflow-y-auto">
                 <table className="w-full text-xs">
-                  <thead className="sticky top-0" style={{ backgroundColor: '#0f1629' }}>
-                    <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <thead className="sticky top-0" style={{ backgroundColor: 'var(--bg-surface)' }}>
+                    <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                       {['Data', 'Gasto', 'Impressões', 'Cliques', 'CTR', 'CPC'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{h}</th>
+                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -530,13 +536,13 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
                       const dCtr = d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0;
                       const dCpc = d.clicks > 0 ? d.spend / d.clicks : 0;
                       return (
-                        <tr key={d.date} style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtDate(d.date)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#e2e8f0' }}>{fmtMoney(d.spend)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(d.impressions)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtNum(d.clicks)}</td>
+                        <tr key={d.date} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtDate(d.date)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(d.spend)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(d.impressions)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(d.clicks)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: dCtr >= 2 ? '#4ade80' : dCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(dCtr)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: '#94a3b8' }}>{fmtMoney(dCpc)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(dCpc)}</td>
                         </tr>
                       );
                     })}
@@ -555,6 +561,8 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: Campaign
 
 export default function DashboardPage() {
   const { user, organization } = useAuth();
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme !== 'light';
   const { fetchIntegrations } = useIntegrations();
   const {
     metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads,
@@ -722,7 +730,7 @@ export default function DashboardPage() {
       { label: 'Meta Ads',  count: meta,     color: '#818cf8', pct: (meta     / total) * 100 },
       { label: 'Google Ads',count: google,   color: '#34d399', pct: (google   / total) * 100 },
       { label: 'WhatsApp',  count: whatsapp, color: '#4ade80', pct: (whatsapp / total) * 100 },
-      { label: 'Sem UTM',   count: noUtm,    color: '#475569', pct: (noUtm    / total) * 100 },
+      { label: 'Sem UTM',   count: noUtm,    color: 'var(--text-muted)', pct: (noUtm    / total) * 100 },
     ];
   }, [kommoCur]);
 
@@ -997,7 +1005,7 @@ export default function DashboardPage() {
       {/* ── 1. TOPBAR / HEADER ───────────────────────────────────────────────── */}
       <div
         className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3"
-        style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
       >
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#3b82f6' }}>
@@ -1006,7 +1014,7 @@ export default function DashboardPage() {
             </svg>
           </div>
           <span className="text-sm font-semibold" style={{ color: '#60a5fa' }}>Córtex Growth</span>
-          <span className="text-sm" style={{ color: '#475569' }}>{organization?.name ?? '—'}</span>
+          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{organization?.name ?? '—'}</span>
           {organization?.plan && (
             <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
               {organization.plan}
@@ -1016,13 +1024,13 @@ export default function DashboardPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           {/* Period tabs */}
-          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
             {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
               <button
                 key={r}
                 onClick={() => changeRange(r)}
                 className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                style={range === r ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
+                style={range === r ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
               >
                 {r}
               </button>
@@ -1030,13 +1038,13 @@ export default function DashboardPage() {
             <button
               onClick={() => changeRange('CUSTOM')}
               className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-              style={range === 'CUSTOM' ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
+              style={range === 'CUSTOM' ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
             >
               Personalizado
             </button>
           </div>
 
-          <span className="text-xs" style={{ color: '#334155' }}>Atualizado {lastUpdate}</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Atualizado {lastUpdate}</span>
         </div>
       </div>
 
@@ -1046,13 +1054,13 @@ export default function DashboardPage() {
           <input type="date" value={customStart} max={customEnd || undefined}
             onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
             className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.10)', color: '#94a3b8', colorScheme: 'dark' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--input-border)', color: 'var(--text-secondary)', colorScheme: isDark ? 'dark' : 'light' }}
           />
-          <span className="text-xs" style={{ color: '#334155' }}>–</span>
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>–</span>
           <input type="date" value={customEnd} min={customStart || undefined} max={new Date().toISOString().slice(0, 10)}
             onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
             className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-            style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.10)', color: '#94a3b8', colorScheme: 'dark' }}
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--input-border)', color: 'var(--text-secondary)', colorScheme: isDark ? 'dark' : 'light' }}
           />
         </div>
       )}
@@ -1073,7 +1081,7 @@ export default function DashboardPage() {
         {dashLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="rounded-xl p-4 animate-pulse" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)', height: 140 }} />
+              <div key={i} className="rounded-xl p-4 animate-pulse" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', height: 140 }} />
             ))}
           </div>
         ) : (
@@ -1128,14 +1136,14 @@ export default function DashboardPage() {
       {kommoCur.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: '#334155', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · Kommo</p>
-            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · Kommo</p>
+            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
                 <button
                   key={tab}
                   onClick={() => setFunnelTab(tab)}
                   className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                  style={funnelTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: '#64748b' }}
+                  style={funnelTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
                 >
                   {label}
                 </button>
@@ -1145,26 +1153,26 @@ export default function DashboardPage() {
           <div className="grid gap-3" style={{ gridTemplateColumns: '3fr 1fr' }}>
 
             {/* Left: funnel SVG + right info panel */}
-            <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <div className="flex flex-col justify-center">
-                <FunnelSVG counts={funnelCounts} />
+                <FunnelSVG counts={funnelCounts} isDark={isDark} />
               </div>
 
               <div className="flex-1 flex flex-col gap-3 min-w-0">
                 {/* Conversão final */}
-                <div className="rounded-xl p-4 text-center" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Conversão final — lead → venda</p>
+                <div className="rounded-xl p-4 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Conversão final — lead → venda</p>
                   <p className="text-4xl font-semibold tabular-nums" style={{ color: funnelCounts.generated > 0 && funnelCounts.won / funnelCounts.generated >= 0.1 ? '#4ade80' : '#f87171' }}>
                     {funnelCounts.generated > 0 ? fmtPct1((funnelCounts.won / funnelCounts.generated) * 100) : '—'}
                   </p>
-                  <p className="text-xs mt-2" style={{ color: '#475569' }}>
-                    <strong style={{ color: '#e2e8f0' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: '#e2e8f0' }}>{funnelCounts.generated} leads</strong>
+                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                    <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.generated} leads</strong>
                   </p>
                 </div>
 
                 {/* Alertas do funil */}
-                <div className="rounded-xl p-3" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Onde prestar atenção</p>
+                <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Onde prestar atenção</p>
                   {funnelCounts.generated > 0 && funnelCounts.contacted / funnelCounts.generated < 0.5 && (
                     <div className="rounded-lg p-2.5 mb-2" style={{ backgroundColor: 'rgba(248,113,113,0.06)', borderLeft: '2px solid #f87171' }}>
                       <p className="text-xs" style={{ color: '#fca5a5' }}>
@@ -1196,8 +1204,8 @@ export default function DashboardPage() {
                     { label: 'Orç. → Venda',       val: funnelCounts.quoted > 0    ? funnelCounts.won / funnelCounts.quoted : 0,          color: '#4ade80' },
                     { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa' },
                   ].map((item, i) => (
-                    <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <p className="text-xs mb-1" style={{ color: '#475569' }}>{item.label}</p>
+                    <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                      <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
                       <p className="text-base font-semibold" style={{ color: item.color }}>
                         {item.val !== null ? fmtPct1(item.val * 100) : item.display}
                       </p>
@@ -1206,8 +1214,8 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Distribuição por origem */}
-                <div className="flex-1 flex flex-col rounded-xl p-3" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <p className="text-xs font-medium uppercase tracking-widest mb-3" style={{ color: '#475569' }}>Origem dos leads</p>
+                <div className="flex-1 flex flex-col rounded-xl p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  <p className="text-xs font-medium uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)' }}>Origem dos leads</p>
                   <div className="flex-1 flex gap-4 items-center">
                     {/* Donut chart */}
                     {(() => {
@@ -1236,10 +1244,10 @@ export default function DashboardPage() {
                           {slices.map((s) => (
                             <path key={s.label} d={arc(s.start, s.angle, R, r)} fill={s.color} opacity={0.85} />
                           ))}
-                          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="#e2e8f0" fontFamily="Inter,sans-serif">
+                          <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text-primary)" fontFamily="Inter,sans-serif">
                             {total}
                           </text>
-                          <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" fill="#475569" fontFamily="Inter,sans-serif">
+                          <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" fill="var(--text-muted)" fontFamily="Inter,sans-serif">
                             leads
                           </text>
                         </svg>
@@ -1250,7 +1258,7 @@ export default function DashboardPage() {
                       {leadsByOrigin.filter((o) => o.count > 0).map((o) => (
                         <div key={o.label}>
                           <div className="flex justify-between items-center mb-1">
-                            <span className="flex items-center gap-1.5 text-xs" style={{ color: '#64748b' }}>
+                            <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                               <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: o.color }} />
                               {o.label}
                             </span>
@@ -1258,7 +1266,7 @@ export default function DashboardPage() {
                               {o.count} · {fmtPct1(o.pct)}
                             </span>
                           </div>
-                          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                          <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                             <div className="h-full rounded-full" style={{ width: `${o.pct}%`, backgroundColor: o.color, opacity: 0.7 }} />
                           </div>
                         </div>
@@ -1272,11 +1280,11 @@ export default function DashboardPage() {
             {/* Right column: motivos de perda + ciclo */}
             <div className="flex flex-col gap-3">
               {/* Motivos de perda */}
-              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>Motivos de perda</p>
-                <p className="text-xs mb-4" style={{ color: '#475569' }}>{funnelCounts.lost} perdidos no período</p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Motivos de perda</p>
+                <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>{funnelCounts.lost} perdidos no período</p>
                 {funnelCounts.lost === 0 ? (
-                  <p className="text-xs" style={{ color: '#334155' }}>Nenhum lead perdido</p>
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum lead perdido</p>
                 ) : (
                   <div className="space-y-3">
                     {[
@@ -1288,7 +1296,7 @@ export default function DashboardPage() {
                     ].map((m, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <span className="text-xs shrink-0" style={{ color: m.warn ? '#f87171' : '#64748b', width: 100 }}>{m.label}</span>
-                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                           <div className="h-full rounded-full" style={{ width: `${m.pct * 100}%`, backgroundColor: m.warn ? 'rgba(248,113,113,0.5)' : '#f87171', opacity: 0.65 }} />
                         </div>
                         <span className="text-xs tabular-nums" style={{ color: m.warn ? '#f87171' : '#64748b', width: 28, textAlign: 'right' }}>
@@ -1296,35 +1304,35 @@ export default function DashboardPage() {
                         </span>
                       </div>
                     ))}
-                    <p className="text-xs mt-1" style={{ color: '#334155' }}>* Estimativa — configure motivos de perda no Kommo para dados exatos</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>* Estimativa — configure motivos de perda no Kommo para dados exatos</p>
                   </div>
                 )}
               </div>
 
               {/* Ciclo médio de venda */}
-              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>Ciclo médio de venda</p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Ciclo médio de venda</p>
                 {[
                   { label: 'Lead → Atendimento', val: '—' },
                   { label: 'Atend. → Orçamento', val: '—' },
                   { label: 'Orç. → Fechamento',  val: '—' },
                   { label: 'Ciclo total médio',   val: '—', highlight: true },
                 ].map((row, i) => (
-                  <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: i < 3 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                  <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
                     <span className="text-xs" style={{ color: row.highlight ? '#60a5fa' : '#64748b', fontWeight: row.highlight ? 500 : 400 }}>{row.label}</span>
                     <span className="text-xs font-semibold" style={{ color: row.highlight ? '#60a5fa' : '#94a3b8' }}>{row.val}</span>
                   </div>
                 ))}
-                <p className="text-xs mt-2" style={{ color: '#334155' }}>Requer rastreamento de movimentações no CRM</p>
+                <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Requer rastreamento de movimentações no CRM</p>
               </div>
 
               {/* Comparativo de canais */}
-              <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>Comparativo de canais</p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Comparativo de canais</p>
                 <div className="space-y-0">
                   {/* Header */}
                   <div className="flex items-center py-1.5 mb-1">
-                    <span className="flex-1 text-xs" style={{ color: '#334155' }}></span>
+                    <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}></span>
                     <span className="w-20 text-center text-xs font-medium" style={{ color: '#818cf8' }}>Meta</span>
                     <span className="w-20 text-center text-xs font-medium" style={{ color: '#34d399' }}>Google</span>
                   </div>
@@ -1358,9 +1366,9 @@ export default function DashboardPage() {
                     <div
                       key={i}
                       className="flex items-center py-2"
-                      style={{ borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}
+                      style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}
                     >
-                      <span className="flex-1 text-xs" style={{ color: '#64748b' }}>{row.label}</span>
+                      <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}>{row.label}</span>
                       <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#a5b4fc' }}>{row.meta}</span>
                       <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#6ee7b7' }}>{row.google}</span>
                     </div>
@@ -1379,18 +1387,18 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
 
             {/* Top campaigns table */}
-            <div className="rounded-xl" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Top campanhas por gasto</p>
+            <div className="rounded-xl" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-4 py-3 flex items-center justify-between gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Top campanhas por gasto</p>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs" style={{ color: '#334155' }}>Clique para detalhes</span>
+                  <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Clique para detalhes</span>
                   {/* Column picker */}
                   <div className="relative" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setColPickerOpen(false); }}>
                     <button
                       onClick={() => setColPickerOpen((o) => !o)}
                       title="Configurar colunas"
                       className="flex items-center justify-center rounded-md transition-colors"
-                      style={{ width: 26, height: 26, backgroundColor: colPickerOpen ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)', color: colPickerOpen ? '#3b82f6' : '#475569' }}
+                      style={{ width: 26, height: 26, backgroundColor: colPickerOpen ? 'rgba(59,130,246,0.15)' : 'var(--border)', color: colPickerOpen ? '#3b82f6' : 'var(--text-muted)' }}
                     >
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ width: 13, height: 13 }}>
                         <rect x="1" y="3" width="14" height="1.5" rx="0.75" />
@@ -1406,16 +1414,16 @@ export default function DashboardPage() {
                         <div className="fixed inset-0 z-40" onClick={() => setColPickerOpen(false)} />
                         <div
                           className="absolute right-0 z-50 rounded-xl py-2 shadow-xl"
-                          style={{ top: 32, minWidth: 160, backgroundColor: '#131d35', border: '1px solid rgba(255,255,255,0.1)' }}
+                          style={{ top: 32, minWidth: 160, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}
                         >
-                        <p className="px-3 pb-1.5 text-xs font-medium uppercase tracking-wider" style={{ color: '#475569', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>Colunas visíveis</p>
+                        <p className="px-3 pb-1.5 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>Colunas visíveis</p>
                         {OPTIONAL_COLS.map(({ key, label }) => (
                           <button
                             key={key}
                             onClick={() => toggleCol(key)}
                             className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs transition-colors text-left"
-                            style={{ color: visibleCols.includes(key) ? '#e2e8f0' : '#475569' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.04)')}
+                            style={{ color: visibleCols.includes(key) ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
                           >
                             <span
@@ -1438,16 +1446,16 @@ export default function DashboardPage() {
                 </div>
               </div>
               {campaigns.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-sm" style={{ color: '#334155' }}>Sem dados de campanha</div>
+                <div className="flex items-center justify-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Sem dados de campanha</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
-                      <tr style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Campanha</th>
-                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Plat.</th>
+                      <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Campanha</th>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Plat.</th>
                         {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key, label }) => (
-                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: '#475569' }}>{label}</th>
+                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{label}</th>
                         ))}
                         <th />
                       </tr>
@@ -1459,24 +1467,24 @@ export default function DashboardPage() {
                         const cpc = c.clicks > 0 ? c.spend / c.clicks : 0;
                         const cpl = c.leads > 0 ? c.spend / c.leads : 0;
                         const cellVal: Record<ColKey, React.ReactNode> = {
-                          spend:       <span style={{ color: '#94a3b8' }}>{fmtMoney(c.spend)}</span>,
-                          leads:       <span style={{ color: '#94a3b8' }}>{c.leads > 0 ? c.leads : '—'}</span>,
+                          spend:       <span style={{ color: 'var(--text-secondary)' }}>{fmtMoney(c.spend)}</span>,
+                          leads:       <span style={{ color: 'var(--text-secondary)' }}>{c.leads > 0 ? c.leads : '—'}</span>,
                           ctr:         <span style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(ctr)}</span>,
-                          cpc:         <span style={{ color: '#94a3b8' }}>{cpc > 0 ? fmtMoney(cpc) : '—'}</span>,
-                          cpl:         <span style={{ color: '#94a3b8' }}>{cpl > 0 ? fmtMoney(cpl) : '—'}</span>,
-                          impressions: <span style={{ color: '#94a3b8' }}>{c.impressions > 0 ? c.impressions.toLocaleString('pt-BR') : '—'}</span>,
-                          clicks:      <span style={{ color: '#94a3b8' }}>{c.clicks > 0 ? c.clicks.toLocaleString('pt-BR') : '—'}</span>,
+                          cpc:         <span style={{ color: 'var(--text-secondary)' }}>{cpc > 0 ? fmtMoney(cpc) : '—'}</span>,
+                          cpl:         <span style={{ color: 'var(--text-secondary)' }}>{cpl > 0 ? fmtMoney(cpl) : '—'}</span>,
+                          impressions: <span style={{ color: 'var(--text-secondary)' }}>{c.impressions > 0 ? c.impressions.toLocaleString('pt-BR') : '—'}</span>,
+                          clicks:      <span style={{ color: 'var(--text-secondary)' }}>{c.clicks > 0 ? c.clicks.toLocaleString('pt-BR') : '—'}</span>,
                         };
                         return (
                           <tr
                             key={i}
                             onClick={() => setSelectedCampaign(c)}
                             className="cursor-pointer transition-colors"
-                            style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)')}
+                            style={{ borderBottom: '1px solid var(--border)' }}
+                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}
                             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
                           >
-                            <td className="px-4 py-2.5" style={{ color: '#e2e8f0', maxWidth: 180 }}>
+                            <td className="px-4 py-2.5" style={{ color: 'var(--text-primary)', maxWidth: 180 }}>
                               <span className="block truncate">{c.name}</span>
                             </td>
                             <td className="px-4 py-2.5">
@@ -1489,7 +1497,7 @@ export default function DashboardPage() {
                               <td key={key} className="px-4 py-2.5 tabular-nums">{cellVal[key]}</td>
                             ))}
                             <td className="px-4 py-2.5">
-                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: '#334155' }}>
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--text-muted)' }}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                               </svg>
                             </td>
@@ -1503,8 +1511,8 @@ export default function DashboardPage() {
             </div>
 
             {/* CPL by channel */}
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>CPL e distribuição por canal</p>
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>CPL e distribuição por canal</p>
               <div className="space-y-4">
                 {[
                   { label: 'Meta Ads',   data: cplByChannel.meta,   color: '#818cf8' },
@@ -1513,15 +1521,15 @@ export default function DashboardPage() {
                   data.spend > 0 && (
                     <div key={label}>
                       <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
                         <span className="text-xs font-semibold" style={{ color }}>
                           {data.cpl ? `CPL ${fmtBRL(data.cpl)}` : `${data.leads} leads`}
                         </span>
                       </div>
-                      <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                      <div className="h-2.5 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                         <div className="h-full rounded-full" style={{ width: `${data.pct}%`, backgroundColor: color, opacity: 0.7 }} />
                       </div>
-                      <p className="text-xs mt-1" style={{ color: '#334155' }}>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                         {fmtMoney(data.spend)} · {fmtPct1(data.pct)} do gasto{data.leads > 0 ? ` · ${data.leads} leads` : ''}
                       </p>
                     </div>
@@ -1547,8 +1555,8 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
 
             {/* LTV & LTV/CAC */}
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: '#f1f5f9' }}>LTV & relação LTV/CAC</p>
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>LTV & relação LTV/CAC</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   {
@@ -1580,42 +1588,42 @@ export default function DashboardPage() {
                     sub: 'tag carteira no período',
                   },
                 ].map((item, i) => (
-                  <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <p className="text-xs mb-1" style={{ color: '#475569' }}>{item.label}</p>
+                  <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                    <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
                     <p className="text-base font-semibold tabular-nums" style={{ color: item.color }}>{item.value}</p>
-                    <p className="text-xs mt-0.5" style={{ color: '#334155' }}>{item.sub}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.sub}</p>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Projeção do mês */}
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-sm font-semibold mb-1" style={{ color: '#f1f5f9' }}>Projeção do mês</p>
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Projeção do mês</p>
               {projection ? (
                 <>
                   <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: '#4ade80' }}>{fmtMoney(projection.projected)}</p>
-                  <p className="text-xs mt-1 mb-4" style={{ color: '#475569' }}>baseado no ritmo atual + pipeline ativo</p>
-                  <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: '#21262d' }}>
+                  <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>baseado no ritmo atual + pipeline ativo</p>
+                  <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--border-md)' }}>
                     <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: '#4ade80', opacity: 0.7 }} />
                   </div>
-                  <div className="flex justify-between text-xs" style={{ color: '#475569' }}>
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
                     <span>Dia {projection.dayOfMonth}</span>
                     <span>Fim do mês: dia {projection.daysInMonth}</span>
                   </div>
-                  <div className="mt-3 h-px" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
-                  <p className="text-xs mt-2" style={{ color: '#475569' }}>
+                  <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
+                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                     Se 30% do pipeline fechar: <strong style={{ color: '#4ade80' }}>+ {fmtMoney(pipeline * 0.3)}</strong>
                   </p>
                 </>
               ) : (
-                <p className="text-xs mt-3" style={{ color: '#334155' }}>Sem receitas fechadas no período para projetar</p>
+                <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>Sem receitas fechadas no período para projetar</p>
               )}
             </div>
 
             {/* ROAS por canal */}
-            <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
-              <p className="text-sm font-semibold mb-4" style={{ color: '#f1f5f9' }}>ROAS por canal</p>
+            <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>ROAS por canal</p>
               <div className="space-y-4">
                 {([
                   { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   spend: attributionSummary.spendMeta,   color: '#818cf8', accent: 'rgba(129,140,248,0.12)' },
@@ -1629,19 +1637,19 @@ export default function DashboardPage() {
                   return (
                     <div key={label}>
                       <div className="flex justify-between items-center mb-1.5">
-                        <span className="text-xs" style={{ color: '#64748b' }}>{label}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
                         <span className="text-xs font-semibold" style={{ color: roasColor }}>{roasLabel}</span>
                       </div>
-                      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: '#21262d' }}>
+                      <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                         {hasSpend && roas != null && roas > 0
                           ? <div className="h-full rounded-full" style={{ width: `${Math.min((roas / 10) * 100, 100)}%`, backgroundColor: color, opacity: 0.7 }} />
                           : !hasSpend
-                            ? <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: '#1e293b' }} />
+                            ? <div className="h-full rounded-full" style={{ width: '100%', backgroundColor: 'var(--bg-elevated)' }} />
                             : null
                         }
                       </div>
                       {!hasSpend && (
-                        <p className="text-xs mt-1" style={{ color: '#334155' }}>
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                           {label === 'Google Ads' ? 'Integração não conectada — leads rastreados via UTM do Kommo' : 'Nenhum gasto no período'}
                         </p>
                       )}
@@ -1687,25 +1695,25 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 gap-3">
 
           {/* Análise gerada */}
-          <div className="rounded-xl p-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
             <div className="flex items-start justify-between mb-4">
-              <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Análise gerada automaticamente</p>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Análise gerada automaticamente</p>
               {latestInsight && (
-                <span className="text-xs" style={{ color: '#334155' }}>{new Date(latestInsight.createdAt).toLocaleDateString('pt-BR')}</span>
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{new Date(latestInsight.createdAt).toLocaleDateString('pt-BR')}</span>
               )}
             </div>
 
             {insightLoading ? (
-              <div className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: '#475569' }}><Spinner /> Carregando...</div>
+              <div className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: 'var(--text-muted)' }}><Spinner /> Carregando...</div>
             ) : latestInsight?.content?.orchestrator ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wider" style={{ color: '#475569' }}>Score geral</span>
+                  <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Score geral</span>
                   <ScoreBadge score={latestInsight.content.orchestrator.overallScore} />
                 </div>
 
                 {latestInsight.content.orchestrator.executiveSummary && (
-                  <p className="text-xs leading-relaxed" style={{ color: '#94a3b8' }}>{latestInsight.content.orchestrator.executiveSummary}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{latestInsight.content.orchestrator.executiveSummary}</p>
                 )}
 
                 {latestInsight.content.orchestrator.priorityAlerts.length > 0 && (
@@ -1731,8 +1739,8 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center">
-                <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>Nenhum relatório gerado</p>
-                <p className="mt-1 text-xs" style={{ color: '#475569' }}>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Nenhum relatório gerado</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
                   {isAdmin ? 'Clique em "⚡ Gerar relatório" acima.' : 'Aguarde o relatório diário.'}
                 </p>
               </div>

@@ -24,7 +24,7 @@ function describeSchedule(s: ReportSchedule): string {
   return h;
 }
 
-const card = { backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.06)' };
+const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
 
 // ─── Modal QR Code Telegram ────────────────────────────────────────────────────
 
@@ -62,10 +62,10 @@ function TelegramQRModal({ onConnected, onClose }: {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
-      <div className="w-full max-w-sm rounded-2xl p-6 text-center space-y-4" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className="w-full max-w-sm rounded-2xl p-6 text-center space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
         <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Conectar Telegram</p>
-          <button onClick={onClose} style={{ color: '#475569' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conectar Telegram</p>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -76,13 +76,13 @@ function TelegramQRModal({ onConnected, onClose }: {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
               <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <p className="text-xs" style={{ color: '#64748b' }}>Gerando link seguro...</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gerando link seguro...</p>
           </div>
         )}
 
         {phase === 'ready' && (
           <>
-            <p className="text-xs" style={{ color: '#64748b' }}>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Escaneie o QR Code com o Telegram para conectar este chat ao agendamento.
             </p>
             <div className="flex justify-center py-2">
@@ -90,7 +90,7 @@ function TelegramQRModal({ onConnected, onClose }: {
                 <QRCodeSVG value={deepLink} size={180} />
               </div>
             </div>
-            <p className="text-xs" style={{ color: '#475569' }}>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               Ou abra o link diretamente no Telegram:
             </p>
             <a href={deepLink} target="_blank" rel="noreferrer"
@@ -100,7 +100,7 @@ function TelegramQRModal({ onConnected, onClose }: {
             </a>
             <div className="flex items-center gap-2 justify-center pt-1">
               <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
-              <p className="text-xs" style={{ color: '#475569' }}>Aguardando conexão... (expira em 24h)</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão... (expira em 24h)</p>
             </div>
           </>
         )}
@@ -113,7 +113,7 @@ function TelegramQRModal({ onConnected, onClose }: {
               </svg>
             </div>
             <p className="text-sm font-medium" style={{ color: '#4ade80' }}>Conectado com sucesso!</p>
-            <p className="text-xs" style={{ color: '#64748b' }}>Fechando automaticamente...</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fechando automaticamente...</p>
           </div>
         )}
 
@@ -176,15 +176,15 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
     } catch { setError('Erro ao criar agendamento'); } finally { setLoading(false); }
   };
 
-  const inputStyle = { backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.1)', color: '#e2e8f0', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
-  const labelStyle = { color: '#64748b', fontSize: 12, marginBottom: 4, display: 'block' as const };
+  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
+  const labelStyle = { color: 'var(--text-muted)', fontSize: 12, marginBottom: 4, display: 'block' as const };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg rounded-2xl p-6 space-y-5" style={{ backgroundColor: '#0f1629', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <div className="w-full max-w-lg rounded-2xl p-6 space-y-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Novo agendamento de relatório</p>
-          <button onClick={onClose} style={{ color: '#475569' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Novo agendamento de relatório</p>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
@@ -212,8 +212,8 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
             <span style={labelStyle}>Chat / Grupo do Telegram</span>
             {destination ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                <span className="text-xs flex-1" style={{ color: '#4ade80' }}>✓ {destinationName} <span style={{ color: '#475569' }}>({destination})</span></span>
-                <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: '#475569' }}>Trocar</button>
+                <span className="text-xs flex-1" style={{ color: '#4ade80' }}>✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span></span>
+                <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: 'var(--text-muted)' }}>Trocar</button>
               </div>
             ) : (
               <button onClick={() => setShowQR(true)}
@@ -241,7 +241,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
           <div>
             <span style={labelStyle}>Número ou ID do grupo</span>
             <input style={inputStyle} placeholder="Ex: 5511999999999" value={destination} onChange={e => setDestination(e.target.value)} />
-            <p className="text-xs mt-1" style={{ color: '#475569' }}>Formato: DDI + DDD + número, sem espaços ou símbolos</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Formato: DDI + DDD + número, sem espaços ou símbolos</p>
           </div>
         )}
 
@@ -295,11 +295,11 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
         </div>
 
         {/* Preview */}
-        <button onClick={loadPreview} className="text-xs transition-colors" style={{ color: '#475569' }}>
+        <button onClick={loadPreview} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>
           Ver prévia do relatório →
         </button>
         {showPreview && (
-          <pre className="rounded-lg p-3 text-xs overflow-x-auto whitespace-pre-wrap" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(255,255,255,0.06)', color: '#94a3b8', maxHeight: 200 }}>
+          <pre className="rounded-lg p-3 text-xs overflow-x-auto whitespace-pre-wrap" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', maxHeight: 200 }}>
             {preview}
           </pre>
         )}
@@ -307,7 +307,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
         {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
 
         <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: '#64748b', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
             Cancelar
           </button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
@@ -347,8 +347,8 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-base">{channelIcon}</span>
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: '#f1f5f9' }}>{schedule.destinationName}</p>
-            <p className="text-xs truncate" style={{ color: '#475569' }}>{schedule.destination}</p>
+            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{schedule.destinationName}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{schedule.destination}</p>
           </div>
         </div>
 
@@ -363,7 +363,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: channelColor }}>
           {FREQ_LABELS[schedule.frequency]}
         </span>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#64748b' }}>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
           {describeSchedule(schedule)}
         </span>
         {lastLog && (
@@ -376,7 +376,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
         )}
       </div>
 
-      <div className="flex gap-2 pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+      <div className="flex gap-2 pt-1" style={{ borderTop: '1px solid var(--border)' }}>
         <button onClick={handleSend} disabled={sending}
           className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors"
           style={{ backgroundColor: sendResult === 'ok' ? 'rgba(34,197,94,0.15)' : sendResult === 'err' ? 'rgba(248,113,113,0.15)' : 'rgba(59,130,246,0.1)', color: sendResult === 'ok' ? '#4ade80' : sendResult === 'err' ? '#f87171' : '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
@@ -465,8 +465,8 @@ export default function RelatoriosPage() {
       {/* Header */}
       <div className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3" style={card}>
         <div>
-          <p className="text-sm font-semibold" style={{ color: '#f1f5f9' }}>Relatórios Automatizados</p>
-          <p className="text-xs mt-0.5" style={{ color: '#475569' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios Automatizados</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {organization?.name} · envio automático via Telegram ou WhatsApp
           </p>
         </div>
@@ -481,15 +481,15 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Instruções de configuração */}
-      <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: '#060c1a', border: '1px solid rgba(59,130,246,0.15)' }}>
+      <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(59,130,246,0.2)' }}>
         <p className="text-xs font-medium" style={{ color: '#60a5fa' }}>Como configurar</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" style={{ color: '#64748b' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
           <div>
-            <p className="font-medium mb-1" style={{ color: '#94a3b8' }}>✈️ Telegram</p>
+            <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>✈️ Telegram</p>
             <ol className="space-y-0.5 list-decimal list-inside mb-2">
-              <li>Clique em <strong style={{ color: '#e2e8f0' }}>"Registrar Webhook"</strong> abaixo (uma vez só)</li>
+              <li>Clique em <strong style={{ color: 'var(--text-primary)' }}>"Registrar Webhook"</strong> abaixo (uma vez só)</li>
               <li>Adicione o bot <code style={{ color: '#818cf8' }}>@CortexGrowthBot</code> ao grupo desejado</li>
-              <li>Ao criar um agendamento, clique em <strong style={{ color: '#e2e8f0' }}>"Conectar via QR Code"</strong></li>
+              <li>Ao criar um agendamento, clique em <strong style={{ color: 'var(--text-primary)' }}>"Conectar via QR Code"</strong></li>
               <li>Escaneie o QR Code com o Telegram — a conexão é automática</li>
             </ol>
             <button onClick={handleRegisterWebhook} disabled={registeringWebhook}
@@ -499,7 +499,7 @@ export default function RelatoriosPage() {
             </button>
           </div>
           <div>
-            <p className="font-medium mb-1" style={{ color: '#94a3b8' }}>📱 WhatsApp (Z-API)</p>
+            <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp (Z-API)</p>
             <ol className="space-y-0.5 list-decimal list-inside">
               <li>Crie uma instância em <code style={{ color: '#818cf8' }}>z-api.io</code></li>
               <li>Configure <code style={{ color: '#818cf8' }}>ZAPI_INSTANCE_ID</code>, <code style={{ color: '#818cf8' }}>ZAPI_TOKEN</code> e <code style={{ color: '#818cf8' }}>ZAPI_CLIENT_TOKEN</code></li>
@@ -512,7 +512,7 @@ export default function RelatoriosPage() {
 
       {/* Lista de schedules */}
       {loading ? (
-        <div className="flex items-center justify-center py-20" style={{ color: '#475569' }}>
+        <div className="flex items-center justify-center py-20" style={{ color: 'var(--text-muted)' }}>
           <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
             <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -524,8 +524,8 @@ export default function RelatoriosPage() {
           <svg className="w-10 h-10 mb-3 opacity-20" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>Nenhum agendamento criado</p>
-          <p className="text-xs mt-1 mb-4" style={{ color: '#475569' }}>Configure o envio automático do relatório de KPIs para o Telegram ou WhatsApp.</p>
+          <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Nenhum agendamento criado</p>
+          <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Configure o envio automático do relatório de KPIs para o Telegram ou WhatsApp.</p>
           <button onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
             Criar primeiro agendamento
           </button>

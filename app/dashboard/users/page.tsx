@@ -22,11 +22,11 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
-const ROLE_BADGE: Record<string, string> = {
-  SUPER_ADMIN: 'bg-purple-50 text-purple-700',
-  ADMIN:       'bg-purple-50 text-purple-700',
-  USER:        'bg-blue-50 text-blue-700',
-  VIEWER:      'bg-gray-100 text-gray-500',
+const ROLE_BADGE_STYLE: Record<string, { backgroundColor: string; color: string }> = {
+  SUPER_ADMIN: { backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' },
+  ADMIN:       { backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' },
+  USER:        { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
+  VIEWER:      { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-muted)' },
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -36,10 +36,10 @@ const ROLE_LABEL: Record<string, string> = {
   VIEWER:      'Viewer',
 };
 
-const STATUS_BADGE: Record<string, string> = {
-  ACTIVE:    'bg-green-50 text-green-700',
-  SUSPENDED: 'bg-red-50 text-red-600',
-  INACTIVE:  'bg-gray-100 text-gray-500',
+const STATUS_BADGE_STYLE: Record<string, { backgroundColor: string; color: string }> = {
+  ACTIVE:    { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
+  SUSPENDED: { backgroundColor: 'var(--badge-error-bg)',   color: 'var(--badge-error-text)' },
+  INACTIVE:  { backgroundColor: 'var(--bg-elevated)',      color: 'var(--text-muted)' },
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -59,7 +59,6 @@ export default function UsersPage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'USER' });
 
-  // Gestores conectados (visível para ADMIN/SUPER_ADMIN)
   const isAdmin = currentUser?.role === UserRole.ADMIN || currentUser?.role === UserRole.SUPER_ADMIN;
   const [connectedManagers, setConnectedManagers] = useState<{ id: string; name: string; email: string; status: string; connectedAt: string }[]>([]);
   const [connectCode, setConnectCode] = useState('');
@@ -146,16 +145,22 @@ export default function UsersPage() {
     }
   };
 
+  const inputStyle = {
+    backgroundColor: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)',
+  };
+
   return (
     <div className="w-full max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Usuários</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Usuários</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Gerencie os membros da equipe.
             {userLimit !== Infinity && (
-              <span className={`ml-2 font-medium ${atLimit ? 'text-red-500' : 'text-gray-400'}`}>
+              <span className="ml-2 font-medium" style={{ color: atLimit ? 'var(--badge-error-text)' : 'var(--text-muted)' }}>
                 {users.length}/{userLimit} usuários
               </span>
             )}
@@ -166,7 +171,8 @@ export default function UsersPage() {
             onClick={() => !atLimit && setShowForm(!showForm)}
             disabled={atLimit && !showForm}
             title={atLimit ? `Limite de ${userLimit} usuário(s) atingido. Faça upgrade do plano.` : undefined}
-            className="shrink-0 flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--accent)' }}
           >
             {showForm ? 'Cancelar' : '+ Novo Usuário'}
           </button>
@@ -175,16 +181,20 @@ export default function UsersPage() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg text-white"
+          style={{ backgroundColor: toast.type === 'success' ? 'var(--bg-elevated)' : '#dc2626', border: '1px solid var(--border-md)' }}
+        >
           {toast.message}
         </div>
       )}
 
       {/* Limit banner */}
       {atLimit && userLimit !== Infinity && (
-        <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div
+          className="mb-4 flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+          style={{ border: '1px solid var(--badge-warn-bg)', backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}
+        >
           <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
@@ -194,12 +204,15 @@ export default function UsersPage() {
 
       {/* Create Form */}
       {showForm && (
-        <div className="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Novo Usuário</h2>
+        <div
+          className="mb-6 rounded-xl p-6"
+          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+        >
+          <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Novo Usuário</h2>
           <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Nome</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                 <input
                   type="text"
                   name="name"
@@ -207,11 +220,12 @@ export default function UsersPage() {
                   onChange={handleChange}
                   required
                   placeholder="Nome completo"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={{ ...inputStyle, '--tw-ring-color': 'var(--accent)' } as React.CSSProperties}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
                 <input
                   type="email"
                   name="email"
@@ -219,11 +233,12 @@ export default function UsersPage() {
                   onChange={handleChange}
                   required
                   placeholder="usuario@empresa.com"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Senha temporária</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Senha temporária</label>
                 <input
                   type="password"
                   name="password"
@@ -231,16 +246,18 @@ export default function UsersPage() {
                   onChange={handleChange}
                   required
                   placeholder="Mínimo 8 caracteres"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Função</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Função</label>
                 <select
                   name="role"
                   value={formData.role}
                   onChange={handleChange}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
+                  style={inputStyle}
                 >
                   <option value="USER">Usuário — acesso ao dashboard</option>
                   <option value="ADMIN">Admin — gerencia usuários e integrações</option>
@@ -252,7 +269,8 @@ export default function UsersPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: 'var(--accent)' }}
               >
                 {isSubmitting && <Spinner />}
                 {isSubmitting ? 'Criando...' : 'Criar usuário'}
@@ -263,30 +281,36 @@ export default function UsersPage() {
       )}
 
       {/* Users Table */}
-      <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+          <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: 'var(--text-muted)' }}>
             <Spinner /> Carregando...
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 px-6 py-4 text-sm text-red-600">
+          <div className="flex items-center gap-2 px-6 py-4 text-sm" style={{ color: 'var(--badge-error-text)' }}>
             <span>{error}</span>
             <button onClick={fetchUsers} className="ml-auto text-xs underline">Tentar novamente</button>
           </div>
         ) : users.length > 0 ? (
           <>
             {/* Mobile card list */}
-            <div className="sm:hidden divide-y divide-gray-100">
+            <div className="sm:hidden" style={{ borderColor: 'var(--border)' }}>
               {users.map((user) => (
-                <div key={user.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                <div key={user.id} className="px-4 py-3 flex items-center justify-between gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                    <p className="text-xs text-gray-400 truncate mt-0.5">{user.email}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.name}</p>
+                    <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{user.email}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span
+                        className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                        style={ROLE_BADGE_STYLE[user.role] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                      >
                         {ROLE_LABEL[user.role] ?? user.role}
                       </span>
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[user.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                      <span
+                        className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                        style={STATUS_BADGE_STYLE[user.status] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                      >
                         {STATUS_LABEL[user.status] ?? user.status}
                       </span>
                     </div>
@@ -295,7 +319,10 @@ export default function UsersPage() {
                     <button
                       onClick={() => handleDelete(user.id, user.name)}
                       disabled={deletingId === user.id}
-                      className="shrink-0 flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                      className="shrink-0 flex items-center gap-1 text-xs disabled:opacity-50 transition-colors"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--badge-error-text)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                     >
                       {deletingId === user.id && <Spinner className="h-3 w-3" />}
                       Remover
@@ -308,26 +335,37 @@ export default function UsersPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50/60 border-b border-gray-100">
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Nome</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Função</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Status</th>
+                  <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Nome</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Função</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Status</th>
                     <th className="px-6 py-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {users.map((user) => (
-                    <tr key={user.id} className="border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
-                      <td className="px-6 py-3 font-medium text-gray-900">{user.name}</td>
-                      <td className="px-6 py-3 text-gray-500">{user.email}</td>
+                    <tr
+                      key={user.id}
+                      style={{ borderTop: '1px solid var(--border)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--bg-elevated)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{user.name}</td>
+                      <td className="px-6 py-3" style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
                       <td className="px-6 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[user.role] ?? 'bg-gray-100 text-gray-600'}`}>
+                        <span
+                          className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                          style={ROLE_BADGE_STYLE[user.role] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                        >
                           {ROLE_LABEL[user.role] ?? user.role}
                         </span>
                       </td>
                       <td className="px-6 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[user.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                        <span
+                          className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+                          style={STATUS_BADGE_STYLE[user.status] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                        >
                           {STATUS_LABEL[user.status] ?? user.status}
                         </span>
                       </td>
@@ -336,7 +374,10 @@ export default function UsersPage() {
                           <button
                             onClick={() => handleDelete(user.id, user.name)}
                             disabled={deletingId === user.id}
-                            className="flex items-center gap-1.5 ml-auto text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1.5 ml-auto text-xs disabled:opacity-50 transition-colors"
+                            style={{ color: 'var(--text-muted)' }}
+                            onMouseEnter={e => (e.currentTarget.style.color = 'var(--badge-error-text)')}
+                            onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                           >
                             {deletingId === user.id && <Spinner className="h-3 w-3" />}
                             Remover
@@ -351,8 +392,8 @@ export default function UsersPage() {
           </>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm font-medium text-gray-900">Nenhum usuário</p>
-            <p className="mt-1 text-xs text-gray-400">Crie o primeiro usuário acima.</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Nenhum usuário</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Crie o primeiro usuário acima.</p>
           </div>
         )}
       </div>
@@ -361,8 +402,8 @@ export default function UsersPage() {
       {isAdmin && (
         <div className="mt-8">
           <div className="mb-4">
-            <h2 className="text-base font-semibold text-gray-900">Gestores de Tráfego</h2>
-            <p className="mt-0.5 text-sm text-gray-500">
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Gestores de Tráfego</h2>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
               Conecte um gestor externo usando o código gerado por ele.
             </p>
           </div>
@@ -375,12 +416,14 @@ export default function UsersPage() {
               onChange={(e) => setConnectCode(e.target.value.toUpperCase())}
               maxLength={8}
               placeholder="CÓDIGO DO GESTOR"
-              className="w-44 rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono tracking-widest text-gray-900 placeholder-gray-300 uppercase focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-44 rounded-lg px-3 py-2 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2"
+              style={inputStyle}
             />
             <button
               type="submit"
               disabled={isConnecting || connectCode.length !== 8}
-              className="flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: 'var(--accent)' }}
             >
               {isConnecting && <Spinner className="h-3.5 w-3.5" />}
               {isConnecting ? 'Conectando...' : 'Conectar gestor'}
@@ -389,26 +432,33 @@ export default function UsersPage() {
 
           {/* Connected managers list */}
           {connectedManagers.length === 0 ? (
-            <p className="text-sm text-gray-400 py-2">Nenhum gestor conectado ainda.</p>
+            <p className="text-sm py-2" style={{ color: 'var(--text-muted)' }}>Nenhum gestor conectado ainda.</p>
           ) : (
-            <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+            <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
               {connectedManagers.map((m) => (
-                <div key={m.id} className="flex items-center justify-between px-5 py-3 border-b border-gray-100 last:border-0">
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between px-5 py-3"
+                  style={{ borderBottom: '1px solid var(--border)' }}
+                >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{m.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.name}</p>
+                    <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{m.email}</p>
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     <span
                       className="hidden sm:inline-flex px-2 py-0.5 rounded text-xs font-medium"
-                      style={{ backgroundColor: 'rgba(168,85,247,0.08)', color: '#a855f7' }}
+                      style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' }}
                     >
                       Gestor
                     </span>
                     <button
                       onClick={() => void handleDisconnect(m.id, m.name)}
                       disabled={disconnectingId === m.id}
-                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                      className="flex items-center gap-1 text-xs disabled:opacity-50 transition-colors"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--badge-error-text)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                     >
                       {disconnectingId === m.id ? <Spinner className="h-3 w-3" /> : 'Desconectar'}
                     </button>
