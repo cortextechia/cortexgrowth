@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, SeoAnalysis, SeoConfig } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -486,6 +486,33 @@ class ApiService {
 
   async getWhatsAppStatus(): Promise<{ success: boolean; data: { connected: boolean; phone?: string } }> {
     const response = await this.client.get('/report-schedules/whatsapp/status');
+    return response.data;
+  }
+
+  // ─── SEO / AIO ───────────────────────────────────────────────────────────────
+
+  async getSeoConfig(): Promise<{ success: boolean; data: SeoConfig }> {
+    const response = await this.client.get('/seo/config');
+    return response.data;
+  }
+
+  async updateSeoConfig(data: { websiteUrl: string; competitorUrls?: string[] }): Promise<{ success: boolean; message: string; data: SeoConfig }> {
+    const response = await this.client.put('/seo/config', data);
+    return response.data;
+  }
+
+  async triggerSeoAnalysis(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
+    const response = await this.client.post('/seo/analyze');
+    return response.data;
+  }
+
+  async getSeoHistory(params?: { limit?: number; page?: number }): Promise<{ success: boolean; data: SeoAnalysis[]; total: number; page: number; limit: number }> {
+    const response = await this.client.get('/seo/history', { params });
+    return response.data;
+  }
+
+  async getSeoLatest(): Promise<{ success: boolean; data: SeoAnalysis | null; meta: { canAnalyzeThisMonth: boolean; lastAnalysis: string | null } }> {
+    const response = await this.client.get('/seo/latest');
     return response.data;
   }
 

@@ -261,6 +261,69 @@ export interface AdminMetrics {
   }[];
 }
 
+// ===== SEO / AIO =====
+
+export interface SeoPageSpeedData {
+  score: number;
+  fcp: number | null;
+  lcp: number | null;
+  cls: number | null;
+  tbt: number | null;
+  speedIndex: number | null;
+  mobile: boolean;
+}
+
+export interface SeoHtmlData {
+  score: number;
+  title: string | null;
+  metaDescription: string | null;
+  h1Count: number;
+  h1Text: string | null;
+  imagesTotal: number;
+  imagesWithAlt: number;
+  hasSchemaOrg: boolean;
+  isIndexable: boolean;
+  issues: string[];
+}
+
+export interface AioData {
+  score: number;
+  criticalPoints: string[];
+  recommendations: string[];
+  summary: string;
+}
+
+export interface SeoCompetitorResult {
+  url: string;
+  pageSpeed: SeoPageSpeedData | null;
+  seoHtml: SeoHtmlData | null;
+  aio: AioData | null;
+  overallScore: number;
+  error?: string;
+}
+
+export interface SeoAnalysis {
+  id: string;
+  organizationId: string;
+  isBaseline: boolean;
+  siteUrl: string;
+  pageSpeedScore: number | null;
+  seoScore: number | null;
+  aioScore: number | null;
+  overallScore: number | null;
+  pageSpeedData: SeoPageSpeedData | null;
+  seoData: SeoHtmlData | null;
+  aioData: AioData | null;
+  competitorData: SeoCompetitorResult[] | null;
+  analyzedAt: string;
+  createdAt: string;
+}
+
+export interface SeoConfig {
+  websiteUrl: string | null;
+  competitorUrls: string[];
+}
+
 // ===== RESPOSTA GENÉRICA =====
 export interface ApiResponse<T = any> {
   success: boolean;
