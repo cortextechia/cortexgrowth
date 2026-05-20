@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { ReportSchedule, ChannelType, ReportFrequency } from '@/types';
+import type { ReportSchedule, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -353,7 +353,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
         </div>
 
         {/* Toggle ativo */}
-        <button onClick={onToggle} className="flex-shrink-0 rounded-full transition-colors"
+        <button onClick={onToggle} className="shrink-0 rounded-full transition-colors"
           style={{ width: 36, height: 20, backgroundColor: schedule.isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
           <span style={{ position: 'absolute', top: 3, left: schedule.isActive ? 18 : 3, width: 14, height: 14, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
         </button>
@@ -388,6 +388,236 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
           Remover
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── Configuração de Alertas de Anomalia ──────────────────────────────────────
+
+const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fields: { key: string; label: string; unit: string; min: number; max: number; step: number }[] }> = {
+  SPEND_NO_LEADS: {
+    label: 'Spend sem leads',
+    description: 'Gasto do dia sem nenhum lead gerado',
+    fields: [{ key: 'minSpend', label: 'Gasto mínimo', unit: 'R$', min: 1, max: 10000, step: 10 }],
+  },
+  CPL_HIGH: {
+    label: 'CPL alto',
+    description: 'CPL de hoje muito acima da média dos últimos 7 dias',
+    fields: [
+      { key: 'pctAboveAvg', label: 'Acima da média em', unit: '%', min: 5, max: 200, step: 5 },
+      { key: 'minSpend',    label: 'Gasto mínimo',       unit: 'R$', min: 1, max: 10000, step: 10 },
+    ],
+  },
+  ROAS_LOW: {
+    label: 'ROAS < 1x',
+    description: 'Receita do mês menor que o gasto total',
+    fields: [{ key: 'minMonthSpend', label: 'Gasto mínimo no mês', unit: 'R$', min: 1, max: 50000, step: 50 }],
+  },
+  CTR_DROP: {
+    label: 'CTR colapsado',
+    description: 'CTR de alguma campanha caiu muito vs ontem',
+    fields: [
+      { key: 'dropPct',        label: 'Queda mínima',         unit: '%',  min: 5,  max: 90,    step: 5 },
+      { key: 'minImpressions', label: 'Impressões mínimas',   unit: 'imp', min: 10, max: 10000, step: 50 },
+    ],
+  },
+  LEAD_SILENCE: {
+    label: 'Silêncio de leads',
+    description: 'Nenhum lead novo com campanha ativa',
+    fields: [
+      { key: 'hoursWindow', label: 'Janela de tempo', unit: 'horas', min: 12, max: 168, step: 12 },
+      { key: 'minSpend7d',  label: 'Gasto mínimo 7d', unit: 'R$',   min: 1,  max: 10000, step: 10 },
+    ],
+  },
+};
+
+const ALL_RULES = Object.keys(RULE_META) as AnomalyRuleId[];
+
+function AlertConfigSection() {
+  const [config, setConfig]     = useState<AlertConfig | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [saved, setSaved]       = useState(false);
+  const [error, setError]       = useState('');
+
+  // local editable state
+  const [enabled, setEnabled]         = useState<Set<AnomalyRuleId>>(new Set(ALL_RULES));
+  const [thresholds, setThresholds]   = useState<AlertConfig['thresholds'] | null>(null);
+
+  useEffect(() => {
+    apiService.getAlertConfig()
+      .then(({ data }) => {
+        setConfig(data);
+        setEnabled(new Set(data.enabledRules as AnomalyRuleId[]));
+        setThresholds(data.thresholds);
+      })
+      .catch(() => setError('Erro ao carregar configuração de alertas'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggleRule = (rule: AnomalyRuleId) => {
+    setEnabled(prev => {
+      const next = new Set(prev);
+      next.has(rule) ? next.delete(rule) : next.add(rule);
+      return next;
+    });
+  };
+
+  const setThresholdField = (rule: AnomalyRuleId, key: string, value: number) => {
+    setThresholds(prev => {
+      if (!prev) return prev;
+      return { ...prev, [rule]: { ...(prev[rule] as Record<string, number>), [key]: value } };
+    });
+  };
+
+  const handleSave = async () => {
+    if (!thresholds) return;
+    setSaving(true); setError('');
+    try {
+      const { data } = await apiService.updateAlertConfig({
+        enabledRules: [...enabled],
+        thresholds,
+      });
+      setConfig(data);
+      setEnabled(new Set(data.enabledRules as AnomalyRuleId[]));
+      setThresholds(data.thresholds);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Erro ao salvar configuração');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const inputStyle = {
+    backgroundColor: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)',
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontSize: 12,
+    width: 80,
+  };
+
+  if (loading) return (
+    <div className="rounded-xl p-4 flex items-center gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <svg className="animate-spin h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
+        <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando alertas...</span>
+    </div>
+  );
+
+  return (
+    <div className="rounded-xl p-4 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Alertas de Anomalia</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            Verificado a cada 4h — enviado nos chats Telegram ativos acima
+          </p>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving || !thresholds}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: saved ? 'rgba(34,197,94,0.15)' : '#3b82f6',
+            color: saved ? '#4ade80' : '#fff',
+            opacity: saving ? 0.6 : 1,
+          }}
+        >
+          {saving ? 'Salvando...' : saved ? '✓ Salvo' : 'Salvar'}
+        </button>
+      </div>
+
+      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+
+      {/* Regras */}
+      <div className="space-y-2">
+        {ALL_RULES.map(rule => {
+          const meta = RULE_META[rule];
+          const isOn = enabled.has(rule);
+          return (
+            <div
+              key={rule}
+              className="rounded-lg p-3 transition-all"
+              style={{
+                backgroundColor: isOn ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${isOn ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)'}`,
+              }}
+            >
+              <div className="flex items-start gap-3">
+                {/* Toggle */}
+                <button
+                  onClick={() => toggleRule(rule)}
+                  className="shrink-0 mt-0.5 rounded-full transition-colors"
+                  style={{ width: 32, height: 18, backgroundColor: isOn ? '#3b82f6' : 'rgba(255,255,255,0.1)', position: 'relative' }}
+                >
+                  <span style={{
+                    position: 'absolute', top: 2,
+                    left: isOn ? 16 : 2,
+                    width: 14, height: 14, borderRadius: '50%',
+                    backgroundColor: '#fff', transition: 'left 0.15s',
+                  }} />
+                </button>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium" style={{ color: isOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {meta.label}
+                    </span>
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>— {meta.description}</span>
+                  </div>
+
+                  {/* Thresholds (só quando ativo) */}
+                  {isOn && thresholds && (
+                    <div className="flex flex-wrap gap-3 mt-2">
+                      {meta.fields.map(field => (
+                        <label key={field.key} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+                          {field.label}:
+                          <input
+                            type="number"
+                            min={field.min}
+                            max={field.max}
+                            step={field.step}
+                            style={inputStyle}
+                            value={(thresholds[rule] as Record<string, number>)[field.key] ?? 0}
+                            onChange={e => setThresholdField(rule, field.key, Number(e.target.value))}
+                          />
+                          <span style={{ color: 'var(--text-muted)' }}>{field.unit}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Badge status */}
+                <span
+                  className="shrink-0 text-xs px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: isOn ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.05)',
+                    color: isOn ? '#60a5fa' : '#64748b',
+                  }}
+                >
+                  {isOn ? 'Ativo' : 'Off'}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {config && (
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          {enabled.size === 0
+            ? 'Nenhuma regra ativa — alertas suprimidos.'
+            : `${enabled.size} de ${ALL_RULES.length} regras ativas.`}
+        </p>
+      )}
     </div>
   );
 }
@@ -545,6 +775,9 @@ export default function RelatoriosPage() {
       )}
 
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchSchedules} />}
+
+      {/* Alertas de Anomalia */}
+      <AlertConfigSection />
 
       {/* Toast */}
       {toast && (

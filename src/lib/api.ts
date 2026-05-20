@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, SeoAnalysis, SeoConfig } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -520,6 +520,18 @@ class ApiService {
 
   async getSeoLatest(): Promise<{ success: boolean; data: SeoAnalysis | null; meta: { canAnalyzeThisMonth: boolean; lastAnalysis: string | null } }> {
     const response = await this.client.get('/seo/latest');
+    return response.data;
+  }
+
+  // ─── Configuração de Alertas de Anomalia ────────────────────────────────────
+
+  async getAlertConfig(): Promise<{ success: boolean; data: AlertConfig }> {
+    const response = await this.client.get('/alert-config');
+    return response.data;
+  }
+
+  async updateAlertConfig(data: { enabledRules: string[]; thresholds: AlertConfig['thresholds'] }): Promise<{ success: boolean; message: string; data: AlertConfig }> {
+    const response = await this.client.put('/alert-config', data);
     return response.data;
   }
 

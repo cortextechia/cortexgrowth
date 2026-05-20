@@ -326,6 +326,24 @@ export interface SeoConfig {
   competitorUrls: string[];
 }
 
+// ===== ALERTAS DE ANOMALIA =====
+
+export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE';
+
+export interface AlertThresholds {
+  SPEND_NO_LEADS: { minSpend: number };
+  CPL_HIGH:       { pctAboveAvg: number; minSpend: number };
+  ROAS_LOW:       { minMonthSpend: number };
+  CTR_DROP:       { dropPct: number; minImpressions: number };
+  LEAD_SILENCE:   { hoursWindow: number; minSpend7d: number };
+}
+
+export interface AlertConfig {
+  enabledRules: AnomalyRuleId[];
+  thresholds: AlertThresholds;
+  validRules?: AnomalyRuleId[];
+}
+
 // ===== RESPOSTA GENÉRICA =====
 export interface ApiResponse<T = any> {
   success: boolean;
