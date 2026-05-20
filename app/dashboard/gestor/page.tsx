@@ -39,6 +39,11 @@ export default function GestorPage() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [reportClient, setReportClient] = useState<TrafficManagerClient | null>(null);
 
+  const [briefing, setBriefing] = useState({ enabled: false, chatId: '', hour: 7 });
+  const [loadingBriefing, setLoadingBriefing] = useState(true);
+  const [savingBriefing, setSavingBriefing] = useState(false);
+  const [testingBriefing, setTestingBriefing] = useState(false);
+
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -69,6 +74,18 @@ export default function GestorPage() {
     }
   }, []);
 
+  const fetchBriefingConfig = useCallback(async () => {
+    setLoadingBriefing(true);
+    try {
+      const res = await apiService.getBriefingConfig();
+      setBriefing(res.data);
+    } catch {
+      /* mantém default */
+    } finally {
+      setLoadingBriefing(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (user?.role !== UserRole.TRAFFIC_MANAGER) {
       router.replace('/dashboard');
@@ -76,7 +93,37 @@ export default function GestorPage() {
     }
     void fetchInvite();
     void fetchClients();
-  }, [user, router, fetchInvite, fetchClients]);
+    void fetchBriefingConfig();
+  }, [user, router, fetchInvite, fetchClients, fetchBriefingConfig]);
+
+  const handleSaveBriefing = async () => {
+    setSavingBriefing(true);
+    try {
+      await apiService.saveBriefingConfig(briefing);
+      showToast('Configuração de briefing salva!');
+    } catch {
+      showToast('Erro ao salvar configuração.', 'error');
+    } finally {
+      setSavingBriefing(false);
+    }
+  };
+
+  const handleTestBriefing = async () => {
+    if (!briefing.chatId.trim()) {
+      showToast('Configure o Chat ID do Telegram antes de testar.', 'error');
+      return;
+    }
+    setTestingBriefing(true);
+    try {
+      await apiService.saveBriefingConfig(briefing);
+      await apiService.testBriefing();
+      showToast('Briefing de teste enviado! Verifique seu Telegram.');
+    } catch {
+      showToast('Erro ao enviar briefing de teste.', 'error');
+    } finally {
+      setTestingBriefing(false);
+    }
+  };
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -176,6 +223,85 @@ export default function GestorPage() {
           <button onClick={fetchInvite} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
             Gerar código
           </button>
+        )}
+      </div>
+
+      {/* ─── Seção: Briefing Semanal ──────────────────────────────────────── */}
+      <div className="rounded-xl p-5 space-y-4" style={card}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Briefing Semanal Automático</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Receba todo domingo às {briefing.hour}h um resumo de todos os seus clientes direto no Telegram — sem abrir a plataforma.
+            </p>
+          </div>
+          <button
+            onClick={() => setBriefing(b => ({ ...b, enabled: !b.enabled }))}
+            className="shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
+            style={{ backgroundColor: briefing.enabled ? '#3b82f6' : 'var(--border-md)' }}
+            aria-label="Toggle briefing"
+          >
+            <span
+              className="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
+              style={{ transform: briefing.enabled ? 'translateX(18px)' : 'translateX(2px)' }}
+            />
+          </button>
+        </div>
+
+        {loadingBriefing ? (
+          <div className="flex items-center gap-2 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <Spinner className="h-3 w-3" /> Carregando...
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Chat ID do Telegram</label>
+              <input
+                type="text"
+                value={briefing.chatId}
+                onChange={e => setBriefing(b => ({ ...b, chatId: e.target.value }))}
+                placeholder="Ex: -1001234567890"
+                className="w-full rounded-lg px-3 py-2 text-xs"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+              />
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                Obtenha o Chat ID pelo bot <span style={{ color: '#60a5fa' }}>@userinfobot</span> — envie qualquer mensagem e ele retorna seu ID.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Horário (BRT)</label>
+              <select
+                value={briefing.hour}
+                onChange={e => setBriefing(b => ({ ...b, hour: Number(e.target.value) }))}
+                className="w-full rounded-lg px-3 py-2 text-xs"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+              >
+                {[6, 7, 8, 9, 10, 11, 12].map(h => (
+                  <option key={h} value={h}>{h}:00</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleSaveBriefing}
+                disabled={savingBriefing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-opacity"
+                style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: savingBriefing ? 0.6 : 1 }}
+              >
+                {savingBriefing ? <><Spinner className="h-3 w-3" /> Salvando...</> : 'Salvar'}
+              </button>
+              <button
+                onClick={handleTestBriefing}
+                disabled={testingBriefing}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-opacity"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', opacity: testingBriefing ? 0.6 : 1 }}
+              >
+                {testingBriefing ? <><Spinner className="h-3 w-3" /> Enviando...</> : '⚡ Testar agora'}
+              </button>
+            </div>
+          </div>
         )}
       </div>
 

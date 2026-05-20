@@ -812,6 +812,85 @@ export default function DashboardPage() {
     };
   }, [metaCur, googleCur, kommoCur]);
 
+  // ── Campaign health scores A/B/C/D (fixed 30-day window, independent of range selector) ─
+  const campaignHealthScores = useMemo(() => {
+    const now    = new Date();
+    const d30ago = new Date(now.getTime() - 30 * 86400000);
+    const d7ago  = new Date(now.getTime() -  7 * 86400000);
+    const d14ago = new Date(now.getTime() - 14 * 86400000);
+
+    // All meta campaign rows for the last 30 days
+    const meta30 = metaInsights.filter(
+      d => new Date(d.date) >= d30ago && (!d.level || d.level === 'campaign')
+    );
+
+    type CampData = { spend: number; clicks: number; impressions: number; spend7: number; spend14: number };
+    const byName = new Map<string, CampData>();
+    for (const d of meta30) {
+      const date = new Date(d.date);
+      const prev = byName.get(d.campaignName) ?? { spend: 0, clicks: 0, impressions: 0, spend7: 0, spend14: 0 };
+      byName.set(d.campaignName, {
+        spend:       prev.spend + d.spend,
+        clicks:      prev.clicks + d.clicks,
+        impressions: prev.impressions + d.impressions,
+        spend7:      date >= d7ago  ? prev.spend7  + d.spend : prev.spend7,
+        spend14:     date >= d14ago && date < d7ago ? prev.spend14 + d.spend : prev.spend14,
+      });
+    }
+
+    // WON revenue and lead counts per utmCampaign for last 30d / last 7d / prev 7d
+    const rev30   = new Map<string, number>();
+    const leads7  = new Map<string, number>();
+    const leads14 = new Map<string, number>();
+    for (const l of kommoLeads as KommoLead[]) {
+      if (!l.utmCampaign) continue;
+      const d = getKommoDate(l);
+      if (d < d30ago) continue;
+      if (WON_STATUSES.includes(l.status) && l.price) {
+        rev30.set(l.utmCampaign, (rev30.get(l.utmCampaign) ?? 0) + l.price);
+      }
+      if (d >= d7ago)                      leads7.set( l.utmCampaign, (leads7.get(l.utmCampaign)  ?? 0) + 1);
+      if (d >= d14ago && d < d7ago)        leads14.set(l.utmCampaign, (leads14.get(l.utmCampaign) ?? 0) + 1);
+    }
+
+    const scores = new Map<string, 'A' | 'B' | 'C' | 'D'>();
+    for (const [name, data] of byName) {
+      let pts = 0;
+
+      // ROAS (35pts)
+      const rev  = rev30.get(name) ?? 0;
+      const roas = data.spend > 0 ? rev / data.spend : null;
+      pts += roas === null ? 10 : roas >= 3 ? 35 : roas >= 2 ? 25 : roas >= 1 ? 15 : 5;
+
+      // CPL trend this week vs last week (25pts)
+      const l7  = leads7.get(name)  ?? 0;
+      const l14 = leads14.get(name) ?? 0;
+      const cpl7  = l7  > 0 && data.spend7  > 0 ? data.spend7  / l7  : null;
+      const cpl14 = l14 > 0 && data.spend14 > 0 ? data.spend14 / l14 : null;
+      if (cpl7 !== null && cpl14 !== null && cpl14 > 0) {
+        const d = (cpl7 - cpl14) / cpl14;
+        pts += d < -0.1 ? 25 : d <= 0.1 ? 15 : 5;
+      } else {
+        pts += 10;
+      }
+
+      // Lead volume trend (25pts)
+      if (l7 > 0 || l14 > 0) {
+        const d = l14 > 0 ? (l7 - l14) / l14 : 1;
+        pts += d > 0.1 ? 25 : d >= -0.1 ? 15 : 5;
+      } else {
+        pts += 5;
+      }
+
+      // CTR (15pts)
+      const ctr = data.impressions > 0 ? (data.clicks / data.impressions) * 100 : 0;
+      pts += ctr >= 2 ? 15 : ctr >= 1 ? 10 : ctr >= 0.5 ? 5 : 0;
+
+      scores.set(name, pts >= 75 ? 'A' : pts >= 50 ? 'B' : pts >= 25 ? 'C' : 'D');
+    }
+    return scores;
+  }, [metaInsights, kommoLeads]);
+
   // ── Top campaigns ─────────────────────────────────────────────────────────
   interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; }
   const campaigns = useMemo(() => {
@@ -994,6 +1073,13 @@ export default function DashboardPage() {
   if (user?.role === UserRole.SUPER_ADMIN) {
     return <AdminDashboard />;
   }
+
+  const HEALTH_SCORE_CFG: Record<'A' | 'B' | 'C' | 'D', { bg: string; color: string }> = {
+    A: { bg: 'rgba(74,222,128,0.12)',  color: '#4ade80' },
+    B: { bg: 'rgba(96,165,250,0.12)',  color: '#60a5fa' },
+    C: { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24' },
+    D: { bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
+  };
 
   const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
     Meta:   { dot: '#818cf8', bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
@@ -1456,6 +1542,7 @@ export default function DashboardPage() {
                       <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Campanha</th>
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Plat.</th>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Saúde</th>
                         {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key, label }) => (
                           <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{label}</th>
                         ))}
@@ -1494,6 +1581,18 @@ export default function DashboardPage() {
                                 <span className="h-1 w-1 rounded-full" style={{ backgroundColor: plt.dot }} />
                                 {c.platform}
                               </span>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              {(() => {
+                                const score = campaignHealthScores.get(c.name);
+                                if (!score) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+                                const cfg = HEALTH_SCORE_CFG[score];
+                                return (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold" style={{ backgroundColor: cfg.bg, color: cfg.color }}>
+                                    {score}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key }) => (
                               <td key={key} className="px-4 py-2.5 tabular-nums">{cellVal[key]}</td>

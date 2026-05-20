@@ -421,6 +421,23 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Briefing Semanal do Gestor ─────────────────────────────────────────────
+
+  async getBriefingConfig(): Promise<{ success: boolean; data: { enabled: boolean; chatId: string; hour: number } }> {
+    const response = await this.client.get('/managers/briefing-config');
+    return response.data;
+  }
+
+  async saveBriefingConfig(data: { enabled: boolean; chatId: string; hour: number }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put('/managers/briefing-config', data);
+    return response.data;
+  }
+
+  async testBriefing(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/managers/briefing-config/test');
+    return response.data;
+  }
+
   // ─── Relatórios Agendados ────────────────────────────────────────────────────
 
   async getReportSchedules(): Promise<{ success: boolean; data: ReportSchedule[] }> {
