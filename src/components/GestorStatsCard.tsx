@@ -77,7 +77,7 @@ export default function GestorStatsCard() {
             {fmtMoney(stats.mrr)}
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {stats.clientCount} cliente{stats.clientCount !== 1 ? 's' : ''} ativo{stats.clientCount !== 1 ? 's' : ''}
+            {stats.linkClientCount ?? 0} via link · {stats.codeClientCount ?? 0} via código
           </p>
         </div>
 
@@ -86,15 +86,15 @@ export default function GestorStatsCard() {
           <p className="text-xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--text-primary)' }}>
             {fmtMoney(stats.annualProjection)}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>× 12 meses</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{stats.clientCount} clientes total</p>
         </div>
 
         <div>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Ticket Médio</p>
           <p className="text-xl font-bold tabular-nums mt-0.5" style={{ color: 'var(--text-primary)' }}>
-            {stats.clientCount > 0 ? fmtMoney(stats.averageTicket) : '—'}
+            {(stats.linkClientCount ?? 0) > 0 ? fmtMoney(stats.averageTicket) : '—'}
           </p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>por cliente/mês</p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>por cliente comissionável</p>
         </div>
 
         <div>
@@ -165,7 +165,7 @@ export default function GestorStatsCard() {
             Breakdown por plano
           </p>
           {stats.planBreakdown.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum cliente ativo ainda.</p>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum cliente via link ainda.</p>
           ) : (
             <div className="space-y-2">
               {stats.planBreakdown.map(item => (

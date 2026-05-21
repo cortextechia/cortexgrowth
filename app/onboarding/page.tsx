@@ -86,6 +86,34 @@ function ProgressBar({ currentIndex }: { currentIndex: number }) {
 
 function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   const { user, organization } = useAuth();
+  const [orgName, setOrgName] = useState(organization?.name ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleNext = async () => {
+    const trimmed = orgName.trim();
+    if (!trimmed) { setError('Informe o nome da empresa.'); return; }
+    setError(null);
+    if (trimmed !== organization?.name && organization?.id) {
+      setIsSaving(true);
+      try {
+        await apiService.updateOrganization(organization.id, { name: trimmed });
+      } catch {
+        setError('Erro ao salvar o nome. Tente novamente.');
+        setIsSaving(false);
+        return;
+      }
+      setIsSaving(false);
+    }
+    onNext();
+  };
+
+  const inputStyle: React.CSSProperties = {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    color: '#f1f5f9',
+    outline: 'none',
+  };
 
   return (
     <div className="text-center">
@@ -103,12 +131,28 @@ function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
       <h1 className="text-2xl font-bold mb-2" style={{ color: '#f1f5f9' }}>
         Bem-vindo, {user?.name?.split(' ')[0]}!
       </h1>
-      <p className="text-sm mb-1" style={{ color: '#64748b' }}>
-        Conta <strong style={{ color: '#94a3b8' }}>{organization?.name}</strong> criada com sucesso.
+      <p className="text-sm mb-6" style={{ color: '#64748b' }}>
+        Vamos configurar sua conta em menos de 5 minutos.
       </p>
-      <p className="text-sm mb-8" style={{ color: '#64748b' }}>
-        Vamos configurar suas integrações em menos de 5 minutos.
-      </p>
+
+      <div className="text-left mb-6">
+        <label className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>
+          Nome da empresa / workspace
+        </label>
+        <input
+          type="text"
+          value={orgName}
+          onChange={e => { setOrgName(e.target.value); setError(null); }}
+          placeholder="Minha Agência"
+          className="w-full rounded-lg px-3 py-2.5 text-sm placeholder-slate-600 transition-all"
+          style={inputStyle}
+          onFocus={e => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; }}
+          onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
+        />
+        {error && (
+          <p className="mt-1.5 text-xs" style={{ color: '#f87171' }}>{error}</p>
+        )}
+      </div>
 
       <div className="space-y-3 text-left mb-8 rounded-xl p-4" style={{ backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
         {[
@@ -133,13 +177,15 @@ function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 
       <div className="flex flex-col gap-3">
         <button
-          onClick={onNext}
-          className="w-full rounded-lg py-2.5 text-sm font-medium text-white transition-all"
+          onClick={() => void handleNext()}
+          disabled={isSaving}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
           style={{ backgroundColor: '#3b82f6' }}
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#2563eb'; }}
+          onMouseEnter={e => { if (!isSaving) e.currentTarget.style.backgroundColor = '#2563eb'; }}
           onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}
         >
-          Começar configuração
+          {isSaving && <Spinner />}
+          {isSaving ? 'Salvando...' : 'Começar configuração'}
         </button>
         <button
           onClick={onSkip}

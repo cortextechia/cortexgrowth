@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -114,7 +114,7 @@ class ApiService {
 
   // ─── Autenticação ────────────────────────────────────────────────────────────
 
-  async register(data: RegisterRequest): Promise<AuthResponse> {
+  async register(data: RegisterRequest & { ref?: string }): Promise<AuthResponse> {
     const response = await this.client.post<AuthResponse>('/auth/register', data);
     if (response.data.accessToken) {
       this.setTokens(response.data.accessToken, response.data.refreshToken);
@@ -406,6 +406,21 @@ class ApiService {
     return response.data;
   }
 
+  async removeMyClient(orgId: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/managers/my-clients/${orgId}`);
+    return response.data;
+  }
+
+  async getMyReferral(): Promise<{ success: boolean; data: ManagerReferral }> {
+    const response = await this.client.get('/managers/my-referral');
+    return response.data;
+  }
+
+  async regenerateReferral(): Promise<{ success: boolean; data: ManagerReferral; message: string }> {
+    const response = await this.client.post('/managers/my-referral/regenerate');
+    return response.data;
+  }
+
   async connectManager(code: string): Promise<{ success: boolean; message: string; data: { managerId: string; managerName: string; managerEmail: string } }> {
     const response = await this.client.post('/managers/connect', { code });
     return response.data;
@@ -428,7 +443,7 @@ class ApiService {
     return response.data;
   }
 
-  async saveBriefingConfig(data: { enabled: boolean; hour: number }): Promise<{ success: boolean; message: string }> {
+  async saveBriefingConfig(data: { enabled: boolean; hour: number; dayOfWeek: number }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put('/managers/briefing-config', data);
     return response.data;
   }

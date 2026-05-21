@@ -944,7 +944,7 @@ export default function DashboardPage() {
       : null;
 
     const ltvCacRatio = ltv && cacReal && cacReal > 0 ? ltv / cacReal : null;
-    return { ticketMedio, ltv, ltvCacRatio, wonTotal, cacReal, wonFromPaidCount: wonFromPaid.length };
+    return { ticketMedio, ltv, ltvCacRatio, wonTotal, wonCount, cacReal, wonFromPaidCount: wonFromPaid.length };
   }, [kommoCur, closedValue, recurrentCount, attributionSummary]);
 
   const projection = useMemo(() => {
@@ -1664,7 +1664,7 @@ export default function DashboardPage() {
                     label: 'LTV estimado',
                     value: ltvData.ltv ? fmtMoney(ltvData.ltv) : '—',
                     color: '#4ade80',
-                    sub: `ticket × freq. (${ltvData.wonTotal} vendas no período)`,
+                    sub: `ticket × freq. (${ltvData.wonCount} vendas com valor)`,
                   },
                   {
                     label: 'CAC real',

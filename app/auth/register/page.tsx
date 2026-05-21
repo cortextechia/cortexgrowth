@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 
@@ -20,12 +20,20 @@ const steps = [
   { label: 'Receba insights gerados por IA' },
 ];
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { register } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', organizationName: '' });
+  const [refCode, setRefCode] = useState<string | null>(null);
+
+  // Lê ref= da URL — link de registro do gestor
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) setRefCode(ref);
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -37,7 +45,7 @@ export default function RegisterPage() {
     if (formData.password.length < 8) { setError('Senha deve ter no mínimo 8 caracteres'); return; }
     setIsLoading(true);
     try {
-      const response = await register(formData);
+      const response = await register({ ...formData, ...(refCode ? { ref: refCode } : {}) });
       if (response.success) {
         sessionStorage.setItem('onboarding_new_account', 'true');
         router.push('/onboarding');
@@ -165,6 +173,16 @@ export default function RegisterPage() {
                 <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Comece gratuitamente, sem cartão de crédito</p>
               </div>
 
+              {refCode && (
+                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
+                  style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                  Você foi convidado por um gestor de tráfego.
+                </div>
+              )}
+
               {error && (
                 <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
                   style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
@@ -228,5 +246,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#080d19' }}><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>}>
+      <RegisterContent />
+    </Suspense>
   );
 }

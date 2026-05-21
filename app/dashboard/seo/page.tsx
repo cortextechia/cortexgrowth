@@ -305,6 +305,90 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
         </div>
       )}
 
+      {/* Infraestrutura para IA */}
+      {analysis.seoData && (
+        <div className="rounded-xl p-4 space-y-3" style={card}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Infraestrutura para agentes de IA</p>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+            {[
+              {
+                label: 'robots.txt',
+                ok: analysis.seoData.robots?.present ?? false,
+                detail: !analysis.seoData.robots?.present
+                  ? 'ausente'
+                  : (analysis.seoData.robots.blocksGPTBot || analysis.seoData.robots.blocksClaudeBot || analysis.seoData.robots.blocksPerplexityBot)
+                    ? 'bloqueia AI crawlers'
+                    : 'OK',
+                warn: analysis.seoData.robots?.present && (analysis.seoData.robots.blocksGPTBot || analysis.seoData.robots.blocksClaudeBot || analysis.seoData.robots.blocksPerplexityBot),
+              },
+              {
+                label: 'Sitemap',
+                ok: analysis.seoData.hasSitemap,
+                detail: analysis.seoData.hasSitemap ? 'detectado' : 'não encontrado',
+                warn: false,
+              },
+              {
+                label: 'llms.txt',
+                ok: analysis.seoData.hasLlmsTxt,
+                detail: analysis.seoData.hasLlmsTxt ? 'presente' : 'não encontrado',
+                warn: false,
+              },
+              {
+                label: 'Schema.org',
+                ok: (analysis.seoData.schemaTypes?.length ?? 0) > 0,
+                detail: (analysis.seoData.schemaTypes?.length ?? 0) > 0
+                  ? analysis.seoData.schemaTypes!.slice(0, 2).join(', ')
+                  : 'ausente',
+                warn: false,
+              },
+              {
+                label: 'OG tags',
+                ok: !!(analysis.seoData.ogTags?.title && analysis.seoData.ogTags?.description && analysis.seoData.ogTags?.image),
+                detail: analysis.seoData.ogTags
+                  ? [
+                      analysis.seoData.ogTags.title && 'title',
+                      analysis.seoData.ogTags.description && 'description',
+                      analysis.seoData.ogTags.image && 'image',
+                    ].filter(Boolean).join(', ') || 'nenhuma'
+                  : 'nenhuma',
+                warn: false,
+              },
+              {
+                label: 'Indexável',
+                ok: analysis.seoData.isIndexable,
+                detail: analysis.seoData.isIndexable ? 'sim' : 'noindex ativo',
+                warn: !analysis.seoData.isIndexable,
+              },
+            ].map(({ label, ok, detail, warn }) => (
+              <div key={label} className="flex items-center gap-2">
+                <span className="text-sm shrink-0" style={{ color: warn ? '#f59e0b' : ok ? '#22c55e' : '#ef4444' }}>
+                  {warn ? '⚠' : ok ? '✓' : '✕'}
+                </span>
+                <div className="min-w-0">
+                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                  <span className="text-[10px] ml-1" style={{ color: 'var(--text-muted)' }}>{detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* AI Crawlers detail */}
+          {analysis.seoData.robots?.present && (
+            <div className="flex gap-3 pt-1 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+              {[
+                { bot: 'GPTBot', blocked: analysis.seoData.robots.blocksGPTBot },
+                { bot: 'ClaudeBot', blocked: analysis.seoData.robots.blocksClaudeBot },
+                { bot: 'PerplexityBot', blocked: analysis.seoData.robots.blocksPerplexityBot },
+              ].map(({ bot, blocked }) => (
+                <div key={bot} className="flex items-center gap-1">
+                  <span className="text-[10px]" style={{ color: blocked ? '#ef4444' : '#22c55e' }}>{blocked ? '✕' : '✓'}</span>
+                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{bot}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* PageSpeed técnico */}
       {analysis.pageSpeedData && (
         <div className="rounded-xl p-4 space-y-2" style={card}>

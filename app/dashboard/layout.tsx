@@ -335,7 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     >
                       {clientOrgs.map((org) => (
                         <option key={org.id} value={org.id} style={{ backgroundColor: '#0f172a', color: '#f1f5f9' }}>
-                          {org.name}
+                          {org.isSelf ? `${org.name} (Eu)` : org.name}
                         </option>
                       ))}
                     </select>

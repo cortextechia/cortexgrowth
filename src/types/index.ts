@@ -199,12 +199,13 @@ export interface ManagerStats {
   annualProjection: number;
   averageTicket: number;
   clientCount: number;
+  linkClientCount: number;
+  codeClientCount: number;
   planBreakdown: { plan: string; count: number; unitCommission: number; totalCommission: number }[];
   growthHistory: { month: string; newClients: number; cumulative: number }[];
   reportsThisMonth: number;
   activeSchedules: number;
 }
-
 
 export interface TrafficManagerClient {
   id: string;
@@ -212,6 +213,14 @@ export interface TrafficManagerClient {
   plan: Plan;
   status: OrgStatus;
   slug: string;
+  isSelf?: boolean;
+  source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF';
+  connectedAt?: string;
+}
+
+export interface ManagerReferral {
+  referralCode: string;
+  referralLink: string;
 }
 
 export interface TrafficManagerWithClients {
@@ -275,6 +284,19 @@ export interface SeoPageSpeedData {
   mobile: boolean;
 }
 
+export interface SeoRobotsData {
+  present: boolean;
+  blocksGPTBot: boolean;
+  blocksClaudeBot: boolean;
+  blocksPerplexityBot: boolean;
+}
+
+export interface SeoOgTags {
+  title: boolean;
+  description: boolean;
+  image: boolean;
+}
+
 export interface SeoHtmlData {
   score: number;
   title: string | null;
@@ -284,6 +306,11 @@ export interface SeoHtmlData {
   imagesTotal: number;
   imagesWithAlt: number;
   hasSchemaOrg: boolean;
+  schemaTypes: string[];
+  ogTags: SeoOgTags | null;
+  robots: SeoRobotsData | null;
+  hasSitemap: boolean;
+  hasLlmsTxt: boolean;
   isIndexable: boolean;
   issues: string[];
 }
@@ -549,3 +576,4 @@ export interface ReportSchedule {
   createdBy: { name: string; email: string };
   logs: ReportLog[];
 }
+
