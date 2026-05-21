@@ -423,13 +423,23 @@ class ApiService {
 
   // ─── Briefing Semanal do Gestor ─────────────────────────────────────────────
 
-  async getBriefingConfig(): Promise<{ success: boolean; data: { enabled: boolean; chatId: string; hour: number } }> {
+  async getBriefingConfig(): Promise<{ success: boolean; data: { enabled: boolean; chatId: string; chatName: string; hour: number } }> {
     const response = await this.client.get('/managers/briefing-config');
     return response.data;
   }
 
-  async saveBriefingConfig(data: { enabled: boolean; chatId: string; hour: number }): Promise<{ success: boolean; message: string }> {
+  async saveBriefingConfig(data: { enabled: boolean; hour: number }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put('/managers/briefing-config', data);
+    return response.data;
+  }
+
+  async generateBriefingInvite(): Promise<{ success: boolean; data: { deepLink: string; expiresAt: string } }> {
+    const response = await this.client.post('/managers/briefing-config/invite');
+    return response.data;
+  }
+
+  async disconnectBriefingTelegram(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/managers/briefing-config/telegram');
     return response.data;
   }
 
@@ -549,6 +559,68 @@ class ApiService {
 
   async updateAlertConfig(data: { enabledRules: string[]; thresholds: AlertConfig['thresholds'] }): Promise<{ success: boolean; message: string; data: AlertConfig }> {
     const response = await this.client.put('/alert-config', data);
+    return response.data;
+  }
+
+  // ─── Agentes Criativos (Fase 4) ─────────────────────────────────────────────
+
+  async getCreativeProfile(): Promise<{ success: boolean; data: import('@/types').CreativeProfile }> {
+    const response = await this.client.get('/creative/profile');
+    return response.data;
+  }
+
+  async updateCreativeProfile(data: { productDescription?: string; competitorPageIds?: string[] }): Promise<{ success: boolean; message: string; data: import('@/types').CreativeProfile }> {
+    const response = await this.client.patch('/creative/profile', data);
+    return response.data;
+  }
+
+  async runCreativeAnalysis(daysBack = 90): Promise<{ success: boolean; message: string; data: { analysisId: string; tokensUsed: number } }> {
+    const response = await this.client.post('/creative/analysis/run', { daysBack });
+    return response.data;
+  }
+
+  async getLatestCreativeAnalysis(): Promise<{ success: boolean; data: import('@/types').CreativeAnalysis | null }> {
+    const response = await this.client.get('/creative/analysis/latest');
+    return response.data;
+  }
+
+  async getCreativeFatigue(): Promise<{ success: boolean; data: import('@/types').FatigueCampaign[]; message: string }> {
+    const response = await this.client.get('/creative/fatigue');
+    return response.data;
+  }
+
+  async generateCreativeIdeas(campaignName: string): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; ideas: import('@/types').CreativeIdeasOutput } }> {
+    const response = await this.client.post('/creative/ideas', { campaignName });
+    return response.data;
+  }
+
+  async generateCreativeBriefing(campaignName: string): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; briefing: import('@/types').CreativeBriefingOutput } }> {
+    const response = await this.client.post('/creative/briefing', { campaignName });
+    return response.data;
+  }
+
+  async generateCopy(campaignName: string, briefingId?: string): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; copy: import('@/types').CopyOutput } }> {
+    const response = await this.client.post('/creative/copy', { campaignName, briefingId });
+    return response.data;
+  }
+
+  async getCreativeHistory(type?: 'IDEAS' | 'BRIEFING' | 'COPY'): Promise<{ success: boolean; data: Pick<import('@/types').CreativeBriefing, 'id' | 'agentType' | 'campaignName' | 'inputSummary' | 'tokensUsed' | 'createdAt'>[] }> {
+    const response = await this.client.get('/creative/history', { params: type ? { type } : {} });
+    return response.data;
+  }
+
+  async getCreativeHistoryItem(id: string): Promise<{ success: boolean; data: import('@/types').CreativeBriefing }> {
+    const response = await this.client.get(`/creative/history/${id}`);
+    return response.data;
+  }
+
+  async runCompetitiveAnalysis(): Promise<{ success: boolean; message: string; data: { insightId: string; tokensUsed: number; data: import('@/types').CompetitiveOutput } }> {
+    const response = await this.client.post('/creative/competitive/run');
+    return response.data;
+  }
+
+  async getLatestCompetitiveInsight(): Promise<{ success: boolean; data: { id: string; weekOf: string; adsData: import('@/types').CompetitiveOutput; tokensUsed?: number; createdAt: string } | null }> {
+    const response = await this.client.get('/creative/competitive/latest');
     return response.data;
   }
 

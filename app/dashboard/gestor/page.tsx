@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
 import { UserRole, type TrafficManagerClient } from '@/types';
 import ClientReportsModal from '@/components/ClientReportsModal';
 import GestorStatsCard from '@/components/GestorStatsCard';
+import { QRCodeSVG } from 'qrcode.react';
 
 const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
@@ -39,10 +40,13 @@ export default function GestorPage() {
   const [loadingClients, setLoadingClients] = useState(true);
   const [reportClient, setReportClient] = useState<TrafficManagerClient | null>(null);
 
-  const [briefing, setBriefing] = useState({ enabled: false, chatId: '', hour: 7 });
+  const [briefing, setBriefing] = useState({ enabled: false, chatId: '', chatName: '', hour: 7 });
   const [loadingBriefing, setLoadingBriefing] = useState(true);
   const [savingBriefing, setSavingBriefing] = useState(false);
   const [testingBriefing, setTestingBriefing] = useState(false);
+  const [telegramPhase, setTelegramPhase] = useState<'idle' | 'connecting' | 'connected'>('idle');
+  const [briefingDeepLink, setBriefingDeepLink] = useState('');
+  const briefingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -79,6 +83,7 @@ export default function GestorPage() {
     try {
       const res = await apiService.getBriefingConfig();
       setBriefing(res.data);
+      setTelegramPhase(res.data.chatId ? 'connected' : 'idle');
     } catch {
       /* mantém default */
     } finally {
@@ -99,7 +104,7 @@ export default function GestorPage() {
   const handleSaveBriefing = async () => {
     setSavingBriefing(true);
     try {
-      await apiService.saveBriefingConfig(briefing);
+      await apiService.saveBriefingConfig({ enabled: briefing.enabled, hour: briefing.hour });
       showToast('Configuração de briefing salva!');
     } catch {
       showToast('Erro ao salvar configuração.', 'error');
@@ -109,21 +114,58 @@ export default function GestorPage() {
   };
 
   const handleTestBriefing = async () => {
-    if (!briefing.chatId.trim()) {
-      showToast('Configure o Chat ID do Telegram antes de testar.', 'error');
+    if (telegramPhase !== 'connected') {
+      showToast('Conecte o Telegram antes de testar.', 'error');
       return;
     }
     setTestingBriefing(true);
     try {
-      await apiService.saveBriefingConfig(briefing);
       await apiService.testBriefing();
       showToast('Briefing de teste enviado! Verifique seu Telegram.');
-    } catch {
-      showToast('Erro ao enviar briefing de teste.', 'error');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showToast(msg ?? 'Erro ao enviar briefing de teste.', 'error');
     } finally {
       setTestingBriefing(false);
     }
   };
+
+  const handleConnectTelegram = async () => {
+    setTelegramPhase('connecting');
+    try {
+      const res = await apiService.generateBriefingInvite();
+      setBriefingDeepLink(res.data.deepLink);
+      briefingPollRef.current = setInterval(async () => {
+        try {
+          const cfg = await apiService.getBriefingConfig();
+          if (cfg.data.chatId) {
+            setBriefing(cfg.data);
+            setTelegramPhase('connected');
+            if (briefingPollRef.current) clearInterval(briefingPollRef.current);
+          }
+        } catch { /* ignora */ }
+      }, 3000);
+    } catch {
+      showToast('Erro ao gerar link de conexão.', 'error');
+      setTelegramPhase('idle');
+    }
+  };
+
+  const handleDisconnectTelegram = async () => {
+    try {
+      await apiService.disconnectBriefingTelegram();
+      setBriefing(b => ({ ...b, chatId: '', chatName: '' }));
+      setTelegramPhase('idle');
+      setBriefingDeepLink('');
+      showToast('Telegram desconectado.');
+    } catch {
+      showToast('Erro ao desconectar.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    return () => { if (briefingPollRef.current) clearInterval(briefingPollRef.current); };
+  }, []);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -254,21 +296,59 @@ export default function GestorPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Chat ID do Telegram</label>
-              <input
-                type="text"
-                value={briefing.chatId}
-                onChange={e => setBriefing(b => ({ ...b, chatId: e.target.value }))}
-                placeholder="Ex: -1001234567890"
-                className="w-full rounded-lg px-3 py-2 text-xs"
-                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
-              />
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Obtenha o Chat ID pelo bot <span style={{ color: '#60a5fa' }}>@userinfobot</span> — envie qualquer mensagem e ele retorna seu ID.
-              </p>
-            </div>
+            {/* Telegram connection */}
+            {telegramPhase === 'idle' && (
+              <button
+                onClick={handleConnectTelegram}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium transition-opacity"
+                style={{ backgroundColor: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa' }}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.04l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.868.519z"/></svg>
+                Conectar Telegram
+              </button>
+            )}
 
+            {telegramPhase === 'connecting' && briefingDeepLink && (
+              <div className="space-y-3 text-center">
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Escaneie o QR Code com o Telegram para conectar.
+                </p>
+                <div className="flex justify-center">
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: '#fff' }}>
+                    <QRCodeSVG value={briefingDeepLink} size={160} />
+                  </div>
+                </div>
+                <a href={briefingDeepLink} target="_blank" rel="noreferrer"
+                  className="block text-xs truncate px-3 py-2 rounded-lg"
+                  style={{ backgroundColor: 'var(--bg-elevated)', color: '#60a5fa', border: '1px solid var(--border-md)' }}>
+                  {briefingDeepLink}
+                </a>
+                <div className="flex items-center gap-2 justify-center">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão...</p>
+                </div>
+              </div>
+            )}
+
+            {telegramPhase === 'connected' && (
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                  <span className="text-xs" style={{ color: 'var(--text-primary)' }}>
+                    {briefing.chatName || 'Telegram conectado'}
+                  </span>
+                </div>
+                <button
+                  onClick={handleDisconnectTelegram}
+                  className="text-xs px-2 py-1 rounded"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Desconectar
+                </button>
+              </div>
+            )}
+
+            {/* Hour selector */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Horário (BRT)</label>
               <select
@@ -294,9 +374,9 @@ export default function GestorPage() {
               </button>
               <button
                 onClick={handleTestBriefing}
-                disabled={testingBriefing}
+                disabled={testingBriefing || telegramPhase !== 'connected'}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium transition-opacity"
-                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', opacity: testingBriefing ? 0.6 : 1 }}
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', opacity: (testingBriefing || telegramPhase !== 'connected') ? 0.4 : 1 }}
               >
                 {testingBriefing ? <><Spinner className="h-3 w-3" /> Enviando...</> : '⚡ Testar agora'}
               </button>

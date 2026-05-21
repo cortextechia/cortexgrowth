@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiService } from '@/lib/api';
 import { AiAnalysis, AgentOutput } from '@/types';
+import { CreativeSection } from './CreativeSection';
 import {
   LineChart,
   Line,
@@ -200,12 +201,15 @@ function ReportCard({
 
 // ─── Chart tooltip ────────────────────────────────────────────────────────────
 
-function ChartTooltip({ active, payload, label }: any) {
+interface TooltipPayloadEntry { dataKey: string; name: string; value: number; color: string; }
+interface ChartTooltipProps { active?: boolean; payload?: TooltipPayloadEntry[]; label?: string; }
+
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg px-3 py-2 text-xs space-y-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
       <p style={{ color: 'var(--text-muted)' }}>{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.color }}>{p.name}: <strong>{p.value}</strong></p>
       ))}
     </div>
@@ -241,139 +245,6 @@ function SectionDivider({
     </div>
   );
 }
-
-// ─── Creative agent card (bloqueado) ──────────────────────────────────────────
-
-interface CreativeAgentDef {
-  name: string;
-  description: string;
-  outputs: string[];
-  icon: React.ReactNode;
-  phase: string;
-}
-
-function CreativeAgentCard({ agent }: { agent: CreativeAgentDef }) {
-  return (
-    <div
-      className="relative rounded-xl p-5 flex flex-col gap-3 select-none overflow-hidden"
-      style={{
-        backgroundColor: 'var(--bg-surface)',
-        border: '1px solid rgba(168,85,247,0.12)',
-      }}
-    >
-      {/* Glow de fundo sutil */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse at top left, rgba(168,85,247,0.05) 0%, transparent 65%)',
-        }}
-      />
-
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2 relative">
-        <div
-          className="h-9 w-9 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{ backgroundColor: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}
-        >
-          {agent.icon}
-        </div>
-        <span
-          className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: 'rgba(168,85,247,0.1)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.2)' }}
-        >
-          Em breve
-        </span>
-      </div>
-
-      {/* Name + description */}
-      <div className="relative">
-        <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{agent.name}</p>
-        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{agent.description}</p>
-      </div>
-
-      {/* Output tags */}
-      <div className="flex flex-wrap gap-1.5 relative">
-        {agent.outputs.map((tag) => (
-          <span
-            key={tag}
-            className="text-xs px-2 py-0.5 rounded-md"
-            style={{ backgroundColor: 'rgba(168,85,247,0.06)', color: '#7c6b9e', border: '1px solid rgba(168,85,247,0.1)' }}
-          >
-            {tag}
-          </span>
-        ))}
-      </div>
-
-      {/* Phase label */}
-      <div className="flex items-center gap-1.5 relative mt-auto pt-1" style={{ borderTop: '1px solid rgba(168,85,247,0.08)' }}>
-        <svg className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="#6b21a8" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-        </svg>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{agent.phase}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Definições dos agentes criativos ─────────────────────────────────────────
-
-const CREATIVE_AGENTS: CreativeAgentDef[] = [
-  {
-    name: 'Geração de Ideias',
-    description: 'Ativado automaticamente quando um criativo entra em fadiga (CTR caindo por 3+ dias). Gera ideias de novos ângulos baseadas nos dados de performance do período.',
-    outputs: ['10+ ideias de ângulo', 'Gancho por ideia', 'Formato recomendado'],
-    phase: 'Fase 4 — Inteligência Criativa',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Briefing Automatizado',
-    description: 'Gera briefings completos baseados nos dados de performance. Define ângulo, público-alvo, formato, headline principal e hipótese de conversão prontos para o time de criação.',
-    outputs: ['Ângulo criativo', 'Público-alvo', 'Hipótese de conversão', 'Formato'],
-    phase: 'Fase 4 — Inteligência Criativa',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Copy & Variações',
-    description: 'Escreve headlines, body copy e CTAs baseados no que historicamente converte para o seu negócio. Gera variações prontas para teste A/B com diferentes ângulos e tons.',
-    outputs: ['Headlines', 'Body copy', 'CTAs', 'Variações A/B'],
-    phase: 'Fase 4 — Inteligência Criativa',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Análise Criativa',
-    description: 'Identifica quais elementos criativos (formato, tom, ângulo, CTA) correlacionam com as melhores taxas de conversão. Retroalimenta os outros agentes com os padrões encontrados.',
-    outputs: ['Padrões de alta performance', 'Elementos em fadiga', 'Score por criativo'],
-    phase: 'Fase 4 — Inteligência Criativa',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Inteligência Competitiva',
-    description: 'Monitora os criativos ativos dos concorrentes via Meta Ad Library. Cataloga formatos, frequência de uso como proxy de investimento e gaps de posicionamento no mercado.',
-    outputs: ['Criativos ativos', 'Padrões do mercado', 'Gaps de posicionamento', 'Relatório semanal'],
-    phase: 'Fase 4 — Inteligência Criativa',
-    icon: (
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-    ),
-  },
-];
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
@@ -411,8 +282,9 @@ export default function ReportsPage() {
       } else {
         showToast(res.message ?? 'Erro ao gerar relatório', 'err');
       }
-    } catch (e: any) {
-      showToast(e?.response?.data?.message ?? 'Erro ao gerar relatório', 'err');
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showToast(msg ?? 'Erro ao gerar relatório', 'err');
     } finally {
       setGenerating(false);
     }
@@ -564,7 +436,7 @@ export default function ReportsPage() {
             </div>
             <h2 className="text-base font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Nenhum relatório ainda</h2>
             <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
-              Clique em "Gerar relatório" para criar sua primeira análise de IA.
+              Clique em &quot;Gerar relatório&quot; para criar sua primeira análise de IA.
             </p>
             <button
               onClick={handleGenerate}
@@ -595,49 +467,8 @@ export default function ReportsPage() {
           SEÇÃO 2 — INTELIGÊNCIA CRIATIVA
       ══════════════════════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
-        <SectionDivider label="Inteligência Criativa" accent="#a855f7" badge="Em breve" />
-
-        {/* Banner explicativo */}
-        <div
-          className="relative rounded-2xl p-5 overflow-hidden"
-          style={{
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid rgba(168,85,247,0.15)',
-          }}
-        >
-          {/* Glow decorativo */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: 'radial-gradient(ellipse at top right, rgba(168,85,247,0.08) 0%, transparent 60%)',
-            }}
-          />
-          <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
-            <div
-              className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.7}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold mb-0.5" style={{ color: 'var(--text-primary)' }}>
-                Agentes de criação baseados em performance
-              </p>
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                A Inteligência Criativa usa os dados dos relatórios analíticos para gerar briefings, copy e ideias de criativo diretamente do que está convertendo na sua conta. Disponível na Fase 4 da plataforma.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Grid de agentes criativos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CREATIVE_AGENTS.map((agent) => (
-            <CreativeAgentCard key={agent.name} agent={agent} />
-          ))}
-        </div>
+        <SectionDivider label="Inteligência Criativa" accent="#a855f7" />
+        <CreativeSection showToast={showToast} />
       </div>
     </div>
   );

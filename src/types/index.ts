@@ -344,6 +344,167 @@ export interface AlertConfig {
   validRules?: AnomalyRuleId[];
 }
 
+// ===== FASE 4 — AGENTES CRIATIVOS =====
+
+export interface CreativePattern {
+  pattern: string;
+  campaigns?: string[];
+  metrics?: string;
+  hypothesis?: string;
+  evidence?: string;
+}
+
+export interface CreativeAnalysis {
+  id: string;
+  organizationId: string;
+  patterns: {
+    highPerformance: CreativePattern[];
+    lowPerformance: CreativePattern[];
+    creativeRecommendations: string[];
+    bestAudiences: string[];
+    bestFormats: string[];
+    fatigueRisk: string[];
+    summary: string;
+  };
+  tokensUsed?: number;
+  analyzedAt: string;
+  createdAt: string;
+}
+
+export interface CreativeIdea {
+  angle: string;
+  hook: string;
+  format: string;
+  duration?: string;
+  rationale: string;
+}
+
+export interface CreativeIdeasOutput {
+  campaignContext: string;
+  ideas: CreativeIdea[];
+  priorityOrder: number[];
+  quickWins: string[];
+  testingRecommendation: string;
+}
+
+export interface CreativeBriefingOutput {
+  campaignTarget: string;
+  objective: string;
+  targetAudience: {
+    profile: string;
+    painPoints: string[];
+    desiredOutcome: string;
+    currentSituation: string;
+  };
+  creativeAngle: {
+    main: string;
+    rationale: string;
+    conversionHypothesis: string;
+    differentiationFromCurrent: string;
+  };
+  format: {
+    recommended: string;
+    alternativeFormat: string;
+    duration?: string;
+    aspectRatio: string;
+    structure: string[];
+  };
+  copy: {
+    headline: string;
+    subheadline?: string;
+    bodyPoints: string[];
+    cta: string;
+  };
+  visualDirection: {
+    toneAndFeel: string;
+    colorGuidance: string;
+    doList: string[];
+    dontList: string[];
+  };
+  successMetrics: {
+    primaryKPI: string;
+    minimumImpressionsToJudge: string;
+    cutCriteria: string;
+  };
+  references: string;
+}
+
+export interface CopyVariation {
+  id: string;
+  angle: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  cta: string;
+  copyNotes: string;
+}
+
+export interface CopyOutput {
+  variations: CopyVariation[];
+  testingGuidance: {
+    primaryMetric: string;
+    minimumLeadsPerVariation: string;
+    minimumImpressionsPerVariation: string;
+    cutCriteria: string;
+    rotationSetup: string;
+  };
+  angleStrategy: string;
+  platformAdaptations?: {
+    metaAds?: string;
+    googleAds?: string;
+  };
+}
+
+export interface CompetitorData {
+  name: string;
+  totalAdsFound: number;
+  formats: { video: number; image: number; carousel: number };
+  dominantAngles: string[];
+  repeatedMessages: string[];
+  estimatedActivity: 'ALTA' | 'MÉDIA' | 'BAIXA';
+  longestRunningAds: string[];
+  weakness: string;
+}
+
+export interface CompetitiveOutput {
+  competitors: CompetitorData[];
+  marketPatterns: {
+    dominantFormats: string[];
+    saturatedAngles: string[];
+    commonMessages: string[];
+    averageAdVolume: string;
+  };
+  positioningGaps: { gap: string; opportunity: string; priority: 'ALTA' | 'MÉDIA' | 'BAIXA' }[];
+  weeklyHighlight: string;
+  recommendations: string[];
+  analyzedAt: string;
+}
+
+export interface CreativeBriefing {
+  id: string;
+  organizationId: string;
+  agentType: 'IDEAS' | 'BRIEFING' | 'COPY';
+  campaignName?: string;
+  inputSummary?: string;
+  outputData: CreativeIdeasOutput | CreativeBriefingOutput | CopyOutput;
+  tokensUsed?: number;
+  createdAt: string;
+}
+
+export interface FatigueCampaign {
+  name: string;
+  ctrToday: number;
+  ctr3dAgo: number;
+  dropPct: number;
+  spend7d: number;
+  leads7d: number;
+}
+
+export interface CreativeProfile {
+  productDescription: string | null;
+  competitorPageIds: string[];
+}
+
 // ===== RESPOSTA GENÉRICA =====
 export interface ApiResponse<T = any> {
   success: boolean;
