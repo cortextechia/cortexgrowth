@@ -97,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setOrganization(null);
     setToken(null);
+    apiService.clearSelectedClientOrgId();
     await apiService.logout(); // invalida refresh token no servidor
   };
 
