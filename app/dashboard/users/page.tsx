@@ -416,7 +416,7 @@ export default function UsersPage() {
               onChange={(e) => setConnectCode(e.target.value.toUpperCase())}
               maxLength={8}
               placeholder="CÓDIGO DO GESTOR"
-              className="w-44 rounded-lg px-3 py-2 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2"
+              className="w-52 rounded-lg px-3 py-2 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-2"
               style={inputStyle}
             />
             <button
