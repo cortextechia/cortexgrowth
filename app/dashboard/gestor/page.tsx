@@ -310,8 +310,8 @@ function TabConfiguracoes({
   onCopy: () => void;
   onRegenerate: () => void;
   onFetchInvite: () => void;
-  briefing: { enabled: boolean; chatId: string; chatName: string; hour: number; dayOfWeek: number };
-  setBriefing: React.Dispatch<React.SetStateAction<{ enabled: boolean; chatId: string; chatName: string; hour: number; dayOfWeek: number }>>;
+  briefing: { enabled: boolean; chatId: string; chatName: string; hour: number; dayOfWeek: number; notificationChannel: 'TELEGRAM' | 'WHATSAPP'; whatsappPhone: string };
+  setBriefing: React.Dispatch<React.SetStateAction<{ enabled: boolean; chatId: string; chatName: string; hour: number; dayOfWeek: number; notificationChannel: 'TELEGRAM' | 'WHATSAPP'; whatsappPhone: string }>>;
   loadingBriefing: boolean;
   savingBriefing: boolean;
   testingBriefing: boolean;
@@ -440,7 +440,7 @@ function TabConfiguracoes({
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Briefing Semanal Automático</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Receba resumos dos seus clientes via Telegram. Configure o dia e horário de cada cliente abaixo.
+              Receba resumos dos seus clientes via Telegram ou WhatsApp.
             </p>
           </div>
           <button
@@ -461,41 +461,81 @@ function TabConfiguracoes({
           </div>
         ) : (
           <div className="space-y-3">
-            {telegramPhase === 'idle' && (
-              <button
-                onClick={onConnectTelegram}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium"
-                style={{ backgroundColor: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa' }}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.04l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.868.519z" /></svg>
-                Conectar Telegram
-              </button>
-            )}
 
-            {telegramPhase === 'connecting' && briefingDeepLink && (
-              <div className="space-y-3 text-center">
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Escaneie o QR Code com o Telegram.</p>
-                <div className="flex justify-center">
-                  <div className="p-3 rounded-xl" style={{ backgroundColor: '#fff' }}>
-                    <QRCodeSVG value={briefingDeepLink} size={140} />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 justify-center">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
-                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão...</p>
-                </div>
-              </div>
-            )}
-
-            {telegramPhase === 'connected' && (
-              <div className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
-                <div className="flex items-center gap-2">
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
-                  <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{briefing.chatName || 'Telegram conectado'}</span>
-                </div>
-                <button onClick={onDisconnectTelegram} className="text-xs px-2 py-1 rounded" style={{ color: 'var(--text-muted)' }}>
-                  Desconectar
+            {/* Canal */}
+            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-md)' }}>
+              {(['TELEGRAM', 'WHATSAPP'] as const).map((ch) => (
+                <button
+                  key={ch}
+                  onClick={() => setBriefing((b) => ({ ...b, notificationChannel: ch }))}
+                  className="flex-1 py-1.5 text-xs font-medium transition-colors"
+                  style={briefing.notificationChannel === ch
+                    ? { backgroundColor: '#3b82f6', color: '#fff' }
+                    : { backgroundColor: 'transparent', color: 'var(--text-muted)' }}
+                >
+                  {ch === 'TELEGRAM' ? 'Telegram' : 'WhatsApp'}
                 </button>
+              ))}
+            </div>
+
+            {/* Telegram flow */}
+            {briefing.notificationChannel === 'TELEGRAM' && (
+              <>
+                {telegramPhase === 'idle' && (
+                  <button
+                    onClick={onConnectTelegram}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium"
+                    style={{ backgroundColor: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa' }}
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.04l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.868.519z" /></svg>
+                    Conectar Telegram
+                  </button>
+                )}
+
+                {telegramPhase === 'connecting' && briefingDeepLink && (
+                  <div className="space-y-3 text-center">
+                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Escaneie o QR Code com o Telegram.</p>
+                    <div className="flex justify-center">
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: '#fff' }}>
+                        <QRCodeSVG value={briefingDeepLink} size={140} />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 justify-center">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão...</p>
+                    </div>
+                  </div>
+                )}
+
+                {telegramPhase === 'connected' && (
+                  <div className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                      <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{briefing.chatName || 'Telegram conectado'}</span>
+                    </div>
+                    <button onClick={onDisconnectTelegram} className="text-xs px-2 py-1 rounded" style={{ color: 'var(--text-muted)' }}>
+                      Desconectar
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* WhatsApp flow */}
+            {briefing.notificationChannel === 'WHATSAPP' && (
+              <div className="space-y-1">
+                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Número do WhatsApp (DDI+DDD+número)</label>
+                <input
+                  type="text"
+                  placeholder="ex: 5511999999999"
+                  value={briefing.whatsappPhone}
+                  onChange={(e) => setBriefing((b) => ({ ...b, whatsappPhone: e.target.value.replace(/\D/g, '') }))}
+                  className="w-full rounded-lg px-3 py-1.5 text-xs font-mono"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+                />
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  O bot da Cortex enviará o briefing para este número.
+                </p>
               </div>
             )}
 
@@ -525,9 +565,9 @@ function TabConfiguracoes({
                 </button>
                 <button
                   onClick={onTestBriefing}
-                  disabled={testingBriefing || telegramPhase !== 'connected'}
+                  disabled={testingBriefing || (briefing.notificationChannel === 'TELEGRAM' ? telegramPhase !== 'connected' : !briefing.whatsappPhone.trim())}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', opacity: (testingBriefing || telegramPhase !== 'connected') ? 0.4 : 1 }}
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', opacity: (testingBriefing || (briefing.notificationChannel === 'TELEGRAM' ? telegramPhase !== 'connected' : !briefing.whatsappPhone.trim())) ? 0.4 : 1 }}
                 >
                   {testingBriefing ? <Spinner className="h-3 w-3" /> : '⚡'}
                   Testar
@@ -644,7 +684,7 @@ export default function GestorPage() {
   const [reportClient, setReportClient] = useState<TrafficManagerClient | null>(null);
 
   // ── Briefing ───────────────────────────────────────────────────────────────
-  const [briefing, setBriefing] = useState({ enabled: false, chatId: '', chatName: '', hour: 7, dayOfWeek: 0 });
+  const [briefing, setBriefing] = useState({ enabled: false, chatId: '', chatName: '', hour: 7, dayOfWeek: 0, notificationChannel: 'TELEGRAM' as 'TELEGRAM' | 'WHATSAPP', whatsappPhone: '' });
   const [loadingBriefing, setLoadingBriefing] = useState(true);
   const [savingBriefing, setSavingBriefing] = useState(false);
   const [testingBriefing, setTestingBriefing] = useState(false);
@@ -689,7 +729,12 @@ export default function GestorPage() {
     setLoadingBriefing(true);
     try {
       const res = await apiService.getBriefingConfig();
-      setBriefing(prev => ({ ...prev, ...res.data }));
+      setBriefing(prev => ({
+        ...prev,
+        ...res.data,
+        notificationChannel: (res.data.notificationChannel as 'TELEGRAM' | 'WHATSAPP') ?? 'TELEGRAM',
+        whatsappPhone: res.data.whatsappPhone ?? '',
+      }));
       setTelegramPhase(res.data.chatId ? 'connected' : 'idle');
     } catch { /* mantém default */ } finally { setLoadingBriefing(false); }
   }, []);
@@ -774,14 +819,19 @@ export default function GestorPage() {
   const handleSaveBriefing = async () => {
     setSavingBriefing(true);
     try {
-      await apiService.saveBriefingConfig({ enabled: briefing.enabled, hour: briefing.hour, dayOfWeek: briefing.dayOfWeek });
+      await apiService.saveBriefingConfig({ enabled: briefing.enabled, hour: briefing.hour, dayOfWeek: briefing.dayOfWeek, notificationChannel: briefing.notificationChannel, whatsappPhone: briefing.whatsappPhone });
       showToast('Configuração salva!');
     } catch { showToast('Erro ao salvar.', 'error'); }
     finally { setSavingBriefing(false); }
   };
 
   const handleTestBriefing = async () => {
-    if (telegramPhase !== 'connected') { showToast('Conecte o Telegram antes de testar.', 'error'); return; }
+    if (briefing.notificationChannel === 'TELEGRAM' && telegramPhase !== 'connected') {
+      showToast('Conecte o Telegram antes de testar.', 'error'); return;
+    }
+    if (briefing.notificationChannel === 'WHATSAPP' && !briefing.whatsappPhone.trim()) {
+      showToast('Informe o número de WhatsApp antes de testar.', 'error'); return;
+    }
     setTestingBriefing(true);
     try {
       await apiService.testBriefing();
@@ -801,7 +851,12 @@ export default function GestorPage() {
         try {
           const cfg = await apiService.getBriefingConfig();
           if (cfg.data.chatId) {
-            setBriefing(prev => ({ ...prev, ...cfg.data }));
+            setBriefing(prev => ({
+              ...prev,
+              ...cfg.data,
+              notificationChannel: (cfg.data.notificationChannel as 'TELEGRAM' | 'WHATSAPP') ?? 'TELEGRAM',
+              whatsappPhone: cfg.data.whatsappPhone ?? '',
+            }));
             setTelegramPhase('connected');
             if (briefingPollRef.current) clearInterval(briefingPollRef.current);
           }

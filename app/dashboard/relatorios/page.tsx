@@ -7,6 +7,48 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type { ReportSchedule, ReportConfig, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
 
+// ─── WhatsApp status badge ────────────────────────────────────────────────────
+
+function WhatsAppStatusBadge() {
+  const [status, setStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
+  const [phone, setPhone] = useState('');
+
+  useEffect(() => {
+    apiService.getWhatsAppStatus()
+      .then(({ data }) => {
+        setStatus(data.connected ? 'connected' : 'disconnected');
+        if (data.phone) setPhone(data.phone);
+      })
+      .catch(() => setStatus('disconnected'));
+  }, []);
+
+  if (status === 'loading') return (
+    <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      Verificando...
+    </span>
+  );
+
+  if (status === 'connected') return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
+      style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.25)' }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#4ade80' }} />
+      Conectado{phone ? ` · ${phone}` : ''}
+    </span>
+  );
+
+  return (
+    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
+      style={{ backgroundColor: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f87171' }} />
+      Desconectado
+    </span>
+  );
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const FREQ_LABELS: Record<ReportFrequency, string> = {
@@ -197,7 +239,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
         frequency, hour,
         ...(frequency === 'WEEKLY' ? { dayOfWeek } : {}),
         ...(frequency === 'BIWEEKLY' || frequency === 'MONTHLY' ? { dayOfMonth } : {}),
-        ...(channel === 'TELEGRAM' ? { reportConfig } : {}),
+        reportConfig,
       });
       onCreated();
       onClose();
@@ -209,13 +251,18 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg rounded-2xl p-6 space-y-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
-        <div className="flex items-center justify-between">
+      <div className="w-full max-w-lg rounded-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
+
+        {/* Header fixo */}
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Novo agendamento de relatório</p>
           <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
+
+        {/* Conteúdo scrollável */}
+        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
 
         {/* Canal */}
         <div>
@@ -322,9 +369,8 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
           )}
         </div>
 
-        {/* Campos do relatório — apenas Telegram */}
-        {channel === 'TELEGRAM' && (
-          <div>
+        {/* Campos do relatório */}
+        <div>
             <span style={labelStyle}>Campos do relatório</span>
             <div className="grid grid-cols-2 gap-1.5 mt-1">
               {CONFIG_FIELD_LABELS.map(({ key, label }) => (
@@ -349,8 +395,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
                 onChange={e => setReportConfig(prev => ({ ...prev, notes: e.target.value }))}
               />
             </div>
-          </div>
-        )}
+        </div>
 
         {/* Preview editável */}
         <button
@@ -377,7 +422,10 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
 
         {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
 
-        <div className="flex gap-2 pt-1">
+        </div>{/* fim conteúdo scrollável */}
+
+        {/* Footer fixo */}
+        <div className="flex gap-2 px-6 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
             Cancelar
           </button>
@@ -386,6 +434,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
             {loading ? 'Criando...' : 'Criar agendamento'}
           </button>
         </div>
+
       </div>
     </div>
   );
@@ -924,12 +973,15 @@ export default function RelatoriosPage() {
             </button>
           </div>
           <div>
-            <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp (Z-API)</p>
+            <div className="flex items-center gap-2 mb-1">
+              <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp</p>
+              <WhatsAppStatusBadge />
+            </div>
             <ol className="space-y-0.5 list-decimal list-inside">
-              <li>Crie uma instância em <code style={{ color: '#818cf8' }}>z-api.io</code></li>
-              <li>Configure <code style={{ color: '#818cf8' }}>ZAPI_INSTANCE_ID</code>, <code style={{ color: '#818cf8' }}>ZAPI_TOKEN</code> e <code style={{ color: '#818cf8' }}>ZAPI_CLIENT_TOKEN</code></li>
-              <li>Conecte o WhatsApp escaneando o QR code na Z-API</li>
-              <li>Use o número do destinatário: DDI + DDD + número</li>
+              <li>Número conectado pelo administrador via Evolution API</li>
+              <li>Ao criar agendamento, informe o número do destinatário</li>
+              <li>Formato: DDI + DDD + número, sem espaços (ex: <code style={{ color: '#818cf8' }}>5511999999999</code>)</li>
+              <li>O número conectado acima envia para todos os destinos configurados</li>
             </ol>
           </div>
         </div>

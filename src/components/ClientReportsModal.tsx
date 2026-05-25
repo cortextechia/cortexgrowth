@@ -474,7 +474,8 @@ export default function ClientReportsModal({ clientName, onClose }: {
           {/* Footer */}
           <div className="px-5 py-3" style={{ borderTop: '1px solid var(--border)' }}>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Adicione o bot <strong style={{ color: 'var(--accent)' }}>@CortexGrowthBot</strong> ao grupo do Telegram antes de conectar.
+              Telegram: adicione <strong style={{ color: 'var(--accent)' }}>@CortexGrowthBot</strong> ao grupo antes de conectar.
+              WhatsApp: informe o número no formato DDI+DDD+número.
             </p>
           </div>
         </div>

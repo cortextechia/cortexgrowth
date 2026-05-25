@@ -443,12 +443,12 @@ class ApiService {
 
   // ─── Briefing Semanal do Gestor ─────────────────────────────────────────────
 
-  async getBriefingConfig(): Promise<{ success: boolean; data: { enabled: boolean; chatId: string; chatName: string; hour: number } }> {
+  async getBriefingConfig(): Promise<{ success: boolean; data: { enabled: boolean; chatId: string; chatName: string; hour: number; notificationChannel: string; whatsappPhone: string | null } }> {
     const response = await this.client.get('/managers/briefing-config');
     return response.data;
   }
 
-  async saveBriefingConfig(data: { enabled: boolean; hour: number; dayOfWeek: number }): Promise<{ success: boolean; message: string }> {
+  async saveBriefingConfig(data: { enabled: boolean; hour: number; dayOfWeek: number; notificationChannel: string; whatsappPhone?: string }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put('/managers/briefing-config', data);
     return response.data;
   }
@@ -540,6 +540,11 @@ class ApiService {
 
   async getWhatsAppStatus(): Promise<{ success: boolean; data: { connected: boolean; phone?: string } }> {
     const response = await this.client.get('/report-schedules/whatsapp/status');
+    return response.data;
+  }
+
+  async getWhatsAppQrCode(): Promise<{ success: boolean; data: { connected: boolean; qrcode: string | null } }> {
+    const response = await this.client.get('/report-schedules/whatsapp/qrcode');
     return response.data;
   }
 
