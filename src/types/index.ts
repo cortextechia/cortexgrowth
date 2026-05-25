@@ -216,6 +216,9 @@ export interface TrafficManagerClient {
   isSelf?: boolean;
   source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF';
   connectedAt?: string;
+  briefingDayOfWeek?: number | null;
+  briefingHour?: number | null;
+  briefingNotes?: string | null;
 }
 
 export interface ManagerReferral {
@@ -507,6 +510,48 @@ export interface CompetitiveOutput {
   analyzedAt: string;
 }
 
+// ===== DADOS MANUAIS (clientes sem CRM) =====
+
+export type ManualRevenueSource = 'META' | 'GOOGLE' | 'ORGANIC' | 'DIRECT' | 'OTHER';
+
+export interface ManualRevenueEntry {
+  id: string;
+  periodId: string;
+  source: ManualRevenueSource;
+  leads: number;
+  sales: number;
+  revenue: number;
+  spend: number;
+}
+
+export interface ManualRevenuePeriod {
+  id: string;
+  organizationId: string;
+  month: number;
+  year: number;
+  isIncomplete: boolean;
+  notes: string | null;
+  entries: ManualRevenueEntry[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManualRevenueSummary {
+  periods: ManualRevenuePeriod[];
+  totals: {
+    leads: number;
+    sales: number;
+    revenue: number;
+    spend: number;
+    roasMeta: number | null;
+    roasGoogle: number | null;
+    cac: number | null;
+    metaLeads: number;
+    googleLeads: number;
+  };
+  hasData: boolean;
+}
+
 export interface CreativeBriefing {
   id: string;
   organizationId: string;
@@ -560,6 +605,18 @@ export interface ReportLog {
   sentAt: string;
 }
 
+export interface ReportConfig {
+  includeSpend?: boolean;
+  includeLeads?: boolean;
+  includeCtr?: boolean;
+  includeCpl?: boolean;
+  includeRevenue?: boolean;
+  includeRoas?: boolean;
+  includeConv?: boolean;
+  includeImpressions?: boolean;
+  notes?: string;
+}
+
 export interface ReportSchedule {
   id: string;
   organizationId: string;
@@ -572,6 +629,7 @@ export interface ReportSchedule {
   dayOfMonth?: number;
   isActive: boolean;
   lastSentAt?: string;
+  reportConfig: ReportConfig;
   createdAt: string;
   createdBy: { name: string; email: string };
   logs: ReportLog[];

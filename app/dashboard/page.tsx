@@ -4,10 +4,12 @@ import { useEffect, useState, useMemo } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
+import { apiService } from '@/lib/api';
 import Sparkline from '@/components/charts/Sparkline';
 import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
+import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -563,7 +565,7 @@ export default function DashboardPage() {
   const { user, organization } = useAuth();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== 'light';
-  const { fetchIntegrations } = useIntegrations();
+  const { integrations, fetchIntegrations } = useIntegrations();
   const {
     metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads,
     attributionSummary, fetchAllDashboardData, fetchAttributionSummary, isLoading: dashLoading,
@@ -576,6 +578,7 @@ export default function DashboardPage() {
   const [customEnd, setCustomEnd]     = useState('');
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
+  const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
   const [selectedCampaign, setSelectedCampaign] = useState<typeof campaigns[0] | null>(null);
@@ -613,6 +616,7 @@ export default function DashboardPage() {
     fetchIntegrations();
     fetchAllDashboardData(30);
     fetchLatestInsight();
+    apiService.getManualRevenueSummary(3).then((r) => { if (r.success) setManualRevenueSummary(r.data); }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1070,6 +1074,10 @@ export default function DashboardPage() {
     return filled.slice(0, 3);
   }, [metaCur, googleCur, kommoCur, attributionSummary, funnelCounts.generated]);
 
+  const hasKommo = integrations.some(
+    (i) => i.type === 'KOMMO' && i.status === 'CONNECTED'
+  );
+
   if (user?.role === UserRole.SUPER_ADMIN) {
     return <AdminDashboard />;
   }
@@ -1181,6 +1189,82 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* ── DADOS MANUAIS — banner quando sem CRM ───────────────────────────── */}
+      {!hasKommo && (
+        <>
+          {manualRevenueSummary?.hasData ? (
+            <div>
+              <SectionLabel>resultado manual — sem crm conectado</SectionLabel>
+              <div
+                className="mb-3 flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl"
+                style={{ backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)' }}
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#fbbf24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <span className="text-xs" style={{ color: '#fbbf24' }}>
+                    Métricas de CRM baseadas em dados inseridos manualmente — conecte o Kommo para análise completa por lead.
+                  </span>
+                </div>
+                <Link href="/dashboard/dados-manuais" className="text-xs font-medium shrink-0" style={{ color: '#fbbf24' }}>
+                  Editar dados →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <BottomKpiCard
+                  title="ROAS (Meta)"
+                  value={manualRevenueSummary.totals.roasMeta != null ? `${manualRevenueSummary.totals.roasMeta.toFixed(2).replace('.', ',')}x` : '—'}
+                  sub={`Meta: ${manualRevenueSummary.totals.metaLeads} leads`}
+                  accent={manualRevenueSummary.totals.roasMeta != null ? (manualRevenueSummary.totals.roasMeta >= 4 ? '#4ade80' : manualRevenueSummary.totals.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+                />
+                <BottomKpiCard
+                  title="ROAS (Google)"
+                  value={manualRevenueSummary.totals.roasGoogle != null ? `${manualRevenueSummary.totals.roasGoogle.toFixed(2).replace('.', ',')}x` : '—'}
+                  sub={`Google: ${manualRevenueSummary.totals.googleLeads} leads`}
+                  accent={manualRevenueSummary.totals.roasGoogle != null ? (manualRevenueSummary.totals.roasGoogle >= 4 ? '#4ade80' : manualRevenueSummary.totals.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+                />
+                <BottomKpiCard
+                  title="Receita total"
+                  value={manualRevenueSummary.totals.revenue > 0 ? fmtMoney(manualRevenueSummary.totals.revenue) : '—'}
+                  sub={`${manualRevenueSummary.totals.sales} vendas · ${manualRevenueSummary.totals.leads} leads`}
+                />
+                <BottomKpiCard
+                  title="CAC"
+                  value={manualRevenueSummary.totals.cac != null ? fmtBRL(manualRevenueSummary.totals.cac) : '—'}
+                  sub="Gasto / leads pagos (Meta + Google)"
+                  accent="#60a5fa"
+                />
+              </div>
+            </div>
+          ) : (
+            <div
+              className="flex items-center justify-between gap-4 px-5 py-4 rounded-xl"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+            >
+              <div className="flex items-start gap-3">
+                <svg className="h-5 w-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 002.25 2.25h.75m0-12H12m-3 3h3" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sem dados de CRM ou receita manual</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Conecte o Kommo CRM ou insira dados manuais para ver ROAS, CAC e funil de vendas.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/dashboard/dados-manuais"
+                className="shrink-0 px-4 py-2 rounded-lg text-xs font-medium transition-colors"
+                style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
+              >
+                Inserir dados →
+              </Link>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
       {attributionSummary && (

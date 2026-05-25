@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -411,6 +411,11 @@ class ApiService {
     return response.data;
   }
 
+  async updateClientBriefing(orgId: string, briefingDayOfWeek: number | null, briefingHour: number | null, briefingNotes?: string | null): Promise<{ success: boolean }> {
+    const response = await this.client.put(`/managers/my-clients/${orgId}/briefing`, { briefingDayOfWeek, briefingHour, briefingNotes });
+    return response.data;
+  }
+
   async getMyReferral(): Promise<{ success: boolean; data: ManagerReferral }> {
     const response = await this.client.get('/managers/my-referral');
     return response.data;
@@ -473,6 +478,7 @@ class ApiService {
   async createReportSchedule(data: {
     channelType: string; destination: string; destinationName: string;
     frequency: string; hour: number; dayOfWeek?: number; dayOfMonth?: number;
+    reportConfig?: ReportConfig;
   }): Promise<{ success: boolean; data: ReportSchedule }> {
     const response = await this.client.post('/report-schedules', data);
     return response.data;
@@ -481,6 +487,7 @@ class ApiService {
   async updateReportSchedule(id: string, data: Partial<{
     isActive: boolean; hour: number; frequency: string;
     dayOfWeek: number; dayOfMonth: number; destination: string; destinationName: string;
+    reportConfig: ReportConfig;
   }>): Promise<{ success: boolean }> {
     const response = await this.client.put(`/report-schedules/${id}`, data);
     return response.data;
@@ -498,6 +505,11 @@ class ApiService {
 
   async getReportPreview(): Promise<{ success: boolean; data: { text: string } }> {
     const response = await this.client.get('/report-schedules/preview');
+    return response.data;
+  }
+
+  async getReportPreviewWithConfig(frequency?: string, config?: ReportConfig): Promise<{ success: boolean; data: { text: string } }> {
+    const response = await this.client.post('/report-schedules/preview', { frequency, config });
     return response.data;
   }
 
@@ -636,6 +648,34 @@ class ApiService {
 
   async getLatestCompetitiveInsight(): Promise<{ success: boolean; data: { id: string; weekOf: string; adsData: import('@/types').CompetitiveOutput; tokensUsed?: number; createdAt: string } | null }> {
     const response = await this.client.get('/creative/competitive/latest');
+    return response.data;
+  }
+
+  // ─── Dados Manuais (clientes sem CRM) ───────────────────────────────────────
+
+  async getManualRevenuePeriods(): Promise<{ success: boolean; data: import('@/types').ManualRevenuePeriod[] }> {
+    const response = await this.client.get('/manual-revenue');
+    return response.data;
+  }
+
+  async getManualRevenueSummary(months = 3): Promise<{ success: boolean; data: import('@/types').ManualRevenueSummary }> {
+    const response = await this.client.get('/manual-revenue/summary', { params: { months } });
+    return response.data;
+  }
+
+  async saveManualRevenuePeriod(data: {
+    month: number;
+    year: number;
+    isIncomplete?: boolean;
+    notes?: string;
+    entries: { source: string; leads: number; sales: number; revenue: number; spend: number }[];
+  }): Promise<{ success: boolean; message: string; data: import('@/types').ManualRevenuePeriod }> {
+    const response = await this.client.post('/manual-revenue/period', data);
+    return response.data;
+  }
+
+  async deleteManualRevenuePeriod(year: number, month: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/manual-revenue/period/${year}/${month}`);
     return response.data;
   }
 

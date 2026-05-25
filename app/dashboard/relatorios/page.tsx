@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { ReportSchedule, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
+import type { ReportSchedule, ReportConfig, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +25,29 @@ function describeSchedule(s: ReportSchedule): string {
 }
 
 const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
+
+const DEFAULT_REPORT_CONFIG: ReportConfig = {
+  includeSpend: true,
+  includeLeads: true,
+  includeCtr: true,
+  includeCpl: true,
+  includeRevenue: true,
+  includeRoas: true,
+  includeConv: true,
+  includeImpressions: false,
+  notes: '',
+};
+
+const CONFIG_FIELD_LABELS: { key: keyof ReportConfig; label: string }[] = [
+  { key: 'includeSpend',       label: 'Investimento (R$)' },
+  { key: 'includeImpressions', label: 'Impressões' },
+  { key: 'includeLeads',       label: 'Leads gerados' },
+  { key: 'includeCtr',         label: 'CTR' },
+  { key: 'includeCpl',         label: 'CPL' },
+  { key: 'includeRevenue',     label: 'Receita e vendas' },
+  { key: 'includeRoas',        label: 'ROAS Meta' },
+  { key: 'includeConv',        label: 'Taxa de conversão' },
+];
 
 // ─── Modal QR Code Telegram ────────────────────────────────────────────────────
 
@@ -151,13 +174,17 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
   const [showQR, setShowQR] = useState(false);
   const [preview, setPreview] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [reportConfig, setReportConfig] = useState<ReportConfig>({ ...DEFAULT_REPORT_CONFIG });
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const loadPreview = async () => {
+    setLoadingPreview(true);
     try {
-      const { data } = await apiService.getReportPreview();
+      const { data } = await apiService.getReportPreviewWithConfig(frequency, reportConfig);
       setPreview(data.text);
       setShowPreview(true);
     } catch { setPreview('Erro ao gerar prévia.'); setShowPreview(true); }
+    finally { setLoadingPreview(false); }
   };
 
   const handleSubmit = async () => {
@@ -170,6 +197,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
         frequency, hour,
         ...(frequency === 'WEEKLY' ? { dayOfWeek } : {}),
         ...(frequency === 'BIWEEKLY' || frequency === 'MONTHLY' ? { dayOfMonth } : {}),
+        ...(channel === 'TELEGRAM' ? { reportConfig } : {}),
       });
       onCreated();
       onClose();
@@ -294,14 +322,57 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
           )}
         </div>
 
-        {/* Preview */}
-        <button onClick={loadPreview} className="text-xs transition-colors" style={{ color: 'var(--text-muted)' }}>
-          Ver prévia do relatório →
+        {/* Campos do relatório — apenas Telegram */}
+        {channel === 'TELEGRAM' && (
+          <div>
+            <span style={labelStyle}>Campos do relatório</span>
+            <div className="grid grid-cols-2 gap-1.5 mt-1">
+              {CONFIG_FIELD_LABELS.map(({ key, label }) => (
+                <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={!!reportConfig[key]}
+                    onChange={e => setReportConfig(prev => ({ ...prev, [key]: e.target.checked }))}
+                    style={{ accentColor: '#3b82f6', width: 13, height: 13 }}
+                  />
+                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                </label>
+              ))}
+            </div>
+            <div className="mt-3">
+              <span style={labelStyle}>Observações (opcional)</span>
+              <textarea
+                style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
+                placeholder="Texto extra ao final do relatório..."
+                maxLength={300}
+                value={reportConfig.notes ?? ''}
+                onChange={e => setReportConfig(prev => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Preview editável */}
+        <button
+          onClick={loadPreview}
+          disabled={loadingPreview}
+          className="text-xs transition-colors"
+          style={{ color: 'var(--text-muted)', opacity: loadingPreview ? 0.6 : 1 }}
+        >
+          {loadingPreview ? 'Gerando prévia...' : 'Ver prévia do relatório →'}
         </button>
         {showPreview && (
-          <pre className="rounded-lg p-3 text-xs overflow-x-auto whitespace-pre-wrap" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', maxHeight: 200 }}>
-            {preview}
-          </pre>
+          <>
+            <textarea
+              className="rounded-lg p-3 text-xs whitespace-pre-wrap"
+              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', maxHeight: 220, width: '100%', resize: 'vertical' as const, fontFamily: 'monospace', minHeight: 100, lineHeight: 1.5 }}
+              value={preview}
+              onChange={e => setPreview(e.target.value)}
+            />
+            <p className="text-xs" style={{ color: 'var(--text-muted)', marginTop: -8 }}>
+              Prévia editável — o conteúdo enviado pelo agendador usa os campos selecionados acima, atualizado a cada envio.
+            </p>
+          </>
         )}
 
         {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
@@ -320,16 +391,126 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
   );
 }
 
+// ─── Modal de configuração de campos (para schedules existentes) ───────────────
+
+function ReportConfigModal({ schedule, onClose, onSaved }: {
+  schedule: ReportSchedule;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [config, setConfig] = useState<ReportConfig>({ ...DEFAULT_REPORT_CONFIG, ...schedule.reportConfig });
+  const [preview, setPreview] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
+  const labelStyle = { color: 'var(--text-muted)', fontSize: 12, marginBottom: 4, display: 'block' as const };
+
+  const loadPreview = async () => {
+    setLoadingPreview(true);
+    try {
+      const { data } = await apiService.getReportPreviewWithConfig(schedule.frequency, config);
+      setPreview(data.text);
+      setShowPreview(true);
+    } catch { setPreview('Erro ao gerar prévia.'); setShowPreview(true); }
+    finally { setLoadingPreview(false); }
+  };
+
+  const handleSave = async () => {
+    setSaving(true); setError('');
+    try {
+      await apiService.updateReportSchedule(schedule.id, { reportConfig: config });
+      onSaved();
+      onClose();
+    } catch { setError('Erro ao salvar'); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
+      <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Campos do relatório</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{schedule.destinationName}</p>
+          </div>
+          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <div>
+          <span style={labelStyle}>Campos incluídos</span>
+          <div className="grid grid-cols-2 gap-1.5 mt-1">
+            {CONFIG_FIELD_LABELS.map(({ key, label }) => (
+              <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={!!config[key]}
+                  onChange={e => setConfig(prev => ({ ...prev, [key]: e.target.checked }))}
+                  style={{ accentColor: '#3b82f6', width: 13, height: 13 }}
+                />
+                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <span style={labelStyle}>Observações (opcional)</span>
+          <textarea
+            style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
+            placeholder="Texto extra ao final do relatório..."
+            maxLength={300}
+            value={config.notes ?? ''}
+            onChange={e => setConfig(prev => ({ ...prev, notes: e.target.value }))}
+          />
+        </div>
+
+        <button
+          onClick={loadPreview}
+          disabled={loadingPreview}
+          className="text-xs transition-colors"
+          style={{ color: 'var(--text-muted)', opacity: loadingPreview ? 0.6 : 1 }}
+        >
+          {loadingPreview ? 'Gerando...' : 'Ver prévia →'}
+        </button>
+        {showPreview && (
+          <textarea
+            style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 8, padding: '12px', fontSize: 12, width: '100%', minHeight: 100, maxHeight: 200, resize: 'vertical' as const, fontFamily: 'monospace', lineHeight: 1.5 }}
+            value={preview}
+            onChange={e => setPreview(e.target.value)}
+          />
+        )}
+
+        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Salvando...' : 'Salvar configuração'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Card de schedule ──────────────────────────────────────────────────────────
 
-function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
+function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
   schedule: ReportSchedule;
   onToggle: () => void;
   onDelete: () => void;
   onSendNow: () => void;
+  onRefresh: () => void;
 }) {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<'ok' | 'err' | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
 
   const handleSend = async () => {
     setSending(true); setSendResult(null);
@@ -383,11 +564,25 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow }: {
         >
           {sending ? 'Enviando...' : sendResult === 'ok' ? '✓ Enviado' : sendResult === 'err' ? '✗ Erro' : 'Enviar agora'}
         </button>
+        {schedule.channelType === 'TELEGRAM' && (
+          <button onClick={() => setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
+            style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            Campos
+          </button>
+        )}
         <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
           style={{ backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.15)' }}>
           Remover
         </button>
       </div>
+
+      {showConfig && (
+        <ReportConfigModal
+          schedule={schedule}
+          onClose={() => setShowConfig(false)}
+          onSaved={() => { setShowConfig(false); onRefresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -769,6 +964,7 @@ export default function RelatoriosPage() {
               onToggle={() => handleToggle(s)}
               onDelete={() => handleDelete(s.id)}
               onSendNow={async () => { await handleSendNow(s.id); }}
+              onRefresh={fetchSchedules}
             />
           ))}
         </div>

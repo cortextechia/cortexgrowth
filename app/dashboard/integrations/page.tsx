@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { Integration, IntegrationType, Plan } from '@/types';
@@ -421,8 +422,50 @@ export default function IntegrationsPage() {
         </div>
       )}
 
+      {/* Dados Manuais — alternativa ao CRM */}
+      {!loading && (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+            Alternativa sem CRM
+          </p>
+          <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
+                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 002.25 2.25h.75m0-12H12m-3 3h3m0 0h.375a1.125 1.125 0 010 2.25H12m-3 0h3" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Dados Manuais de Receita</p>
+                {integrations.find((i) => i.type === IntegrationType.KOMMO)?.status === 'CONNECTED' ? (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    CRM conectado — dados manuais são complementares ou para períodos sem sync.
+                  </p>
+                ) : (
+                  <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                    Sem Kommo conectado — insira dados de conversão manualmente para calcular ROAS e CAC.
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-1">
+                  Insira leads, vendas e receita por canal (Meta, Google, Orgânico…) mês a mês.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/dados-manuais"
+              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+              </svg>
+              Inserir dados
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Info footer */}
-      <div className="mt-8 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
+      <div className="mt-6 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
         <svg className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>

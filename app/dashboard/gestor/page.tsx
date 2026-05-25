@@ -13,6 +13,22 @@ const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 
 const PLAN_PRICES: Record<string, number> = { STARTER: 297, PROFESSIONAL: 597, ENTERPRISE: 1497 };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
 
+const BRIEFING_DAY_OPTIONS = [
+  { value: -1,  label: 'Não incluir' },
+  { value: 1,   label: 'Segunda' },
+  { value: 2,   label: 'Terça' },
+  { value: 3,   label: 'Quarta' },
+  { value: 4,   label: 'Quinta' },
+  { value: 5,   label: 'Sexta' },
+  { value: 6,   label: 'Sábado' },
+  { value: 0,   label: 'Domingo' },
+];
+
+const BRIEFING_HOUR_OPTIONS = [
+  { value: -1, label: 'Horário padrão' },
+  ...Array.from({ length: 13 }, (_, i) => ({ value: i + 6, label: `${String(i + 6).padStart(2, '0')}:00` })),
+];
+
 type MainTab = 'financeiro' | 'relatorio' | 'configuracoes';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
@@ -279,6 +295,7 @@ function TabConfiguracoes({
   clients,
   loadingClients,
   onDisconnect,
+  onUpdateClientBriefing,
 }: {
   referral: ManagerReferral | null;
   loadingReferral: boolean;
@@ -307,6 +324,7 @@ function TabConfiguracoes({
   clients: TrafficManagerClient[];
   loadingClients: boolean;
   onDisconnect: (c: TrafficManagerClient) => void;
+  onUpdateClientBriefing: (orgId: string, day: number | null, hour: number | null) => void;
 }) {
   const realClients = clients.filter((c) => !c.isSelf);
 
@@ -422,7 +440,7 @@ function TabConfiguracoes({
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Briefing Semanal Automático</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Resumo de todos os clientes todo domingo direto no Telegram.
+              Receba resumos dos seus clientes via Telegram. Configure o dia e horário de cada cliente abaixo.
             </p>
           </div>
           <button
@@ -483,27 +501,6 @@ function TabConfiguracoes({
 
             <div className="flex items-center gap-3">
               <div className="space-y-1 flex-1">
-                <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Dia da semana</label>
-                <select
-                  value={briefing.dayOfWeek}
-                  onChange={(e) => setBriefing((b) => ({ ...b, dayOfWeek: Number(e.target.value) }))}
-                  className="w-full rounded-lg px-3 py-1.5 text-xs"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
-                >
-                  {[
-                    { v: 0, l: 'Domingo' },
-                    { v: 1, l: 'Segunda' },
-                    { v: 2, l: 'Terça' },
-                    { v: 3, l: 'Quarta' },
-                    { v: 4, l: 'Quinta' },
-                    { v: 5, l: 'Sexta' },
-                    { v: 6, l: 'Sábado' },
-                  ].map(({ v, l }) => (
-                    <option key={v} value={v}>{l}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1 flex-1">
                 <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Horário (BRT)</label>
                 <select
                   value={briefing.hour}
@@ -546,7 +543,7 @@ function TabConfiguracoes({
         <div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Gerenciar Clientes</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Remova clientes da sua lista quando necessário.
+            Configure o dia do briefing semanal de cada cliente e remova quando necessário.
           </p>
         </div>
 
@@ -559,25 +556,58 @@ function TabConfiguracoes({
         ) : (
           <div className="space-y-2">
             {realClients.map((client) => (
-              <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
-                    <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{client.name.charAt(0).toUpperCase()}</span>
+              <div key={client.id} className="rounded-xl px-4 py-3 space-y-2" style={{ border: '1px solid var(--border)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
+                      <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{client.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        {client.source === 'LINK' ? 'Via link' : client.source === 'CODE' ? 'Via código' : 'Via admin'}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {client.source === 'LINK' ? 'Via link' : client.source === 'CODE' ? 'Via código' : 'Via admin'}
-                    </p>
-                  </div>
+                  <button
+                    onClick={() => onDisconnect(client)}
+                    className="shrink-0 text-xs px-3 py-1.5 rounded-lg"
+                    style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                  >
+                    Remover
+                  </button>
                 </div>
-                <button
-                  onClick={() => onDisconnect(client)}
-                  className="shrink-0 text-xs px-3 py-1.5 rounded-lg"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
-                >
-                  Remover
-                </button>
+                <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                  <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Briefing semanal:</span>
+                  <select
+                    value={client.briefingDayOfWeek ?? -1}
+                    onChange={(e) => {
+                      const day = Number(e.target.value) === -1 ? null : Number(e.target.value);
+                      onUpdateClientBriefing(client.id, day, client.briefingHour ?? null);
+                    }}
+                    className="text-xs rounded-lg px-2 py-1"
+                    style={{ backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                  >
+                    {BRIEFING_DAY_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  {client.briefingDayOfWeek != null && (
+                    <select
+                      value={client.briefingHour ?? -1}
+                      onChange={(e) => {
+                        const hour = Number(e.target.value) === -1 ? null : Number(e.target.value);
+                        onUpdateClientBriefing(client.id, client.briefingDayOfWeek ?? null, hour);
+                      }}
+                      className="text-xs rounded-lg px-2 py-1"
+                      style={{ backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                    >
+                      {BRIEFING_HOUR_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -659,7 +689,7 @@ export default function GestorPage() {
     setLoadingBriefing(true);
     try {
       const res = await apiService.getBriefingConfig();
-      setBriefing(res.data);
+      setBriefing(prev => ({ ...prev, ...res.data }));
       setTelegramPhase(res.data.chatId ? 'connected' : 'idle');
     } catch { /* mantém default */ } finally { setLoadingBriefing(false); }
   }, []);
@@ -725,6 +755,13 @@ export default function GestorPage() {
     setReportClient(client);
   };
 
+  const handleUpdateClientBriefing = async (orgId: string, day: number | null, hour: number | null) => {
+    try {
+      await apiService.updateClientBriefing(orgId, day, hour);
+      setClients(prev => prev.map(c => c.id === orgId ? { ...c, briefingDayOfWeek: day, briefingHour: hour } : c));
+    } catch { showToast('Erro ao salvar configuração de briefing.', 'error'); }
+  };
+
   const handleDisconnect = async (client: TrafficManagerClient) => {
     if (!confirm(`Remover ${client.name} da sua lista?`)) return;
     try {
@@ -764,7 +801,7 @@ export default function GestorPage() {
         try {
           const cfg = await apiService.getBriefingConfig();
           if (cfg.data.chatId) {
-            setBriefing(cfg.data);
+            setBriefing(prev => ({ ...prev, ...cfg.data }));
             setTelegramPhase('connected');
             if (briefingPollRef.current) clearInterval(briefingPollRef.current);
           }
@@ -809,7 +846,7 @@ export default function GestorPage() {
 
       {/* ── Header com tabs ─────────────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Meus Clientes</h1>
+        <h1 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Gestão</h1>
         <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
           {TABS.map((tab) => (
             <button
@@ -870,6 +907,7 @@ export default function GestorPage() {
           clients={clients}
           loadingClients={loadingClients}
           onDisconnect={handleDisconnect}
+          onUpdateClientBriefing={handleUpdateClientBriefing}
         />
       )}
 
