@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Integration, IntegrationType, Plan } from '@/types';
+import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus } from '@/types';
 
 // ─── Provider config ──────────────────────────────────────────────────────────
 
@@ -115,6 +115,47 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
+// ─── Budget badges ────────────────────────────────────────────────────────────
+
+function MetaBudgetBadge({ budget }: { budget: BudgetStatus }) {
+  if (!budget.connected) return null;
+  if (budget.remaining === null) return null;
+
+  const days = budget.daysLeft ?? 0;
+  const color = days < 1 ? 'text-red-600 bg-red-50' : days < 3 ? 'text-yellow-700 bg-yellow-50' : 'text-emerald-700 bg-emerald-50';
+  const dot   = days < 1 ? 'bg-red-400' : days < 3 ? 'bg-yellow-400' : 'bg-emerald-400';
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${color}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      Saldo: R$ {budget.remaining.toFixed(2)}
+      {budget.daysLeft !== null && (
+        <span className="opacity-70">· ~{budget.daysLeft < 1 ? '<1' : budget.daysLeft.toFixed(1)} dia{budget.daysLeft !== 1 ? 's' : ''}</span>
+      )}
+    </span>
+  );
+}
+
+function GoogleBudgetBadge({ budget }: { budget: GoogleBudgetStatus }) {
+  if (!budget.connected || budget.campaigns.length === 0) return null;
+
+  const highUsage = budget.campaigns.filter(c => c.pctUsed >= 80);
+  if (highUsage.length === 0) return null;
+
+  const worst = highUsage.reduce((a, b) => a.pctUsed > b.pctUsed ? a : b);
+  const color = worst.pctUsed >= 95 ? 'text-red-600 bg-red-50' : 'text-yellow-700 bg-yellow-50';
+  const dot   = worst.pctUsed >= 95 ? 'bg-red-400' : 'bg-yellow-400';
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${color}`} title={`${highUsage.length} campanha(s) com orçamento alto`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      {highUsage.length === 1
+        ? `"${worst.name}" ${worst.pctUsed}% do orçamento`
+        : `${highUsage.length} campanhas acima de 80%`}
+    </span>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -123,6 +164,9 @@ export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [metaBudget, setMetaBudget]     = useState<BudgetStatus | null>(null);
+  const [googleBudget, setGoogleBudget] = useState<GoogleBudgetStatus | null>(null);
 
   // Per-card loading states
   const [connectingProvider, setConnectingProvider] = useState<OAuthProvider | null>(null);
@@ -151,6 +195,9 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     loadIntegrations();
+    apiService.getBudgetStatus()
+      .then(({ data }) => { setMetaBudget(data.meta); setGoogleBudget(data.google); })
+      .catch(() => {/* silencia — budget é info extra, não crítico */});
   }, [loadIntegrations]);
 
   // ── Connect via OAuth ───────────────────────────────────────────────────────
@@ -319,6 +366,18 @@ export default function IntegrationsPage() {
                   }`}>
                     Token expira: {new Date(integration.tokenExpires).toLocaleDateString('pt-BR')}
                   </p>
+                )}
+
+                {/* Budget badges — só quando conectado */}
+                {config.type === IntegrationType.META_ADS && metaBudget?.connected && (
+                  <div className="mt-2">
+                    <MetaBudgetBadge budget={metaBudget} />
+                  </div>
+                )}
+                {config.type === IntegrationType.GOOGLE_ADS && googleBudget?.connected && (
+                  <div className="mt-2">
+                    <GoogleBudgetBadge budget={googleBudget} />
+                  </div>
                 )}
 
                 {/* Actions */}

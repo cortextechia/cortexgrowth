@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -238,6 +238,11 @@ class ApiService {
 
   async getIntegrations(): Promise<{ success: boolean; integrations: Integration[] }> {
     const response = await this.client.get('/integrations');
+    return response.data;
+  }
+
+  async getBudgetStatus(): Promise<{ success: boolean; data: { meta: BudgetStatus; google: GoogleBudgetStatus } }> {
+    const response = await this.client.get('/integrations/budget');
     return response.data;
   }
 

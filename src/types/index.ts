@@ -356,9 +356,34 @@ export interface SeoConfig {
   competitorUrls: string[];
 }
 
+// ===== BUDGET STATUS =====
+
+export interface BudgetStatus {
+  connected: boolean;
+  remaining: number | null;
+  remainingType: 'prepaid' | 'cap' | null;
+  burnRate7d: number | null;
+  daysLeft: number | null;
+  currency?: string;
+  error?: boolean;
+}
+
+export interface GoogleCampaignBudget {
+  name: string;
+  budgetBRL: number;
+  spentBRL: number;
+  pctUsed: number;
+}
+
+export interface GoogleBudgetStatus {
+  connected: boolean;
+  campaigns: GoogleCampaignBudget[];
+  error?: boolean;
+}
+
 // ===== ALERTAS DE ANOMALIA =====
 
-export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE';
+export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE' | 'BUDGET_LOW';
 
 export interface AlertThresholds {
   SPEND_NO_LEADS: { minSpend: number };
@@ -366,6 +391,7 @@ export interface AlertThresholds {
   ROAS_LOW:       { minMonthSpend: number };
   CTR_DROP:       { dropPct: number; minImpressions: number };
   LEAD_SILENCE:   { hoursWindow: number; minSpend7d: number };
+  BUDGET_LOW:     { budgetMinBalance: number; budgetPctThreshold: number };
 }
 
 export interface AlertConfig {

@@ -673,9 +673,27 @@ const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fie
       { key: 'minSpend7d',  label: 'Gasto mínimo 7d', unit: 'R$',   min: 1,  max: 10000, step: 10 },
     ],
   },
+  BUDGET_LOW: {
+    label: 'Saldo restante baixo',
+    description: 'Avisa quando saldo Meta cair abaixo do mínimo ou campanha Google esgotar orçamento diário',
+    fields: [
+      { key: 'budgetMinBalance',   label: 'Saldo mínimo Meta',          unit: 'R$', min: 50,  max: 50000, step: 50 },
+      { key: 'budgetPctThreshold', label: '% orçamento diário Google',  unit: '%',  min: 50,  max: 99,    step: 5  },
+    ],
+  },
 };
 
 const ALL_RULES = Object.keys(RULE_META) as AnomalyRuleId[];
+
+// Defaults espelhando o backend — usados quando a regra ainda não tem config salva no banco
+const RULE_DEFAULTS: Record<AnomalyRuleId, Record<string, number>> = {
+  SPEND_NO_LEADS: { minSpend: 50 },
+  CPL_HIGH:       { pctAboveAvg: 30, minSpend: 50 },
+  ROAS_LOW:       { minMonthSpend: 100 },
+  CTR_DROP:       { dropPct: 40, minImpressions: 100 },
+  LEAD_SILENCE:   { hoursWindow: 48, minSpend7d: 50 },
+  BUDGET_LOW:     { budgetMinBalance: 200, budgetPctThreshold: 80 },
+};
 
 function AlertConfigSection() {
   const [config, setConfig]     = useState<AlertConfig | null>(null);
@@ -829,7 +847,7 @@ function AlertConfigSection() {
                             max={field.max}
                             step={field.step}
                             style={inputStyle}
-                            value={(thresholds[rule] as Record<string, number>)[field.key] ?? 0}
+                            value={((thresholds[rule] as Record<string, number> | undefined)?.[field.key]) ?? RULE_DEFAULTS[rule][field.key] ?? 0}
                             onChange={e => setThresholdField(rule, field.key, Number(e.target.value))}
                           />
                           <span style={{ color: 'var(--text-muted)' }}>{field.unit}</span>
