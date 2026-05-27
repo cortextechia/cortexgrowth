@@ -268,7 +268,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-1.5 rounded-md transition-colors"
               style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--border)')}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               aria-label="Toggle sidebar"
             >
@@ -334,7 +334,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
                     >
                       {clientOrgs.map((org) => (
-                        <option key={org.id} value={org.id} style={{ backgroundColor: '#0f172a', color: '#f1f5f9' }}>
+                        <option key={org.id} value={org.id} style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
                           {org.isSelf ? `${org.name} (Eu)` : org.name}
                         </option>
                       ))}

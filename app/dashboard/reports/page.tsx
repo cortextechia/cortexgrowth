@@ -31,7 +31,7 @@ function ScoreBadge({ score, size = 'md' }: { score: number; size?: 'sm' | 'md' 
 
 function AgentSection({ label, data }: { label: string; data: AgentOutput }) {
   return (
-    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.05)' }}>
+    <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>{label}</span>
         <ScoreBadge score={data.score} size="sm" />

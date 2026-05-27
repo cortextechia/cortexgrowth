@@ -90,17 +90,17 @@ const PROVIDERS: ProviderConfig[] = [
 
 function StatusBadge({ status }: { status: Integration['status'] }) {
   const map = {
-    CONNECTED:    { dot: 'bg-green-400',  text: 'text-green-700',  label: 'Conectado'    },
-    DISCONNECTED: { dot: 'bg-gray-300',   text: 'text-gray-500',   label: 'Desconectado' },
-    ERROR:        { dot: 'bg-red-400',    text: 'text-red-600',    label: 'Erro'         },
-    EXPIRED:      { dot: 'bg-yellow-400', text: 'text-yellow-700', label: 'Expirado'     },
+    CONNECTED:    { dotColor: 'var(--badge-success-text)', textColor: 'var(--badge-success-text)', label: 'Conectado'    },
+    DISCONNECTED: { dotColor: 'var(--text-muted)',         textColor: 'var(--text-muted)',         label: 'Desconectado' },
+    ERROR:        { dotColor: 'var(--badge-error-text)',   textColor: 'var(--badge-error-text)',   label: 'Erro'         },
+    EXPIRED:      { dotColor: 'var(--badge-warn-text)',    textColor: 'var(--badge-warn-text)',    label: 'Expirado'     },
   } as const;
 
   const cfg = map[status] ?? map.DISCONNECTED;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${cfg.text}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+    <span className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: cfg.textColor }}>
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: cfg.dotColor }} />
       {cfg.label}
     </span>
   );
@@ -122,12 +122,16 @@ function MetaBudgetBadge({ budget }: { budget: BudgetStatus }) {
   if (budget.remaining === null) return null;
 
   const days = budget.daysLeft ?? 0;
-  const color = days < 1 ? 'text-red-600 bg-red-50' : days < 3 ? 'text-yellow-700 bg-yellow-50' : 'text-emerald-700 bg-emerald-50';
-  const dot   = days < 1 ? 'bg-red-400' : days < 3 ? 'bg-yellow-400' : 'bg-emerald-400';
+  const bgColor  = days < 1 ? 'var(--badge-error-bg)'  : days < 3 ? 'var(--badge-warn-bg)'  : 'var(--badge-success-bg)';
+  const txtColor = days < 1 ? 'var(--badge-error-text)' : days < 3 ? 'var(--badge-warn-text)' : 'var(--badge-success-text)';
+  const dotColor = days < 1 ? 'var(--badge-error-text)' : days < 3 ? 'var(--badge-warn-text)' : 'var(--badge-success-text)';
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${color}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+    <span
+      className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full"
+      style={{ backgroundColor: bgColor, color: txtColor }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
       Saldo: R$ {budget.remaining.toFixed(2)}
       {budget.daysLeft !== null && (
         <span className="opacity-70">· ~{budget.daysLeft < 1 ? '<1' : budget.daysLeft.toFixed(1)} dia{budget.daysLeft !== 1 ? 's' : ''}</span>
@@ -142,13 +146,18 @@ function GoogleBudgetBadge({ budget }: { budget: GoogleBudgetStatus }) {
   const highUsage = budget.campaigns.filter(c => c.pctUsed >= 80);
   if (highUsage.length === 0) return null;
 
-  const worst = highUsage.reduce((a, b) => a.pctUsed > b.pctUsed ? a : b);
-  const color = worst.pctUsed >= 95 ? 'text-red-600 bg-red-50' : 'text-yellow-700 bg-yellow-50';
-  const dot   = worst.pctUsed >= 95 ? 'bg-red-400' : 'bg-yellow-400';
+  const worst    = highUsage.reduce((a, b) => a.pctUsed > b.pctUsed ? a : b);
+  const bgColor  = worst.pctUsed >= 95 ? 'var(--badge-error-bg)'  : 'var(--badge-warn-bg)';
+  const txtColor = worst.pctUsed >= 95 ? 'var(--badge-error-text)' : 'var(--badge-warn-text)';
+  const dotColor = worst.pctUsed >= 95 ? 'var(--badge-error-text)' : 'var(--badge-warn-text)';
 
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${color}`} title={`${highUsage.length} campanha(s) com orçamento alto`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+    <span
+      className="inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full"
+      style={{ backgroundColor: bgColor, color: txtColor }}
+      title={`${highUsage.length} campanha(s) com orçamento alto`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
       {highUsage.length === 1
         ? `"${worst.name}" ${worst.pctUsed}% do orçamento`
         : `${highUsage.length} campanhas acima de 80%`}
@@ -168,12 +177,10 @@ export default function IntegrationsPage() {
   const [metaBudget, setMetaBudget]     = useState<BudgetStatus | null>(null);
   const [googleBudget, setGoogleBudget] = useState<GoogleBudgetStatus | null>(null);
 
-  // Per-card loading states
   const [connectingProvider, setConnectingProvider] = useState<OAuthProvider | null>(null);
   const [syncingType, setSyncingType] = useState<IntegrationType | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
-  // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -200,14 +207,11 @@ export default function IntegrationsPage() {
       .catch(() => {/* silencia — budget é info extra, não crítico */});
   }, [loadIntegrations]);
 
-  // ── Connect via OAuth ───────────────────────────────────────────────────────
   const handleConnect = async (provider: OAuthProvider) => {
     setConnectingProvider(provider);
     try {
       const authUrl = await apiService.getOAuthUrl(provider);
-      // Abre em nova aba; o callback redireciona para /auth/oauth-callback
       window.open(authUrl, '_blank', 'width=600,height=700,noopener,noreferrer');
-      // Recarrega integrações após 6s para capturar a nova conexão
       setTimeout(() => loadIntegrations(), 6000);
     } catch (err: any) {
       const msg = err?.response?.data?.message ?? err?.message ?? 'Erro ao iniciar autorização';
@@ -217,7 +221,6 @@ export default function IntegrationsPage() {
     }
   };
 
-  // ── Sync ───────────────────────────────────────────────────────────────────
   const handleSync = async (type: IntegrationType) => {
     setSyncingType(type);
     try {
@@ -231,7 +234,6 @@ export default function IntegrationsPage() {
     }
   };
 
-  // ── Disconnect ─────────────────────────────────────────────────────────────
   const handleDisconnect = async (integration: Integration) => {
     if (!confirm(`Desconectar ${integration.name}? Os dados já importados serão mantidos.`)) return;
     setDisconnectingId(integration.id);
@@ -254,19 +256,22 @@ export default function IntegrationsPage() {
 
       {/* Header */}
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Integrações</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Integrações</h1>
+        <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Conecte suas plataformas de marketing e CRM para centralizar todos os dados.
         </p>
       </div>
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed bottom-4 left-4 right-4 sm:bottom-auto sm:top-5 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all ${
-          toast.type === 'success'
-            ? 'bg-gray-900 text-white'
-            : 'bg-red-600 text-white'
-        }`}>
+        <div
+          className="fixed bottom-4 left-4 right-4 sm:bottom-auto sm:top-5 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg transition-all"
+          style={
+            toast.type === 'success'
+              ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--badge-success-text)', borderColor: 'var(--badge-success-text)' }
+              : { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }
+          }
+        >
           {toast.type === 'success' ? (
             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -282,7 +287,10 @@ export default function IntegrationsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div
+          className="mb-6 flex items-center gap-3 rounded-xl px-4 py-3 text-sm"
+          style={{ border: '1px solid var(--badge-error-bg)', backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+        >
           <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
           </svg>
@@ -295,16 +303,20 @@ export default function IntegrationsPage() {
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2">
           {PROVIDERS.map((p) => (
-            <div key={p.type} className="animate-pulse rounded-2xl border border-gray-100 bg-white p-6">
+            <div
+              key={p.type}
+              className="animate-pulse rounded-2xl p-6"
+              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+            >
               <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-full bg-gray-100" />
+                <div className="h-10 w-10 rounded-full" style={{ backgroundColor: 'var(--bg-elevated)' }} />
                 <div className="space-y-1.5">
-                  <div className="h-3.5 w-24 rounded bg-gray-100" />
-                  <div className="h-3 w-16 rounded bg-gray-100" />
+                  <div className="h-3.5 w-24 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+                  <div className="h-3 w-16 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
                 </div>
               </div>
-              <div className="h-3 w-full rounded bg-gray-100" />
-              <div className="mt-4 h-9 w-full rounded-lg bg-gray-100" />
+              <div className="h-3 w-full rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+              <div className="mt-4 h-9 w-full rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }} />
             </div>
           ))}
         </div>
@@ -322,20 +334,28 @@ export default function IntegrationsPage() {
             return (
               <div
                 key={config.type}
-                className={`flex flex-col rounded-2xl border p-6 shadow-sm transition-shadow ${isLocked ? 'border-gray-100 bg-gray-50 opacity-75' : 'border-gray-100 bg-white hover:shadow-md'}`}
+                className="flex flex-col rounded-2xl p-6 shadow-sm transition-shadow"
+                style={{
+                  border: '1px solid var(--border)',
+                  backgroundColor: isLocked ? 'var(--bg-elevated)' : 'var(--bg-surface)',
+                  opacity: isLocked ? 0.75 : 1,
+                }}
               >
                 {/* Card header */}
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{ backgroundColor: 'var(--bg-elevated)' }}
+                    >
                       {config.icon}
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-900">{config.label}</p>
+                      <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{config.label}</p>
                       {integration ? (
                         <StatusBadge status={integration.status} />
                       ) : (
-                        <span className="text-xs text-gray-400">Não conectado</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Não conectado</span>
                       )}
                     </div>
                   </div>
@@ -343,7 +363,10 @@ export default function IntegrationsPage() {
 
                 {/* Locked badge */}
                 {isLocked && (
-                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded w-fit">
+                  <span
+                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded w-fit"
+                    style={{ color: 'var(--badge-warn-text)', backgroundColor: 'var(--badge-warn-bg)' }}
+                  >
                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
@@ -352,18 +375,19 @@ export default function IntegrationsPage() {
                 )}
 
                 {/* Description */}
-                <p className="mt-3 text-xs text-gray-500 leading-relaxed">{config.description}</p>
+                <p className="mt-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{config.description}</p>
 
                 {/* Account name / token expiry */}
                 {integration?.externalName && (
-                  <p className="mt-2 text-xs text-gray-400">
-                    Conta: <span className="font-medium text-gray-600">{integration.externalName}</span>
+                  <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+                    Conta: <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>{integration.externalName}</span>
                   </p>
                 )}
                 {integration?.tokenExpires && (
-                  <p className={`mt-1 text-xs ${
-                    new Date(integration.tokenExpires) < new Date() ? 'text-red-500' : 'text-gray-400'
-                  }`}>
+                  <p
+                    className="mt-1 text-xs"
+                    style={{ color: new Date(integration.tokenExpires) < new Date() ? 'var(--badge-error-text)' : 'var(--text-muted)' }}
+                  >
                     Token expira: {new Date(integration.tokenExpires).toLocaleDateString('pt-BR')}
                   </p>
                 )}
@@ -383,18 +407,22 @@ export default function IntegrationsPage() {
                 {/* Actions */}
                 <div className="mt-4 flex gap-2">
                   {isLocked ? (
-                    <button disabled className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 text-xs font-medium text-gray-400 cursor-not-allowed">
+                    <button
+                      disabled
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium cursor-not-allowed"
+                      style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                    >
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
                       Bloqueado no Starter
                     </button>
                   ) : !isConnected && !isExpired ? (
-                    /* Not connected — show Connect button */
                     <button
                       onClick={() => handleConnect(config.provider)}
                       disabled={isConnecting}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2.5 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                      style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
                     >
                       {isConnecting ? (
                         <><Spinner /> Aguardando...</>
@@ -408,13 +436,13 @@ export default function IntegrationsPage() {
                       )}
                     </button>
                   ) : (
-                    /* Connected — show Sync + Disconnect */
                     <>
                       {config.supportsSync && (
                         <button
                           onClick={() => handleSync(config.type)}
                           disabled={isSyncing}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
                         >
                           {isSyncing ? (
                             <><Spinner /> Sincronizando...</>
@@ -429,12 +457,12 @@ export default function IntegrationsPage() {
                         </button>
                       )}
 
-                      {/* Reconnect if expired */}
                       {isExpired && (
                         <button
                           onClick={() => handleConnect(config.provider)}
                           disabled={isConnecting}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-100 disabled:opacity-60"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-opacity disabled:opacity-60"
+                          style={{ border: '1px solid var(--badge-warn-bg)', backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}
                         >
                           {isConnecting ? <Spinner /> : (
                             <>
@@ -450,7 +478,8 @@ export default function IntegrationsPage() {
                       <button
                         onClick={() => integration && handleDisconnect(integration)}
                         disabled={isDisconnecting}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2.5 text-xs font-medium text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
+                        className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-opacity disabled:opacity-60"
+                        style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}
                         title="Desconectar"
                       >
                         {isDisconnecting ? <Spinner /> : (
@@ -465,11 +494,14 @@ export default function IntegrationsPage() {
 
                 {/* Kommo webhook hint */}
                 {config.type === IntegrationType.KOMMO && (
-                  <p className="mt-3 text-xs text-gray-400">
+                  <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
                     Também suporta{' '}
-                    <span className="font-medium text-gray-500">webhook push</span>
+                    <span className="font-medium" style={{ color: 'var(--text-secondary)' }}>webhook push</span>
                     {' '}— configure a URL{' '}
-                    <code className="rounded bg-gray-100 px-1 py-0.5 text-gray-600">
+                    <code
+                      className="rounded px-1 py-0.5"
+                      style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                    >
                       /api/kommo/leads
                     </code>{' '}
                     no painel do Kommo.
@@ -487,32 +519,39 @@ export default function IntegrationsPage() {
           <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
             Alternativa sem CRM
           </p>
-          <div className="flex items-center justify-between gap-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+          <div
+            className="flex items-center justify-between gap-4 rounded-2xl p-5 shadow-sm"
+            style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+          >
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50">
-                <svg className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                style={{ backgroundColor: 'var(--badge-success-bg)' }}
+              >
+                <svg className="h-5 w-5" style={{ color: 'var(--badge-success-text)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V19.5a2.25 2.25 0 002.25 2.25h.75m0-12H12m-3 3h3m0 0h.375a1.125 1.125 0 010 2.25H12m-3 0h3" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-900">Dados Manuais de Receita</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Dados Manuais de Receita</p>
                 {integrations.find((i) => i.type === IntegrationType.KOMMO)?.status === 'CONNECTED' ? (
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
                     CRM conectado — dados manuais são complementares ou para períodos sem sync.
                   </p>
                 ) : (
-                  <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--badge-success-text)' }}>
                     Sem Kommo conectado — insira dados de conversão manualmente para calcular ROAS e CAC.
                   </p>
                 )}
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                   Insira leads, vendas e receita por canal (Meta, Google, Orgânico…) mês a mês.
                 </p>
               </div>
             </div>
             <Link
               href="/dashboard/dados-manuais"
-              className="shrink-0 flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700"
+              className="shrink-0 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80"
+              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
@@ -524,13 +563,16 @@ export default function IntegrationsPage() {
       )}
 
       {/* Info footer */}
-      <div className="mt-6 flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4">
-        <svg className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div
+        className="mt-6 flex items-start gap-3 rounded-xl p-4"
+        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
+      >
+        <svg className="mt-0.5 h-4 w-4 shrink-0" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p className="text-xs text-gray-500 leading-relaxed">
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
           Todas as credenciais OAuth são trocadas pelo servidor e armazenadas criptografadas com{' '}
-          <strong className="text-gray-700">AES-256-GCM</strong>. Nenhum token é exposto ao navegador.
+          <strong style={{ color: 'var(--text-primary)' }}>AES-256-GCM</strong>. Nenhum token é exposto ao navegador.
           A conexão abrirá uma janela pop-up na plataforma escolhida — permita pop-ups se necessário.
         </p>
       </div>

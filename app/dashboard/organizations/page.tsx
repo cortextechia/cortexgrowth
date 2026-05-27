@@ -15,16 +15,16 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   );
 }
 
-const PLAN_BADGE: Record<Plan, string> = {
-  STARTER:      'bg-blue-50 text-blue-600',
-  PROFESSIONAL: 'bg-purple-50 text-purple-700',
-  ENTERPRISE:   'bg-amber-50 text-amber-700',
+const PLAN_BADGE_STYLE: Record<Plan, React.CSSProperties> = {
+  STARTER:      { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
+  PROFESSIONAL: { backgroundColor: 'rgba(139,92,246,0.12)',  color: '#8b5cf6' },
+  ENTERPRISE:   { backgroundColor: 'var(--badge-warn-bg)',   color: 'var(--badge-warn-text)' },
 };
 
-const STATUS_BADGE: Record<OrgStatus, string> = {
-  ACTIVE:    'bg-green-50 text-green-700',
-  SUSPENDED: 'bg-red-50 text-red-600',
-  CANCELLED: 'bg-gray-100 text-gray-500',
+const STATUS_BADGE_STYLE: Record<OrgStatus, React.CSSProperties> = {
+  ACTIVE:    { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
+  SUSPENDED: { backgroundColor: 'var(--badge-error-bg)',   color: 'var(--badge-error-text)' },
+  CANCELLED: { backgroundColor: 'var(--bg-elevated)',      color: 'var(--text-muted)' },
 };
 
 const STATUS_LABEL: Record<OrgStatus, string> = {
@@ -33,18 +33,18 @@ const STATUS_LABEL: Record<OrgStatus, string> = {
   CANCELLED: 'Cancelada',
 };
 
-const ROLE_BADGE: Record<UserRole, string> = {
-  SUPER_ADMIN:     'bg-purple-50 text-purple-700',
-  ADMIN:           'bg-blue-50 text-blue-600',
-  USER:            'bg-gray-100 text-gray-600',
-  VIEWER:          'bg-gray-50 text-gray-400',
-  TRAFFIC_MANAGER: 'bg-violet-50 text-violet-700',
+const ROLE_BADGE_STYLE: Record<UserRole, React.CSSProperties> = {
+  SUPER_ADMIN:     { backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
+  ADMIN:           { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
+  USER:            { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-secondary)' },
+  VIEWER:          { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-muted)' },
+  TRAFFIC_MANAGER: { backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
 };
 
-const USER_STATUS_BADGE: Record<UserStatus, string> = {
-  ACTIVE:    'bg-green-50 text-green-700',
-  INACTIVE:  'bg-gray-100 text-gray-500',
-  SUSPENDED: 'bg-red-50 text-red-600',
+const USER_STATUS_BADGE_STYLE: Record<UserStatus, React.CSSProperties> = {
+  ACTIVE:    { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
+  INACTIVE:  { backgroundColor: 'var(--bg-elevated)',      color: 'var(--text-muted)' },
+  SUSPENDED: { backgroundColor: 'var(--badge-error-bg)',   color: 'var(--badge-error-text)' },
 };
 
 function formatDate(date: Date | string) {
@@ -52,11 +52,11 @@ function formatDate(date: Date | string) {
 }
 
 function SubscriptionEndsCell({ value }: { value?: Date | string }) {
-  if (!value) return <span className="text-gray-300">—</span>;
+  if (!value) return <span style={{ color: 'var(--text-muted)' }}>{'—'}</span>;
   const d = new Date(value);
   const isExpired = d < new Date();
   return (
-    <span className={isExpired ? 'text-red-500 font-medium' : 'text-gray-500'}>
+    <span style={{ color: isExpired ? 'var(--badge-error-text)' : 'var(--text-secondary)', fontWeight: isExpired ? 500 : undefined }}>
       {formatDate(d)}
       {isExpired && <span className="ml-1 text-xs">(expirado)</span>}
     </span>
@@ -68,7 +68,7 @@ interface EditModal {
   name: string;
   plan: Plan;
   status: OrgStatus;
-  subscriptionEnds: string; // YYYY-MM-DD ou '' para limpar
+  subscriptionEnds: string;
 }
 
 interface UsersModal {
@@ -80,11 +80,22 @@ interface UsersModal {
   isCreating: boolean;
 }
 
+const inputStyle: React.CSSProperties = {
+  border: '1px solid var(--input-border)',
+  backgroundColor: 'var(--input-bg)',
+  color: 'var(--text-primary)',
+};
+
+const selectStyle: React.CSSProperties = {
+  border: '1px solid var(--input-border)',
+  backgroundColor: 'var(--bg-surface)',
+  color: 'var(--text-primary)',
+};
+
 export default function OrganizationsPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  // Aba ativa: organizações ou gestores de tráfego
   const [activeTab, setActiveTab] = useState<'orgs' | 'managers'>('orgs');
 
   const [orgs, setOrgs] = useState<Organization[]>([]);
@@ -92,38 +103,29 @@ export default function OrganizationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Create form
   const [showCreate, setShowCreate] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createForm, setCreateForm] = useState({ name: '', plan: Plan.STARTER });
 
-  // Gestores de tráfego
   const [managers, setManagers] = useState<TrafficManagerWithClients[]>([]);
   const [managersLoading, setManagersLoading] = useState(false);
   const [showCreateManager, setShowCreateManager] = useState(false);
   const [isCreatingManager, setIsCreatingManager] = useState(false);
   const [managerForm, setManagerForm] = useState({ name: '', email: '', password: '' });
   const [deletingManagerId, setDeletingManagerId] = useState<string | null>(null);
-  // Modal para vincular clientes a um gestor
   const [clientsModal, setClientsModal] = useState<{ manager: TrafficManagerWithClients } | null>(null);
   const [linkingOrgId, setLinkingOrgId] = useState<string | null>(null);
 
-  // Edit modal
   const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Delete
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  // Meta sync
   const [syncingMetaId, setSyncingMetaId] = useState<string | null>(null);
 
-  // Backfill histórico Meta
   const today = new Date().toISOString().slice(0, 10);
   const [backfillModal, setBackfillModal] = useState<{ org: Organization; since: string; until: string } | null>(null);
   const [isBackfilling, setIsBackfilling] = useState(false);
 
-  // Users modal
   const [usersModal, setUsersModal] = useState<UsersModal | null>(null);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
@@ -337,7 +339,6 @@ export default function OrganizationsPage() {
     try {
       await apiService.createOrgUser(usersModal.org.id, usersModal.createForm);
       showToast('Usuário criado com sucesso.');
-      // Reload users list and close create form
       const res = await apiService.getOrgUsers(usersModal.org.id);
       setUsersModal((prev) => prev ? {
         ...prev,
@@ -360,13 +361,14 @@ export default function OrganizationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold text-gray-900">Administração</h1>
-          <p className="mt-1 text-sm text-gray-500">Gerencie clientes e gestores de tráfego.</p>
+          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Administração</h1>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Gerencie clientes e gestores de tráfego.</p>
         </div>
         {activeTab === 'orgs' && (
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="shrink-0 flex items-center gap-2 rounded-lg bg-gray-900 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--accent)' }}
           >
             {showCreate ? 'Cancelar' : '+ Nova Org'}
           </button>
@@ -374,7 +376,8 @@ export default function OrganizationsPage() {
         {activeTab === 'managers' && (
           <button
             onClick={() => setShowCreateManager(!showCreateManager)}
-            className="shrink-0 flex items-center gap-2 rounded-lg bg-violet-700 px-3 sm:px-4 py-2 text-sm font-medium text-white hover:bg-violet-600 transition-colors"
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'rgba(139,92,246,0.9)' }}
           >
             {showCreateManager ? 'Cancelar' : '+ Novo Gestor'}
           </button>
@@ -382,15 +385,18 @@ export default function OrganizationsPage() {
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 mb-6 p-1 rounded-xl w-fit" style={{ backgroundColor: '#f1f5f9' }}>
+      <div
+        className="flex gap-1 mb-6 p-1 rounded-xl w-fit"
+        style={{ backgroundColor: 'var(--bg-elevated)' }}
+      >
         {(['orgs', 'managers'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
             style={activeTab === tab
-              ? { backgroundColor: '#ffffff', color: '#111827', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
-              : { color: '#6b7280' }
+              ? { backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }
+              : { color: 'var(--text-muted)' }
             }
           >
             {tab === 'orgs' ? 'Organizações' : 'Gestores de Tráfego'}
@@ -400,9 +406,14 @@ export default function OrganizationsPage() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-gray-900 text-white' : 'bg-red-600 text-white'
-        }`}>
+        <div
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+          style={
+            toast.type === 'success'
+              ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--badge-success-text)' }
+              : { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }
+          }
+        >
           {toast.message}
         </div>
       )}
@@ -410,27 +421,32 @@ export default function OrganizationsPage() {
       {activeTab === 'orgs' && <>
       {/* Create Form */}
       {showCreate && (
-        <div className="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Nova Organização</h2>
+        <div
+          className="mb-6 rounded-xl p-6 shadow-sm"
+          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+        >
+          <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Nova Organização</h2>
           <form onSubmit={(e) => { e.preventDefault(); void handleCreate(); }} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Nome</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                 <input
                   type="text"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
                   required
                   placeholder="Nome do cliente"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Plano</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Plano</label>
                 <select
                   value={createForm.plan}
                   onChange={(e) => setCreateForm((p) => ({ ...p, plan: e.target.value as Plan }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={selectStyle}
                 >
                   {Object.values(Plan).map((p) => (
                     <option key={p} value={p}>{p}</option>
@@ -442,7 +458,8 @@ export default function OrganizationsPage() {
               <button
                 type="submit"
                 disabled={isCreating}
-                className="flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--accent)' }}
               >
                 {isCreating && <Spinner />}
                 {isCreating ? 'Criando...' : 'Criar organização'}
@@ -453,63 +470,69 @@ export default function OrganizationsPage() {
       )}
 
       {/* Table */}
-      <div className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      <div
+        className="rounded-xl shadow-sm overflow-hidden"
+        style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+      >
         {isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+          <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: 'var(--text-muted)' }}>
             <Spinner /> Carregando...
           </div>
         ) : error ? (
-          <div className="flex items-center gap-2 px-6 py-4 text-sm text-red-600">
+          <div className="flex items-center gap-2 px-6 py-4 text-sm" style={{ color: 'var(--badge-error-text)' }}>
             {error}
             <button onClick={fetchOrgs} className="ml-auto text-xs underline">Tentar novamente</button>
           </div>
         ) : orgs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-sm font-medium text-gray-900">Nenhuma organização</p>
-            <p className="mt-1 text-xs text-gray-400">Crie a primeira organização acima.</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Nenhuma organização</p>
+            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Crie a primeira organização acima.</p>
           </div>
         ) : (
           <>
             {/* Mobile */}
-            <div className="sm:hidden divide-y divide-gray-100">
+            <div className="sm:hidden divide-y" style={{ borderColor: 'var(--border)' }}>
               {orgs.map((org) => (
                 <div key={org.id} className="px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{org.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{org.slug}</p>
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{org.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{org.slug}</p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${PLAN_BADGE[org.plan]}`}>{org.plan}</span>
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[org.status]}`}>{STATUS_LABEL[org.status]}</span>
-                        <span className="text-xs text-gray-400">{org._count?.users ?? 0} usuários</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={PLAN_BADGE_STYLE[org.plan]}>{org.plan}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={STATUS_BADGE_STYLE[org.status]}>{STATUS_LABEL[org.status]}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{org._count?.users ?? 0} usuários</span>
                       </div>
                       {org.subscriptionEnds && (
                         <p className="text-xs mt-1">
-                          <span className="text-gray-400">Expira: </span>
+                          <span style={{ color: 'var(--text-muted)' }}>Expira: </span>
                           <SubscriptionEndsCell value={org.subscriptionEnds} />
                         </p>
                       )}
                     </div>
                     <div className="flex flex-col gap-1.5 shrink-0 items-end">
-                      <button onClick={() => void openUsers(org)} className="text-xs text-indigo-600 hover:underline">Usuários</button>
+                      <button onClick={() => void openUsers(org)} className="text-xs" style={{ color: 'var(--accent)' }}>Usuários</button>
                       <button
                         onClick={() => void handleSyncMeta(org)}
                         disabled={syncingMetaId === org.id}
-                        className="flex items-center gap-1 text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                        className="flex items-center gap-1 text-xs disabled:opacity-50"
+                        style={{ color: 'var(--badge-success-text)' }}
                       >
                         {syncingMetaId === org.id ? <Spinner className="h-3 w-3" /> : 'Sync Meta'}
                       </button>
                       <button
                         onClick={() => setBackfillModal({ org, since: '2025-01-01', until: today })}
-                        className="text-xs text-amber-600 hover:underline"
+                        className="text-xs"
+                        style={{ color: 'var(--badge-warn-text)' }}
                       >
                         Backfill
                       </button>
-                      <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">Editar</button>
+                      <button onClick={() => openEdit(org)} className="text-xs" style={{ color: 'var(--accent)' }}>Editar</button>
                       <button
                         onClick={() => void handleDelete(org)}
                         disabled={deletingId === org.id}
-                        className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                        className="text-xs disabled:opacity-50"
+                        style={{ color: 'var(--text-muted)' }}
                       >
                         {deletingId === org.id ? <Spinner className="h-3 w-3" /> : 'Deletar'}
                       </button>
@@ -523,62 +546,65 @@ export default function OrganizationsPage() {
             <div className="hidden sm:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50/60 border-b border-gray-100">
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Nome</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Plano</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Status</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Usuários</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Expira em</th>
-                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide text-gray-400">Criada em</th>
+                  <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Nome</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Plano</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Status</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Usuários</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Expira em</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Criada em</th>
                     <th className="px-5 py-3" />
                   </tr>
                 </thead>
                 <tbody>
                   {orgs.map((org) => (
-                    <tr key={org.id} className="border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
+                    <tr key={org.id} style={{ borderTop: '1px solid var(--border)' }}>
                       <td className="px-5 py-3">
-                        <p className="font-medium text-gray-900">{org.name}</p>
-                        <p className="text-xs text-gray-400">{org.slug}</p>
+                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>{org.name}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{org.slug}</p>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${PLAN_BADGE[org.plan]}`}>{org.plan}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={PLAN_BADGE_STYLE[org.plan]}>{org.plan}</span>
                       </td>
                       <td className="px-5 py-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${STATUS_BADGE[org.status]}`}>{STATUS_LABEL[org.status]}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={STATUS_BADGE_STYLE[org.status]}>{STATUS_LABEL[org.status]}</span>
                       </td>
-                      <td className="px-5 py-3 text-gray-500">
+                      <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>
                         {org._count?.users ?? 0} / {org._count?.integrations ?? 0} int.
                       </td>
                       <td className="px-5 py-3 text-sm">
                         <SubscriptionEndsCell value={org.subscriptionEnds} />
                       </td>
-                      <td className="px-5 py-3 text-gray-400 text-xs">{formatDate(org.createdAt)}</td>
+                      <td className="px-5 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>{formatDate(org.createdAt)}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-3">
-                          <button onClick={() => void openUsers(org)} className="text-xs text-indigo-600 hover:underline">
+                          <button onClick={() => void openUsers(org)} className="text-xs" style={{ color: 'var(--accent)' }}>
                             Usuários
                           </button>
                           <button
                             onClick={() => void handleSyncMeta(org)}
                             disabled={syncingMetaId === org.id}
-                            className="flex items-center gap-1 text-xs text-emerald-600 hover:underline disabled:opacity-50"
+                            className="flex items-center gap-1 text-xs disabled:opacity-50"
+                            style={{ color: 'var(--badge-success-text)' }}
                           >
                             {syncingMetaId === org.id && <Spinner className="h-3 w-3" />}
                             Sync Meta
                           </button>
                           <button
                             onClick={() => setBackfillModal({ org, since: '2025-01-01', until: today })}
-                            className="text-xs text-amber-600 hover:underline"
+                            className="text-xs"
+                            style={{ color: 'var(--badge-warn-text)' }}
                           >
                             Backfill
                           </button>
-                          <button onClick={() => openEdit(org)} className="text-xs text-blue-600 hover:underline">
+                          <button onClick={() => openEdit(org)} className="text-xs" style={{ color: 'var(--accent)' }}>
                             Editar
                           </button>
                           <button
                             onClick={() => void handleDelete(org)}
                             disabled={deletingId === org.id}
-                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                            className="flex items-center gap-1 text-xs disabled:opacity-50"
+                            style={{ color: 'var(--text-muted)' }}
                           >
                             {deletingId === org.id && <Spinner className="h-3 w-3" />}
                             Deletar
@@ -596,47 +622,54 @@ export default function OrganizationsPage() {
 
       {/* Backfill Modal */}
       {backfillModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-gray-900 mb-1">Backfill histórico Meta Ads</h2>
-            <p className="text-xs text-gray-500 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div
+            className="w-full max-w-sm rounded-2xl p-6 shadow-xl"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+          >
+            <h2 className="text-base font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Backfill histórico Meta Ads</h2>
+            <p className="text-xs mb-4" style={{ color: 'var(--text-secondary)' }}>
               <span className="font-medium">{backfillModal.org.name}</span> — busca dados da API Meta para o período selecionado e substitui registros existentes no banco.
             </p>
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">De (since)</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>De (since)</label>
                   <input
                     type="date"
                     value={backfillModal.since}
                     onChange={(e) => setBackfillModal((p) => p ? { ...p, since: e.target.value } : p)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--badge-warn-text)"
+                    style={inputStyle}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Até (until)</label>
+                  <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Até (until)</label>
                   <input
                     type="date"
                     value={backfillModal.until}
                     onChange={(e) => setBackfillModal((p) => p ? { ...p, until: e.target.value } : p)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                    className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--badge-warn-text)"
+                    style={inputStyle}
                   />
                 </div>
               </div>
-              <p className="text-xs text-gray-400">A Meta API suporta dados históricos de até ~37 meses.</p>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>A Meta API suporta dados históricos de até ~37 meses.</p>
             </div>
             <div className="flex justify-end gap-3 mt-5">
               <button
                 onClick={() => setBackfillModal(null)}
                 disabled={isBackfilling}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 transition-opacity hover:opacity-70"
+                style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
               >
                 Cancelar
               </button>
               <button
                 onClick={() => void handleBackfillMeta()}
                 disabled={isBackfilling || !backfillModal.since || !backfillModal.until}
-                className="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-400 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--badge-warn-text)' }}
               >
                 {isBackfilling && <Spinner />}
                 {isBackfilling ? 'Executando...' : 'Executar backfill'}
@@ -648,25 +681,30 @@ export default function OrganizationsPage() {
 
       {/* Edit Modal */}
       {editModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-gray-900 mb-4">Editar organização</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div
+            className="w-full max-w-md rounded-2xl p-6 shadow-xl"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+          >
+            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Editar organização</h2>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Nome</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                 <input
                   type="text"
                   value={editModal.name}
                   onChange={(e) => setEditModal((p) => p ? { ...p, name: e.target.value } : p)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={inputStyle}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Plano</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Plano</label>
                 <select
                   value={editModal.plan}
                   onChange={(e) => setEditModal((p) => p ? { ...p, plan: e.target.value as Plan } : p)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={selectStyle}
                 >
                   {Object.values(Plan).map((p) => (
                     <option key={p} value={p}>{p}</option>
@@ -674,11 +712,12 @@ export default function OrganizationsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
                 <select
                   value={editModal.status}
                   onChange={(e) => setEditModal((p) => p ? { ...p, status: e.target.value as OrgStatus } : p)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={selectStyle}
                 >
                   {Object.values(OrgStatus).map((s) => (
                     <option key={s} value={s}>{STATUS_LABEL[s]}</option>
@@ -686,29 +725,32 @@ export default function OrganizationsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   Assinatura válida até
-                  <span className="ml-1 text-gray-400 font-normal">(deixe em branco para sem vencimento)</span>
+                  <span className="ml-1 font-normal" style={{ color: 'var(--text-muted)' }}>(deixe em branco para sem vencimento)</span>
                 </label>
                 <input
                   type="date"
                   value={editModal.subscriptionEnds}
                   onChange={(e) => setEditModal((p) => p ? { ...p, subscriptionEnds: e.target.value } : p)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+                  className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                  style={inputStyle}
                 />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setEditModal(null)}
-                className="rounded-lg px-4 py-2 text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+                className="rounded-lg px-4 py-2 text-sm transition-opacity hover:opacity-70"
+                style={{ color: 'var(--text-secondary)' }}
               >
                 Cancelar
               </button>
               <button
                 onClick={() => void handleSave()}
                 disabled={isSaving}
-                className="flex items-center gap-2 rounded-lg bg-gray-900 px-5 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--accent)' }}
               >
                 {isSaving && <Spinner />}
                 {isSaving ? 'Salvando...' : 'Salvar'}
@@ -720,73 +762,77 @@ export default function OrganizationsPage() {
 
       {/* Users Modal */}
       {usersModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-xl flex flex-col max-h-[85vh]">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div
+            className="w-full max-w-lg rounded-2xl shadow-xl flex flex-col max-h-[85vh]"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+          >
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Usuários — {usersModal.org.name}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">{usersModal.org.slug}</p>
+                <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Usuários — {usersModal.org.name}</h2>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{usersModal.org.slug}</p>
               </div>
-              <button
-                onClick={() => setUsersModal(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
+              <button onClick={() => setUsersModal(null)} style={{ color: 'var(--text-muted)' }}>
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* User list */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {usersModal.isLoading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-gray-400">
+                <div className="flex items-center justify-center gap-2 py-8 text-sm" style={{ color: 'var(--text-muted)' }}>
                   <Spinner /> Carregando...
                 </div>
               ) : usersModal.users.length === 0 ? (
-                <p className="text-center text-sm text-gray-400 py-8">Nenhum usuário nesta organização.</p>
+                <p className="text-center text-sm py-8" style={{ color: 'var(--text-muted)' }}>Nenhum usuário nesta organização.</p>
               ) : (
                 <div className="space-y-2">
                   {usersModal.users.map((u) => (
-                    <div key={u.id} className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-2.5">
+                    <div
+                      key={u.id}
+                      className="flex items-center justify-between rounded-lg px-4 py-2.5"
+                      style={{ border: '1px solid var(--border)' }}
+                    >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
-                        <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{u.name}</p>
+                        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{u.email}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 ml-3">
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${ROLE_BADGE[u.role]}`}>{u.role}</span>
-                        <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${USER_STATUS_BADGE[u.status]}`}>{u.status}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={ROLE_BADGE_STYLE[u.role]}>{u.role}</span>
+                        <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={USER_STATUS_BADGE_STYLE[u.status]}>{u.status}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Create user form */}
               {usersModal.showCreate && (
                 <form
                   onSubmit={(e) => { e.preventDefault(); void handleCreateOrgUser(); }}
-                  className="mt-4 rounded-xl border border-gray-200 p-4 space-y-3 bg-gray-50"
+                  className="mt-4 rounded-xl p-4 space-y-3"
+                  style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
                 >
-                  <p className="text-xs font-semibold text-gray-700">Novo usuário</p>
+                  <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Novo usuário</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Nome</label>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                       <input
                         type="text"
                         required
                         value={usersModal.createForm.name}
                         onChange={(e) => setUsersModal((p) => p ? { ...p, createForm: { ...p.createForm, name: e.target.value } } : p)}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                        className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                        style={inputStyle}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Papel</label>
+                      <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Papel</label>
                       <select
                         value={usersModal.createForm.role}
                         onChange={(e) => setUsersModal((p) => p ? { ...p, createForm: { ...p.createForm, role: e.target.value as UserRole } } : p)}
-                        className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                        className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                        style={selectStyle}
                       >
                         {[UserRole.ADMIN, UserRole.USER, UserRole.VIEWER].map((r) => (
                           <option key={r} value={r}>{r}</option>
@@ -795,38 +841,42 @@ export default function OrganizationsPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Email</label>
                     <input
                       type="email"
                       required
                       value={usersModal.createForm.email}
                       onChange={(e) => setUsersModal((p) => p ? { ...p, createForm: { ...p.createForm, email: e.target.value } } : p)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                      className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Senha (mín. 8 caracteres)</label>
+                    <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Senha (mín. 8 caracteres)</label>
                     <input
                       type="password"
                       required
                       minLength={8}
                       value={usersModal.createForm.password}
                       onChange={(e) => setUsersModal((p) => p ? { ...p, createForm: { ...p.createForm, password: e.target.value } } : p)}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                      className="w-full rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                      style={inputStyle}
                     />
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setUsersModal((p) => p ? { ...p, showCreate: false } : p)}
-                      className="rounded-lg px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-200 transition-colors"
+                      className="rounded-lg px-3 py-1.5 text-xs transition-opacity hover:opacity-70"
+                      style={{ color: 'var(--text-secondary)' }}
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
                       disabled={usersModal.isCreating}
-                      className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-60 transition-colors"
+                      className="flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium text-white disabled:opacity-60 transition-opacity hover:opacity-80"
+                      style={{ backgroundColor: 'var(--accent)' }}
                     >
                       {usersModal.isCreating && <Spinner className="h-3 w-3" />}
                       {usersModal.isCreating ? 'Criando...' : 'Criar usuário'}
@@ -836,13 +886,13 @@ export default function OrganizationsPage() {
               )}
             </div>
 
-            {/* Modal footer */}
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-between items-center">
-              <span className="text-xs text-gray-400">{usersModal.users.length} usuário(s)</span>
+            <div className="px-6 py-4 flex justify-between items-center" style={{ borderTop: '1px solid var(--border)' }}>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{usersModal.users.length} usuário(s)</span>
               {!usersModal.showCreate && (
                 <button
                   onClick={() => setUsersModal((p) => p ? { ...p, showCreate: true } : p)}
-                  className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-gray-700 transition-colors"
+                  className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: 'var(--accent)' }}
                 >
                   + Adicionar usuário
                 </button>
@@ -856,36 +906,40 @@ export default function OrganizationsPage() {
       {/* ===== ABA: GESTORES DE TRÁFEGO ===== */}
       {activeTab === 'managers' && (
         <>
-          {/* Create manager form */}
           {showCreateManager && (
-            <div className="mb-6 rounded-xl border border-violet-100 bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-semibold text-gray-900 mb-4">Novo Gestor de Tráfego</h2>
+            <div
+              className="mb-6 rounded-xl p-6 shadow-sm"
+              style={{ border: '1px solid rgba(139,92,246,0.2)', backgroundColor: 'var(--bg-surface)' }}
+            >
+              <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Novo Gestor de Tráfego</h2>
               <form onSubmit={(e) => { e.preventDefault(); void handleCreateManager(); }} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Nome</label>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome</label>
                     <input
                       type="text"
                       required
                       value={managerForm.name}
                       onChange={(e) => setManagerForm((p) => ({ ...p, name: e.target.value }))}
                       placeholder="Nome do gestor"
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Email</label>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
                     <input
                       type="email"
                       required
                       value={managerForm.email}
                       onChange={(e) => setManagerForm((p) => ({ ...p, email: e.target.value }))}
                       placeholder="email@gestor.com"
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      style={inputStyle}
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">Senha (mín. 8 caracteres)</label>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Senha (mín. 8 caracteres)</label>
                     <input
                       type="password"
                       required
@@ -893,7 +947,8 @@ export default function OrganizationsPage() {
                       value={managerForm.password}
                       onChange={(e) => setManagerForm((p) => ({ ...p, password: e.target.value }))}
                       placeholder="••••••••"
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                      className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      style={inputStyle}
                     />
                   </div>
                 </div>
@@ -901,7 +956,8 @@ export default function OrganizationsPage() {
                   <button
                     type="submit"
                     disabled={isCreatingManager}
-                    className="flex items-center gap-2 rounded-lg bg-violet-700 px-5 py-2 text-sm font-medium text-white hover:bg-violet-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                    style={{ backgroundColor: 'rgba(139,92,246,0.9)' }}
                   >
                     {isCreatingManager && <Spinner />}
                     {isCreatingManager ? 'Criando...' : 'Criar gestor'}
@@ -911,20 +967,22 @@ export default function OrganizationsPage() {
             </div>
           )}
 
-          {/* Managers list */}
           {managersLoading ? (
-            <div className="flex items-center justify-center gap-2 py-10 text-sm text-gray-400">
+            <div className="flex items-center justify-center gap-2 py-10 text-sm" style={{ color: 'var(--text-muted)' }}>
               <Spinner /> Carregando gestores...
             </div>
           ) : managers.length === 0 ? (
-            <div className="rounded-xl border border-gray-100 bg-white shadow-sm flex flex-col items-center justify-center py-14 text-center">
-              <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(168,85,247,0.1)' }}>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#a855f7' }}>
+            <div
+              className="rounded-xl shadow-sm flex flex-col items-center justify-center py-14 text-center"
+              style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+            >
+              <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(139,92,246,0.1)' }}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#8b5cf6' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                 </svg>
               </div>
-              <p className="text-sm font-medium text-gray-900">Nenhum gestor cadastrado</p>
-              <p className="mt-1 text-xs text-gray-400">Crie o primeiro gestor de tráfego acima.</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Nenhum gestor cadastrado</p>
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Crie o primeiro gestor de tráfego acima.</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -934,28 +992,34 @@ export default function OrganizationsPage() {
                 const isOpen = clientsModal?.manager.id === manager.id;
 
                 return (
-                  <div key={manager.id} className="rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-                    {/* Manager row */}
+                  <div
+                    key={manager.id}
+                    className="rounded-xl shadow-sm overflow-hidden"
+                    style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
+                  >
                     <div className="flex items-center justify-between px-5 py-4 gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold" style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' }}>
+                        <div
+                          className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
+                          style={{ backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}
+                        >
                           {manager.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{manager.name}</p>
-                          <p className="text-xs text-gray-400 truncate">{manager.email}</p>
+                          <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{manager.name}</p>
+                          <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{manager.email}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="hidden sm:inline text-xs text-gray-400">
+                        <span className="hidden sm:inline text-xs" style={{ color: 'var(--text-muted)' }}>
                           {manager.managedOrgs.length} cliente(s)
                         </span>
                         <button
                           onClick={() => setClientsModal(isOpen ? null : { manager })}
-                          className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors"
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
                           style={isOpen
-                            ? { borderColor: '#a855f7', color: '#a855f7', backgroundColor: 'rgba(168,85,247,0.06)' }
-                            : { borderColor: '#e5e7eb', color: '#6b7280' }
+                            ? { border: '1px solid #8b5cf6', color: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.06)' }
+                            : { border: '1px solid var(--border)', color: 'var(--text-secondary)' }
                           }
                         >
                           {isOpen ? 'Fechar' : 'Gerenciar clientes'}
@@ -963,32 +1027,37 @@ export default function OrganizationsPage() {
                         <button
                           onClick={() => void handleDeleteManager(manager.id, manager.name)}
                           disabled={deletingManagerId === manager.id}
-                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50 transition-colors"
+                          className="flex items-center gap-1 text-xs disabled:opacity-50 transition-opacity hover:opacity-70"
+                          style={{ color: 'var(--text-muted)' }}
                         >
                           {deletingManagerId === manager.id ? <Spinner className="h-3 w-3" /> : 'Remover'}
                         </button>
                       </div>
                     </div>
 
-                    {/* Clients panel (expandable) */}
                     {isOpen && (
-                      <div className="border-t border-gray-100 px-5 py-4 bg-gray-50/60">
-                        <p className="text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wide">Clientes vinculados</p>
+                      <div
+                        className="px-5 py-4"
+                        style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
+                      >
+                        <p className="text-xs font-semibold mb-3 uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Clientes vinculados</p>
 
                         {manager.managedOrgs.length === 0 ? (
-                          <p className="text-xs text-gray-400 mb-4">Nenhum cliente vinculado ainda.</p>
+                          <p className="text-xs mb-4" style={{ color: 'var(--text-muted)' }}>Nenhum cliente vinculado ainda.</p>
                         ) : (
                           <div className="flex flex-wrap gap-2 mb-4">
                             {manager.managedOrgs.map((mo) => (
                               <span
                                 key={mo.organization.id}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700"
+                                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium"
+                                style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
                               >
                                 {mo.organization.name}
                                 <button
                                   onClick={() => void handleRemoveClient(manager.id, mo.organization.id)}
                                   disabled={linkingOrgId === mo.organization.id}
-                                  className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-50"
+                                  className="disabled:opacity-50 transition-opacity hover:opacity-70"
+                                  style={{ color: 'var(--text-muted)' }}
                                   title="Desvincular"
                                 >
                                   {linkingOrgId === mo.organization.id ? <Spinner className="h-2.5 w-2.5" /> : (
@@ -1004,14 +1073,15 @@ export default function OrganizationsPage() {
 
                         {availableOrgs.length > 0 && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-500 shrink-0">Adicionar cliente:</span>
+                            <span className="text-xs shrink-0" style={{ color: 'var(--text-secondary)' }}>Adicionar cliente:</span>
                             <div className="flex flex-wrap gap-2">
                               {availableOrgs.map((org) => (
                                 <button
                                   key={org.id}
                                   onClick={() => void handleAddClient(manager.id, org.id)}
                                   disabled={linkingOrgId === org.id}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-dashed border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:border-violet-400 hover:text-violet-600 transition-colors disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs disabled:opacity-50 transition-opacity hover:opacity-70"
+                                  style={{ border: '1px dashed var(--border-md)', color: 'var(--text-secondary)' }}
                                 >
                                   {linkingOrgId === org.id ? <Spinner className="h-3 w-3" /> : '+'}
                                   {org.name}

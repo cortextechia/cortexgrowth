@@ -83,9 +83,7 @@ function fmtMoney(v: number): string {
 const fmtBRL = fmtMoney;
 
 function fmtNum(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (v >= 1_000)     return `${(v / 1_000).toFixed(1).replace('.', ',')}k`;
-  return `${Math.round(v)}`;
+  return Math.round(v).toLocaleString('pt-BR');
 }
 
 function fmtPct(v: number): string {
@@ -216,6 +214,18 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = '#f1f5f9
   );
 }
 
+function RichText({ html, className, style }: { html: string; className?: string; style?: React.CSSProperties }) {
+  const parts = html.split(/(<strong>.*?<\/strong>)/g);
+  return (
+    <p className={className} style={style}>
+      {parts.map((part, i) => {
+        const match = part.match(/^<strong>(.*?)<\/strong>$/);
+        return match ? <strong key={i}>{match[1]}</strong> : part;
+      })}
+    </p>
+  );
+}
+
 function AlertCard({ alert }: { alert: ActiveAlert }) {
   const styles = {
     critical:    { bg: 'rgba(248,113,113,0.06)',  border: '#f87171', titleColor: '#f87171',  icon: '🔴' },
@@ -225,7 +235,7 @@ function AlertCard({ alert }: { alert: ActiveAlert }) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: styles.bg, border: `1px solid ${styles.border}30`, borderLeft: `3px solid ${styles.border}` }}>
       <p className="text-xs font-semibold" style={{ color: styles.titleColor }}>{styles.icon} {alert.type === 'critical' ? 'Crítico' : alert.type === 'warning' ? 'Atenção' : 'Oportunidade'}</p>
-      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }} dangerouslySetInnerHTML={{ __html: alert.title }} />
+      <RichText html={alert.title} className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }} />
       <p className="text-xs font-medium" style={{ color: styles.titleColor }}>{alert.action}</p>
     </div>
   );
@@ -1322,7 +1332,7 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: '3fr 1fr' }}>
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-[3fr_1fr]">
 
             {/* Left: funnel SVG + right info panel */}
             <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
