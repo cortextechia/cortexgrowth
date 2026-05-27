@@ -196,7 +196,7 @@ interface BottomKpiProps {
   accent?: string;
 }
 
-function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = '#f1f5f9' }: BottomKpiProps) {
+function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--text-primary)' }: BottomKpiProps) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>

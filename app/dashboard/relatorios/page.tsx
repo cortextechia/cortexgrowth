@@ -584,7 +584,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
 
         {/* Toggle ativo */}
         <button onClick={onToggle} className="shrink-0 rounded-full transition-colors"
-          style={{ width: 36, height: 20, backgroundColor: schedule.isActive ? '#3b82f6' : 'rgba(255,255,255,0.1)', position: 'relative' }}>
+          style={{ width: 36, height: 20, backgroundColor: schedule.isActive ? '#3b82f6' : '#94a3b8', position: 'relative' }}>
           <span style={{ position: 'absolute', top: 3, left: schedule.isActive ? 18 : 3, width: 14, height: 14, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
         </button>
       </div>
@@ -817,7 +817,7 @@ function AlertConfigSection() {
                 <button
                   onClick={() => toggleRule(rule)}
                   className="shrink-0 mt-0.5 rounded-full transition-colors"
-                  style={{ width: 32, height: 18, backgroundColor: isOn ? '#3b82f6' : 'rgba(255,255,255,0.1)', position: 'relative' }}
+                  style={{ width: 32, height: 18, backgroundColor: isOn ? '#3b82f6' : '#94a3b8', position: 'relative' }}
                 >
                   <span style={{
                     position: 'absolute', top: 2,
