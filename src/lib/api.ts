@@ -345,7 +345,7 @@ class ApiService {
   }
 
   async googleBackfill(since: string, until: string): Promise<{ success: boolean; message: string; data: { count: number } }> {
-    const response = await this.client.post('/ads/google/backfill', null, { params: { since, until } });
+    const response = await this.client.post('/ads/google/backfill', undefined, { params: { since, until } });
     return response.data;
   }
 
