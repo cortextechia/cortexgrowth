@@ -368,21 +368,30 @@ function FunnelSVG({ counts, isDark }: { counts: FunnelCounts; isDark: boolean }
 
 interface CampaignDrawerProps {
   campaign: { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number } | null;
-  campaignRows: MetaInsight[];   // campaign-level daily rows
-  adsetRows: MetaInsight[];      // adset-level rows for this campaign
+  campaignRows: MetaInsight[];
+  adsetRows: MetaInsight[];
+  googleCampaignRows?: GoogleAdsMetric[];
   onClose: () => void;
 }
 
-function CampaignDrawer({ campaign, campaignRows, adsetRows, onClose }: CampaignDrawerProps) {
+function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows, onClose }: CampaignDrawerProps) {
   const daily = useMemo(() => {
     const map = new Map<string, { date: string; spend: number; clicks: number; impressions: number }>();
-    campaignRows.forEach((d) => {
-      const k = d.date.slice(0, 10);
-      const prev = map.get(k) ?? { date: k, spend: 0, clicks: 0, impressions: 0 };
-      map.set(k, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
-    });
+    if (campaign?.platform === 'Google' && googleCampaignRows?.length) {
+      googleCampaignRows.forEach((d) => {
+        const k = d.date.slice(0, 10);
+        const prev = map.get(k) ?? { date: k, spend: 0, clicks: 0, impressions: 0 };
+        map.set(k, { ...prev, spend: prev.spend + d.cost, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+      });
+    } else {
+      campaignRows.forEach((d) => {
+        const k = d.date.slice(0, 10);
+        const prev = map.get(k) ?? { date: k, spend: 0, clicks: 0, impressions: 0 };
+        map.set(k, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+      });
+    }
     return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
-  }, [campaignRows]);
+  }, [campaignRows, googleCampaignRows, campaign?.platform]);
 
   const adsets = useMemo(() => {
     const map = new Map<string, { name: string; spend: number; clicks: number; impressions: number }>();
@@ -902,8 +911,48 @@ export default function DashboardPage() {
 
       scores.set(name, pts >= 75 ? 'A' : pts >= 50 ? 'B' : pts >= 25 ? 'C' : 'D');
     }
+
+    // Google campaigns — CTR (40pts) + CPC trend 7d vs prev 7d (30pts) + impressions trend (30pts)
+    type GData = { cost: number; clicks: number; impressions: number; cost7: number; cost14: number; clicks7: number; clicks14: number; impr7: number; impr14: number };
+    const gByName = new Map<string, GData>();
+    const google30 = googleAdsMetrics.filter(d => new Date(d.date) >= d30ago);
+    for (const d of google30) {
+      const date = new Date(d.date);
+      const prev = gByName.get(d.campaignName) ?? { cost: 0, clicks: 0, impressions: 0, cost7: 0, cost14: 0, clicks7: 0, clicks14: 0, impr7: 0, impr14: 0 };
+      const in7  = date >= d7ago;
+      const in14 = date >= d14ago && date < d7ago;
+      gByName.set(d.campaignName, {
+        cost: prev.cost + d.cost, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions,
+        cost7:   in7  ? prev.cost7   + d.cost        : prev.cost7,
+        cost14:  in14 ? prev.cost14  + d.cost        : prev.cost14,
+        clicks7: in7  ? prev.clicks7 + d.clicks      : prev.clicks7,
+        clicks14:in14 ? prev.clicks14+ d.clicks      : prev.clicks14,
+        impr7:   in7  ? prev.impr7   + d.impressions : prev.impr7,
+        impr14:  in14 ? prev.impr14  + d.impressions : prev.impr14,
+      });
+    }
+    for (const [name, d] of gByName) {
+      let pts = 0;
+      // CTR 30d (40pts) — Search: ≥5% excelente, ≥3% bom, ≥1% ok
+      const ctr = d.impressions > 0 ? (d.clicks / d.impressions) * 100 : 0;
+      pts += ctr >= 5 ? 40 : ctr >= 3 ? 28 : ctr >= 1 ? 15 : 5;
+      // CPC trend (30pts) — menor é melhor
+      const cpc7  = d.clicks7  > 0 ? d.cost7  / d.clicks7  : null;
+      const cpc14 = d.clicks14 > 0 ? d.cost14 / d.clicks14 : null;
+      if (cpc7 !== null && cpc14 !== null && cpc14 > 0) {
+        const delta = (cpc7 - cpc14) / cpc14;
+        pts += delta < -0.1 ? 30 : delta <= 0.1 ? 20 : 5;
+      } else { pts += 15; }
+      // Impressions trend (30pts) — mais impressões = mais alcance
+      if (d.impr7 > 0 || d.impr14 > 0) {
+        const delta = d.impr14 > 0 ? (d.impr7 - d.impr14) / d.impr14 : 1;
+        pts += delta > 0.1 ? 30 : delta >= -0.1 ? 20 : 5;
+      } else { pts += 15; }
+      scores.set(name, pts >= 75 ? 'A' : pts >= 50 ? 'B' : pts >= 25 ? 'C' : 'D');
+    }
+
     return scores;
-  }, [metaInsights, kommoLeads]);
+  }, [metaInsights, googleAdsMetrics, kommoLeads]);
 
   // ── Top campaigns ─────────────────────────────────────────────────────────
   interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; }
@@ -1969,6 +2018,11 @@ export default function DashboardPage() {
           adsetRows={metaAll.filter(
             (d) => d.level === 'adset' && d.campaignName === selectedCampaign.name
           )}
+          googleCampaignRows={
+            selectedCampaign.platform === 'Google'
+              ? googleAdsMetrics.filter((d) => d.campaignName === selectedCampaign.name)
+              : undefined
+          }
           onClose={() => setSelectedCampaign(null)}
         />
       )}

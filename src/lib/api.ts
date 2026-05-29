@@ -344,6 +344,11 @@ class ApiService {
     return response.data;
   }
 
+  async googleBackfill(since: string, until: string): Promise<{ success: boolean; message: string; data: { count: number } }> {
+    const response = await this.client.post('/ads/google/backfill', null, { params: { since, until } });
+    return response.data;
+  }
+
   async generateInsights(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
     const response = await this.client.post('/ai/insights/generate');
     return response.data;

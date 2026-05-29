@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useHistorico } from '@/hooks/useApi';
+import { apiService } from '@/lib/api';
 import {
   Chart,
   CategoryScale,
@@ -233,11 +234,39 @@ function useChart(canvasRef: React.RefObject<HTMLCanvasElement | null>, config: 
 
 type Period = 3 | 6 | 12;
 
+function fmt(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
 export default function HistoricoPage() {
   const { organization } = useAuth();
   const { data, isLoading, fetchHistorico } = useHistorico();
   const [period, setPeriod] = useState<Period>(6);
   const { resolvedTheme } = useTheme();
+  const [backfilling, setBackfilling] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const handleBackfill = useCallback(async () => {
+    setBackfilling(true);
+    try {
+      const until = fmt(new Date());
+      const sinceDate = new Date();
+      sinceDate.setFullYear(sinceDate.getFullYear() - 1);
+      const since = fmt(sinceDate);
+      const res = await apiService.googleBackfill(since, until);
+      showToast(res.message, 'success');
+      fetchHistorico(period);
+    } catch (err: any) {
+      showToast(err?.response?.data?.message ?? 'Erro ao carregar histórico Google Ads', 'error');
+    } finally {
+      setBackfilling(false);
+    }
+  }, [period, fetchHistorico, showToast]);
 
   useEffect(() => { fetchHistorico(period); }, [period]);
 
@@ -272,7 +301,6 @@ export default function HistoricoPage() {
   useChart(c6, cfg6);
 
   const cardStyle = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
-  const divider   = { borderTop: '0.5px solid var(--border)' };
 
   return (
     <div className="space-y-6">
@@ -284,20 +312,65 @@ export default function HistoricoPage() {
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{organization?.name} · evolução mensal por canal de aquisição</p>
         </div>
 
-        {/* Seletor de período */}
-        <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-          {([3, 6, 12] as Period[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-              style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
-            >
-              {p} meses
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Backfill Google */}
+          <button
+            onClick={handleBackfill}
+            disabled={backfilling || isLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
+            style={{ backgroundColor: 'rgba(239,159,39,0.12)', color: '#EF9F27', border: '1px solid rgba(239,159,39,0.3)' }}
+          >
+            {backfilling ? (
+              <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            )}
+            {backfilling ? 'Carregando...' : 'Histórico Google (1 ano)'}
+          </button>
+
+          {/* Seletor de período */}
+          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            {([3, 6, 12] as Period[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+              >
+                {p} meses
+              </button>
+            ))}
+          </div>
         </div>
       </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed bottom-4 left-4 right-4 sm:bottom-auto sm:top-5 sm:left-auto sm:right-5 sm:max-w-sm z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+          style={
+            toast.type === 'success'
+              ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--badge-success-text)' }
+              : { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }
+          }
+        >
+          {toast.type === 'success' ? (
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+          )}
+          {toast.message}
+        </div>
+      )}
 
       {isLoading && (
         <div className="flex items-center justify-center py-20" style={{ color: 'var(--text-muted)' }}>
