@@ -41,41 +41,45 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
       data.datasets[0].data.forEach((rv: number, i: number) => {
         const inv = data.datasets[1].data[i] as number;
         const xPos = x.getPixelForValue(i);
-        const yBar = y.getPixelForValue(rv);
-        const yInv = y.getPixelForValue(inv);
         const roas = data.roasArr[i] as number;
         const col = rcol(roas);
 
-        ctx.save();
-        ctx.font = '600 12px Inter,sans-serif';
-        ctx.fillStyle = '#1D9E75';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(fmtK(rv), xPos, yBar - 4);
-        ctx.restore();
+        if (rv > 0) {
+          const yBar = y.getPixelForValue(rv);
+          ctx.save();
+          ctx.font = '600 12px Inter,sans-serif';
+          ctx.fillStyle = '#1D9E75';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(fmtK(rv), xPos, yBar - 4);
+          ctx.restore();
+        }
 
-        ctx.save();
-        ctx.font = '600 12px Inter,sans-serif';
-        ctx.fillStyle = invColor;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(fmtK(inv), xPos, yInv - 21);
-        ctx.restore();
+        if (inv > 0) {
+          const yInv = y.getPixelForValue(inv);
+          ctx.save();
+          ctx.font = '600 12px Inter,sans-serif';
+          ctx.fillStyle = invColor;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(fmtK(inv), xPos, yInv - 21);
+          ctx.restore();
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(xPos, yInv, 16, 0, 2 * Math.PI);
-        ctx.fillStyle = surfaceBg;
-        ctx.fill();
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.fillStyle = col;
-        ctx.font = '700 11px Inter,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${roas.toFixed(1)}x`, xPos, yInv);
-        ctx.restore();
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(xPos, yInv, 16, 0, 2 * Math.PI);
+          ctx.fillStyle = surfaceBg;
+          ctx.fill();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = col;
+          ctx.font = '700 11px Inter,sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${roas.toFixed(1)}x`, xPos, yInv);
+          ctx.restore();
+        }
       });
     },
   };
@@ -94,42 +98,51 @@ function makeLVPlugin(surfaceBg: string) {
 
       data.datasets[0].data.forEach((lv: number, i: number) => {
         const venda = data.datasets[1].data[i] as number;
+        if (lv === 0 && venda === 0) return;
+
         const xPos = x.getPixelForValue(i);
-        const yBar = y.getPixelForValue(lv);
-        const yVenda = y.getPixelForValue(venda);
         const conv = data.convArr[i] as number;
         const col = ccol(conv);
 
-        ctx.save();
-        ctx.font = '600 12px Inter,sans-serif';
-        ctx.fillStyle = '#7F77DD';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(String(lv), xPos, yBar - 4);
-        ctx.restore();
+        if (lv > 0) {
+          const yBar = y.getPixelForValue(lv);
+          ctx.save();
+          ctx.font = '600 12px Inter,sans-serif';
+          ctx.fillStyle = '#7F77DD';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(lv), xPos, yBar - 4);
+          ctx.restore();
+        }
 
-        ctx.save();
-        ctx.font = '600 12px Inter,sans-serif';
-        ctx.fillStyle = '#1D9E75';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(String(venda), xPos, yVenda - 21);
-        ctx.restore();
+        if (venda > 0) {
+          const yVenda = y.getPixelForValue(venda);
+          ctx.save();
+          ctx.font = '600 12px Inter,sans-serif';
+          ctx.fillStyle = '#1D9E75';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(String(venda), xPos, yVenda - 21);
+          ctx.restore();
+        }
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(xPos, yVenda, 16, 0, 2 * Math.PI);
-        ctx.fillStyle = surfaceBg;
-        ctx.fill();
-        ctx.strokeStyle = col;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.fillStyle = col;
-        ctx.font = '700 11px Inter,sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${Math.round(conv)}%`, xPos, yVenda);
-        ctx.restore();
+        if (lv > 0) {
+          const yVenda = y.getPixelForValue(venda);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(xPos, yVenda, 16, 0, 2 * Math.PI);
+          ctx.fillStyle = surfaceBg;
+          ctx.fill();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = col;
+          ctx.font = '700 11px Inter,sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${Math.round(conv)}%`, xPos, yVenda);
+          ctx.restore();
+        }
       });
     },
   };
