@@ -55,7 +55,7 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
           ctx.restore();
         }
 
-        if (inv > 0) {
+        if (inv >= 50) {
           const yInv = y.getPixelForValue(inv);
           ctx.save();
           ctx.font = '600 12px Inter,sans-serif';
