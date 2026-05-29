@@ -58,14 +58,6 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
         if (inv >= 50) {
           const yInv = y.getPixelForValue(inv);
           ctx.save();
-          ctx.font = '600 12px Inter,sans-serif';
-          ctx.fillStyle = invColor;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(fmtK(inv), xPos, yInv - 21);
-          ctx.restore();
-
-          ctx.save();
           ctx.beginPath();
           ctx.arc(xPos, yInv, 16, 0, 2 * Math.PI);
           ctx.fillStyle = surfaceBg;
