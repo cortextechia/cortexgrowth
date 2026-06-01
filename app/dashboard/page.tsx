@@ -171,8 +171,8 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
             style={neutralDelta
               ? { backgroundColor: 'rgba(148,163,184,0.10)', color: 'var(--text-secondary)' }
               : {
-                  backgroundColor: positive ? 'rgba(34,197,94,0.10)' : 'rgba(248,113,113,0.10)',
-                  color: positive ? '#4ade80' : '#f87171',
+                  backgroundColor: positive ? 'var(--badge-success-bg)' : 'var(--badge-error-bg)',
+                  color: positive ? 'var(--badge-success-text)' : 'var(--badge-error-text)',
                 }
             }
           >
@@ -228,13 +228,13 @@ function RichText({ html, className, style }: { html: string; className?: string
 
 function AlertCard({ alert }: { alert: ActiveAlert }) {
   const styles = {
-    critical:    { bg: 'rgba(248,113,113,0.06)',  border: '#f87171', titleColor: '#f87171',  icon: '🔴' },
-    warning:     { bg: 'rgba(251,191,36,0.06)',   border: '#fbbf24', titleColor: '#fbbf24',  icon: '🟡' },
-    opportunity: { bg: 'rgba(74,222,128,0.06)',   border: '#4ade80', titleColor: '#4ade80',  icon: '🟢' },
+    critical:    { bg: 'var(--badge-error-bg)',   borderColor: 'var(--badge-error-text)',   titleColor: 'var(--badge-error-text)',   icon: '🔴', label: 'Crítico' },
+    warning:     { bg: 'var(--badge-warn-bg)',    borderColor: 'var(--badge-warn-text)',    titleColor: 'var(--badge-warn-text)',    icon: '🟡', label: 'Atenção' },
+    opportunity: { bg: 'var(--badge-success-bg)', borderColor: 'var(--badge-success-text)', titleColor: 'var(--badge-success-text)', icon: '🟢', label: 'Oportunidade' },
   }[alert.type];
   return (
-    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: styles.bg, border: `1px solid ${styles.border}30`, borderLeft: `3px solid ${styles.border}` }}>
-      <p className="text-xs font-semibold" style={{ color: styles.titleColor }}>{styles.icon} {alert.type === 'critical' ? 'Crítico' : alert.type === 'warning' ? 'Atenção' : 'Oportunidade'}</p>
+    <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: styles.bg, border: '1px solid var(--border)', borderLeft: `3px solid ${styles.borderColor}` }}>
+      <p className="text-xs font-semibold" style={{ color: styles.titleColor }}>{styles.icon} {styles.label}</p>
       <RichText html={alert.title} className="text-xs leading-relaxed" style={{ color: 'var(--text-primary)' }} />
       <p className="text-xs font-medium" style={{ color: styles.titleColor }}>{alert.action}</p>
     </div>
@@ -526,7 +526,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(a.spend)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.impressions)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.clicks)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: aCtr >= 2 ? '#4ade80' : aCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(aCtr)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: aCtr >= 2 ? 'var(--badge-success-text)' : aCtr >= 1 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)' }}>{fmtPct(aCtr)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(aCpc)}</td>
                         </tr>
                       );
@@ -562,7 +562,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(d.spend)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(d.impressions)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(d.clicks)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: dCtr >= 2 ? '#4ade80' : dCtr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(dCtr)}</td>
+                          <td className="px-4 py-2.5 tabular-nums" style={{ color: dCtr >= 2 ? 'var(--badge-success-text)' : dCtr >= 1 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)' }}>{fmtPct(dCtr)}</td>
                           <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(dCpc)}</td>
                         </tr>
                       );
@@ -1142,15 +1142,18 @@ export default function DashboardPage() {
   }
 
   const HEALTH_SCORE_CFG: Record<'A' | 'B' | 'C' | 'D', { bg: string; color: string }> = {
-    A: { bg: 'rgba(74,222,128,0.12)',  color: '#4ade80' },
-    B: { bg: 'rgba(96,165,250,0.12)',  color: '#60a5fa' },
-    C: { bg: 'rgba(251,191,36,0.12)',  color: '#fbbf24' },
-    D: { bg: 'rgba(248,113,113,0.12)', color: '#f87171' },
+    A: { bg: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
+    B: { bg: 'var(--accent-dim)',        color: 'var(--accent)' },
+    C: { bg: 'var(--badge-warn-bg)',     color: 'var(--badge-warn-text)' },
+    D: { bg: 'var(--badge-error-bg)',    color: 'var(--badge-error-text)' },
   };
 
-  const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = {
+  const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = isDark ? {
     Meta:   { dot: '#818cf8', bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
     Google: { dot: '#34d399', bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
+  } : {
+    Meta:   { dot: '#6366f1', bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
+    Google: { dot: '#059669', bg: 'rgba(5,150,105,0.10)',   text: '#047857' },
   };
 
   // ── JSX ───────────────────────────────────────────────────────────────────
@@ -1260,14 +1263,14 @@ export default function DashboardPage() {
                 style={{ backgroundColor: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)' }}
               >
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#fbbf24" strokeWidth={1.5}>
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--badge-warn-text)" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
-                  <span className="text-xs" style={{ color: '#fbbf24' }}>
+                  <span className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
                     Métricas de CRM baseadas em dados inseridos manualmente — conecte o Kommo para análise completa por lead.
                   </span>
                 </div>
-                <Link href="/dashboard/dados-manuais" className="text-xs font-medium shrink-0" style={{ color: '#fbbf24' }}>
+                <Link href="/dashboard/dados-manuais" className="text-xs font-medium shrink-0" style={{ color: 'var(--badge-warn-text)' }}>
                   Editar dados →
                 </Link>
               </div>
@@ -1276,13 +1279,13 @@ export default function DashboardPage() {
                   title="ROAS (Meta)"
                   value={manualRevenueSummary.totals.roasMeta != null ? `${manualRevenueSummary.totals.roasMeta.toFixed(2).replace('.', ',')}x` : '—'}
                   sub={`Meta: ${manualRevenueSummary.totals.metaLeads} leads`}
-                  accent={manualRevenueSummary.totals.roasMeta != null ? (manualRevenueSummary.totals.roasMeta >= 4 ? '#4ade80' : manualRevenueSummary.totals.roasMeta >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+                  accent={manualRevenueSummary.totals.roasMeta != null ? (manualRevenueSummary.totals.roasMeta >= 4 ? 'var(--badge-success-text)' : manualRevenueSummary.totals.roasMeta >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
                 />
                 <BottomKpiCard
                   title="ROAS (Google)"
                   value={manualRevenueSummary.totals.roasGoogle != null ? `${manualRevenueSummary.totals.roasGoogle.toFixed(2).replace('.', ',')}x` : '—'}
                   sub={`Google: ${manualRevenueSummary.totals.googleLeads} leads`}
-                  accent={manualRevenueSummary.totals.roasGoogle != null ? (manualRevenueSummary.totals.roasGoogle >= 4 ? '#4ade80' : manualRevenueSummary.totals.roasGoogle >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+                  accent={manualRevenueSummary.totals.roasGoogle != null ? (manualRevenueSummary.totals.roasGoogle >= 4 ? 'var(--badge-success-text)' : manualRevenueSummary.totals.roasGoogle >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
                 />
                 <BottomKpiCard
                   title="Receita total"
@@ -1334,9 +1337,9 @@ export default function DashboardPage() {
               title="ROAS real"
               value={attributionSummary.roas != null ? `${attributionSummary.roas.toFixed(2).replace('.', ',')}x` : '—'}
               badge={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '↑ acima da meta' : attributionSummary.roas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
-              badgeColor={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : undefined}
+              badgeColor={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? 'var(--badge-success-text)' : attributionSummary.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
               sub={attributionSummary.revenue > 0 ? `${fmtMoney(attributionSummary.revenue)} receita / ${fmtMoney(attributionSummary.spend)} gasto` : 'Sem receitas fechadas'}
-              accent={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '#4ade80' : attributionSummary.roas >= 2 ? '#fbbf24' : '#f87171') : '#475569'}
+              accent={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? 'var(--badge-success-text)' : attributionSummary.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
             />
             <BottomKpiCard
               title="CAC"
@@ -1355,9 +1358,9 @@ export default function DashboardPage() {
               title="Pipeline em negociação"
               value={pipeline > 0 ? fmtMoney(pipeline) : '—'}
               badge={pipeline > 0 ? 'Potencial ativo' : undefined}
-              badgeColor="#fbbf24"
+              badgeColor="var(--badge-warn-text)"
               sub="Aguardando fechamento"
-              accent={pipeline > 0 ? '#fbbf24' : '#475569'}
+              accent={pipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
             />
           </div>
         </div>
@@ -1393,7 +1396,7 @@ export default function DashboardPage() {
                 {/* Conversão final */}
                 <div className="rounded-xl p-4 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                   <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Conversão final — lead → venda</p>
-                  <p className="text-4xl font-semibold tabular-nums" style={{ color: funnelCounts.generated > 0 && funnelCounts.won / funnelCounts.generated >= 0.1 ? '#4ade80' : '#f87171' }}>
+                  <p className="text-4xl font-semibold tabular-nums" style={{ color: funnelCounts.generated > 0 && funnelCounts.won / funnelCounts.generated >= 0.1 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
                     {funnelCounts.generated > 0 ? fmtPct1((funnelCounts.won / funnelCounts.generated) * 100) : '—'}
                   </p>
                   <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
@@ -1405,22 +1408,22 @@ export default function DashboardPage() {
                 <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                   <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Onde prestar atenção</p>
                   {funnelCounts.generated > 0 && funnelCounts.contacted / funnelCounts.generated < 0.5 && (
-                    <div className="rounded-lg p-2.5 mb-2" style={{ backgroundColor: 'rgba(248,113,113,0.06)', borderLeft: '2px solid #f87171' }}>
-                      <p className="text-xs" style={{ color: '#fca5a5' }}>
+                    <div className="rounded-lg p-2.5 mb-2" style={{ backgroundColor: 'var(--badge-error-bg)', borderLeft: '2px solid var(--badge-error-text)' }}>
+                      <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
                         <strong>{fmtPct1((funnelCounts.contacted / funnelCounts.generated) * 100)}</strong> dos leads recebem atendimento — verificar tempo de resposta
                       </p>
                     </div>
                   )}
                   {funnelCounts.contacted > 0 && funnelCounts.quoted / funnelCounts.contacted < 0.4 && (
-                    <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(251,191,36,0.06)', borderLeft: '2px solid #fbbf24' }}>
-                      <p className="text-xs" style={{ color: '#fde68a' }}>
+                    <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-warn-bg)', borderLeft: '2px solid var(--badge-warn-text)' }}>
+                      <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
                         Apenas <strong>{fmtPct1((funnelCounts.quoted / funnelCounts.contacted) * 100)}</strong> dos atendidos recebem orçamento — maior gargalo do funil
                       </p>
                     </div>
                   )}
                   {funnelCounts.lost > 0 && (
-                    <div className="rounded-lg p-2.5 mt-2" style={{ backgroundColor: 'rgba(248,113,113,0.04)', borderLeft: '2px solid rgba(248,113,113,0.4)' }}>
-                      <p className="text-xs" style={{ color: '#f87171' }}>
+                    <div className="rounded-lg p-2.5 mt-2" style={{ backgroundColor: 'var(--badge-error-bg)', borderLeft: '2px solid var(--badge-error-text)' }}>
+                      <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
                         <strong>{funnelCounts.lost}</strong> leads perdidos ({funnelCounts.generated > 0 ? fmtPct1((funnelCounts.lost / funnelCounts.generated) * 100) : '—'} do total)
                       </p>
                     </div>
@@ -1430,10 +1433,10 @@ export default function DashboardPage() {
                 {/* Mini KPIs de conversão */}
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Lead → Atendimento', val: funnelCounts.generated > 0 ? funnelCounts.contacted / funnelCounts.generated : 0, color: '#4ade80' },
-                    { label: 'Lead → Orçamento',   val: funnelCounts.generated > 0 ? funnelCounts.quoted / funnelCounts.generated : 0,   color: '#fbbf24' },
-                    { label: 'Orç. → Venda',       val: funnelCounts.quoted > 0    ? funnelCounts.won / funnelCounts.quoted : 0,          color: '#4ade80' },
-                    { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: '#60a5fa' },
+                    { label: 'Lead → Atendimento', val: funnelCounts.generated > 0 ? funnelCounts.contacted / funnelCounts.generated : 0, color: 'var(--badge-success-text)' },
+                    { label: 'Lead → Orçamento',   val: funnelCounts.generated > 0 ? funnelCounts.quoted / funnelCounts.generated : 0,   color: 'var(--badge-warn-text)' },
+                    { label: 'Orç. → Venda',       val: funnelCounts.quoted > 0    ? funnelCounts.won / funnelCounts.quoted : 0,          color: 'var(--badge-success-text)' },
+                    { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: 'var(--accent)' },
                   ].map((item, i) => (
                     <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                       <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
@@ -1526,11 +1529,11 @@ export default function DashboardPage() {
                       { label: 'Sem motivo regist.', pct: 0.08, warn: true },
                     ].map((m, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs shrink-0" style={{ color: m.warn ? '#f87171' : '#64748b', width: 100 }}>{m.label}</span>
+                        <span className="text-xs shrink-0" style={{ color: m.warn ? 'var(--badge-error-text)' : 'var(--text-muted)', width: 100 }}>{m.label}</span>
                         <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                           <div className="h-full rounded-full" style={{ width: `${m.pct * 100}%`, backgroundColor: m.warn ? 'rgba(248,113,113,0.5)' : '#f87171', opacity: 0.65 }} />
                         </div>
-                        <span className="text-xs tabular-nums" style={{ color: m.warn ? '#f87171' : '#64748b', width: 28, textAlign: 'right' }}>
+                        <span className="text-xs tabular-nums" style={{ color: m.warn ? 'var(--badge-error-text)' : 'var(--text-muted)', width: 28, textAlign: 'right' }}>
                           {Math.round(funnelCounts.lost * m.pct)}
                         </span>
                       </div>
@@ -1550,8 +1553,8 @@ export default function DashboardPage() {
                   { label: 'Ciclo total médio',   val: '—', highlight: true },
                 ].map((row, i) => (
                   <div key={i} className="flex justify-between items-center py-2" style={{ borderBottom: i < 3 ? '1px solid var(--border)' : 'none' }}>
-                    <span className="text-xs" style={{ color: row.highlight ? '#60a5fa' : '#64748b', fontWeight: row.highlight ? 500 : 400 }}>{row.label}</span>
-                    <span className="text-xs font-semibold" style={{ color: row.highlight ? '#60a5fa' : '#94a3b8' }}>{row.val}</span>
+                    <span className="text-xs" style={{ color: row.highlight ? 'var(--accent)' : 'var(--text-muted)', fontWeight: row.highlight ? 500 : 400 }}>{row.label}</span>
+                    <span className="text-xs font-semibold" style={{ color: row.highlight ? 'var(--accent)' : 'var(--text-secondary)' }}>{row.val}</span>
                   </div>
                 ))}
                 <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Requer rastreamento de movimentações no CRM</p>
@@ -1564,8 +1567,8 @@ export default function DashboardPage() {
                   {/* Header */}
                   <div className="flex items-center py-1.5 mb-1">
                     <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}></span>
-                    <span className="w-20 text-center text-xs font-medium" style={{ color: '#818cf8' }}>Meta</span>
-                    <span className="w-20 text-center text-xs font-medium" style={{ color: '#34d399' }}>Google</span>
+                    <span className="w-20 text-center text-xs font-medium" style={{ color: PLATFORM_COLORS.Meta.text }}>Meta</span>
+                    <span className="w-20 text-center text-xs font-medium" style={{ color: PLATFORM_COLORS.Google.text }}>Google</span>
                   </div>
                   {[
                     {
@@ -1600,8 +1603,8 @@ export default function DashboardPage() {
                       style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}
                     >
                       <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}>{row.label}</span>
-                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#a5b4fc' }}>{row.meta}</span>
-                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: '#6ee7b7' }}>{row.google}</span>
+                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: PLATFORM_COLORS.Meta.text }}>{row.meta}</span>
+                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: PLATFORM_COLORS.Google.text }}>{row.google}</span>
                     </div>
                   ))}
                 </div>
@@ -1701,7 +1704,7 @@ export default function DashboardPage() {
                         const cellVal: Record<ColKey, React.ReactNode> = {
                           spend:       <span style={{ color: 'var(--text-secondary)' }}>{fmtMoney(c.spend)}</span>,
                           leads:       <span style={{ color: 'var(--text-secondary)' }}>{c.leads > 0 ? c.leads : '—'}</span>,
-                          ctr:         <span style={{ color: ctr >= 2 ? '#4ade80' : ctr >= 1 ? '#fbbf24' : '#f87171' }}>{fmtPct(ctr)}</span>,
+                          ctr:         <span style={{ color: ctr >= 2 ? 'var(--badge-success-text)' : ctr >= 1 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)' }}>{fmtPct(ctr)}</span>,
                           cpc:         <span style={{ color: 'var(--text-secondary)' }}>{cpc > 0 ? fmtMoney(cpc) : '—'}</span>,
                           cpl:         <span style={{ color: 'var(--text-secondary)' }}>{cpl > 0 ? fmtMoney(cpl) : '—'}</span>,
                           impressions: <span style={{ color: 'var(--text-secondary)' }}>{c.impressions > 0 ? c.impressions.toLocaleString('pt-BR') : '—'}</span>,
@@ -1781,8 +1784,8 @@ export default function DashboardPage() {
                 ))}
               </div>
               {cplByChannel.google.spend > 0 && cplByChannel.meta.spend > 0 && (
-                <div className="mt-4 rounded-lg p-2.5" style={{ backgroundColor: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.12)' }}>
-                  <p className="text-xs" style={{ color: '#fbbf24' }}>
+                <div className="mt-4 rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-warn-bg)', border: '1px solid var(--badge-warn-text)' }}>
+                  <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
                     Google gera menos leads mas tende a ter ticket maior — acompanhar ROAS por canal
                   </p>
                 </div>
@@ -1806,13 +1809,13 @@ export default function DashboardPage() {
                   {
                     label: 'LTV estimado',
                     value: ltvData.ltv ? fmtMoney(ltvData.ltv) : '—',
-                    color: '#4ade80',
+                    color: 'var(--badge-success-text)',
                     sub: `ticket × freq. (${ltvData.wonCount} vendas com valor)`,
                   },
                   {
                     label: 'CAC real',
                     value: ltvData.cacReal ? fmtBRL(ltvData.cacReal) : '—',
-                    color: '#60a5fa',
+                    color: 'var(--accent)',
                     sub: ltvData.wonFromPaidCount > 0
                       ? `gasto ÷ ${ltvData.wonFromPaidCount} vendas pagas`
                       : 'sem vendas via anúncio no período',
@@ -1822,13 +1825,13 @@ export default function DashboardPage() {
                     value: ltvData.ltvCacRatio
                       ? `${ltvData.ltvCacRatio.toFixed(1)}x`
                       : '—',
-                    color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? '#4ade80' : '#fbbf24',
+                    color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? 'var(--badge-success-text)' : 'var(--badge-warn-text)',
                     sub: 'meta saudável ≥ 3x',
                   },
                   {
                     label: 'Clientes recorr.',
                     value: String(recurrentCount),
-                    color: '#fbbf24',
+                    color: 'var(--badge-warn-text)',
                     sub: 'tag carteira no período',
                   },
                 ].map((item, i) => (
@@ -1846,10 +1849,10 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Projeção do mês</p>
               {projection ? (
                 <>
-                  <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: '#4ade80' }}>{fmtMoney(projection.projected)}</p>
+                  <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
                   <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>baseado no ritmo atual + pipeline ativo</p>
                   <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--border-md)' }}>
-                    <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: '#4ade80', opacity: 0.7 }} />
+                    <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: 'var(--badge-success-text)', opacity: 0.7 }} />
                   </div>
                   <div className="flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
                     <span>Dia {projection.dayOfMonth}</span>
@@ -1857,7 +1860,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
                   <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                    Se 30% do pipeline fechar: <strong style={{ color: '#4ade80' }}>+ {fmtMoney(pipeline * 0.3)}</strong>
+                    Se 30% do pipeline fechar: <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(pipeline * 0.3)}</strong>
                   </p>
                 </>
               ) : (
@@ -1874,7 +1877,7 @@ export default function DashboardPage() {
                   { label: 'Google Ads', roas: attributionSummary.roasGoogle, spend: attributionSummary.spendGoogle, color: '#34d399', accent: 'rgba(52,211,153,0.12)'  },
                 ] as const).map(({ label, roas, spend, color }) => {
                   const hasSpend  = spend > 0;
-                  const roasColor = roas != null && roas >= 2 ? '#4ade80' : roas != null ? '#f87171' : '#475569';
+                  const roasColor = roas != null && roas >= 2 ? 'var(--badge-success-text)' : roas != null ? 'var(--badge-error-text)' : 'var(--text-muted)';
                   const roasLabel = roas != null
                     ? `${roas.toFixed(1).replace('.', ',')}x`
                     : hasSpend ? '—' : 'Sem dados';
@@ -1901,15 +1904,15 @@ export default function DashboardPage() {
                   );
                 })}
                 {attributionSummary.roasMeta != null && attributionSummary.roasMeta > 5 && (
-                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(129,140,248,0.06)', border: '1px solid rgba(129,140,248,0.12)' }}>
-                    <p className="text-xs" style={{ color: '#a5b4fc' }}>
+                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)' }}>
+                    <p className="text-xs" style={{ color: 'var(--badge-success-text)' }}>
                       ✦ Meta com ROAS {attributionSummary.roasMeta.toFixed(1).replace('.', ',')}x — considerar escalar verba
                     </p>
                   </div>
                 )}
                 {attributionSummary.roasGoogle != null && attributionSummary.roasGoogle > 5 && (
-                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.12)' }}>
-                    <p className="text-xs" style={{ color: '#34d399' }}>
+                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)' }}>
+                    <p className="text-xs" style={{ color: 'var(--badge-success-text)' }}>
                       ✦ Google com ROAS {attributionSummary.roasGoogle.toFixed(1).replace('.', ',')}x — considerar aumentar verba
                     </p>
                   </div>
@@ -1961,23 +1964,23 @@ export default function DashboardPage() {
                 )}
 
                 {latestInsight.content.orchestrator.priorityAlerts.length > 0 && (
-                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(248,113,113,0.05)', borderLeft: '2px solid #f87171' }}>
-                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#f87171' }}>🔴 Problema crítico</p>
-                    <p className="text-xs leading-relaxed" style={{ color: '#fca5a5' }}>{latestInsight.content.orchestrator.priorityAlerts[0]}</p>
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--badge-error-bg)', borderLeft: '2px solid var(--badge-error-text)' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--badge-error-text)' }}>🔴 Problema crítico</p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--badge-error-text)' }}>{latestInsight.content.orchestrator.priorityAlerts[0]}</p>
                   </div>
                 )}
 
                 {latestInsight.content.orchestrator.topRecommendations.length > 0 && (
-                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(251,191,36,0.05)', borderLeft: '2px solid #fbbf24' }}>
-                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#fbbf24' }}>🟡 Atenção</p>
-                    <p className="text-xs leading-relaxed" style={{ color: '#fde68a' }}>{latestInsight.content.orchestrator.topRecommendations[0]}</p>
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--badge-warn-bg)', borderLeft: '2px solid var(--badge-warn-text)' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--badge-warn-text)' }}>🟡 Atenção</p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--badge-warn-text)' }}>{latestInsight.content.orchestrator.topRecommendations[0]}</p>
                   </div>
                 )}
 
                 {latestInsight.content.orchestrator.topRecommendations.length > 1 && (
-                  <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(74,222,128,0.05)', borderLeft: '2px solid #4ade80' }}>
-                    <p className="text-xs font-semibold mb-1.5" style={{ color: '#4ade80' }}>✦ Oportunidade</p>
-                    <p className="text-xs leading-relaxed" style={{ color: '#bbf7d0' }}>{latestInsight.content.orchestrator.topRecommendations[1]}</p>
+                  <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--badge-success-bg)', borderLeft: '2px solid var(--badge-success-text)' }}>
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: 'var(--badge-success-text)' }}>✦ Oportunidade</p>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--badge-success-text)' }}>{latestInsight.content.orchestrator.topRecommendations[1]}</p>
                   </div>
                 )}
               </div>
@@ -1999,9 +2002,9 @@ export default function DashboardPage() {
         <div
           className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-xs z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg"
           style={{
-            backgroundColor: generateToast.includes('sucesso') ? 'rgba(34,197,94,0.15)' : 'rgba(248,113,113,0.15)',
-            border: generateToast.includes('sucesso') ? '1px solid rgba(34,197,94,0.30)' : '1px solid rgba(248,113,113,0.30)',
-            color: generateToast.includes('sucesso') ? '#4ade80' : '#f87171',
+            backgroundColor: generateToast.includes('sucesso') ? 'var(--badge-success-bg)' : 'var(--badge-error-bg)',
+            border: generateToast.includes('sucesso') ? '1px solid var(--badge-success-text)' : '1px solid var(--badge-error-text)',
+            color: generateToast.includes('sucesso') ? 'var(--badge-success-text)' : 'var(--badge-error-text)',
           }}
         >
           {generateToast}
