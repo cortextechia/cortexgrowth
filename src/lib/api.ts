@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
@@ -114,11 +114,16 @@ class ApiService {
 
   // ─── Autenticação ────────────────────────────────────────────────────────────
 
-  async register(data: RegisterRequest & { ref?: string }): Promise<AuthResponse> {
+  async register(data: RegisterRequest & { ref?: string; claim?: string }): Promise<AuthResponse> {
     const response = await this.client.post<AuthResponse>('/auth/register', data);
     if (response.data.accessToken) {
       this.setTokens(response.data.accessToken, response.data.refreshToken);
     }
+    return response.data;
+  }
+
+  async getClaimInfo(token: string): Promise<{ success: boolean; data: { valid: boolean; organizationName?: string; managerName?: string | null } }> {
+    const response = await this.client.get(`/auth/claim/${token}`);
     return response.data;
   }
 
@@ -349,6 +354,11 @@ class ApiService {
     return response.data;
   }
 
+  async metaBackfill(since: string, until: string): Promise<{ success: boolean; message: string; data: { count: number } }> {
+    const response = await this.client.post('/ads/meta/backfill', undefined, { params: { since, until } });
+    return response.data;
+  }
+
   async generateInsights(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
     const response = await this.client.post('/ai/insights/generate');
     return response.data;
@@ -418,6 +428,33 @@ class ApiService {
 
   async removeMyClient(orgId: string): Promise<{ success: boolean }> {
     const response = await this.client.delete(`/managers/my-clients/${orgId}`);
+    return response.data;
+  }
+
+  // Contas de anúncio acessíveis pelo token do gestor — para criar dashboards de clientes
+  async getAccessibleAccounts(platform: 'google_ads' | 'meta'): Promise<{ success: boolean; data: { connected: boolean; accounts: AccessibleAccount[]; currentExternalId: string | null } }> {
+    const response = await this.client.get('/managers/accessible-accounts', { params: { platform } });
+    return response.data;
+  }
+
+  // Define qual conta de anúncio é a "própria" do gestor (org pessoal)
+  async setMyAccount(platform: 'google_ads' | 'meta', externalId: string): Promise<{ success: boolean; message: string; data: { externalId: string; name: string; count: number } }> {
+    const response = await this.client.put('/managers/my-account', { platform, externalId });
+    return response.data;
+  }
+
+  async createClientDashboard(data: {
+    name: string;
+    google?: { externalId: string; externalName: string } | null;
+    meta?: { externalId: string; externalName: string } | null;
+  }): Promise<{ success: boolean; message: string; data: TrafficManagerClient & { sync?: { google?: { ok: boolean; count: number }; meta?: { ok: boolean; count: number } } } }> {
+    const response = await this.client.post('/managers/clients', data);
+    return response.data;
+  }
+
+  // Gera link para o cliente assumir (claim) um dashboard criado pelo gestor
+  async generateClaimLink(orgId: string): Promise<{ success: boolean; data: { claimLink: string; expiresAt: string } }> {
+    const response = await this.client.post(`/managers/clients/${orgId}/claim-link`);
     return response.data;
   }
 

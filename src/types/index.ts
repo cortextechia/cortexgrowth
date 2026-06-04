@@ -214,11 +214,21 @@ export interface TrafficManagerClient {
   status: OrgStatus;
   slug: string;
   isSelf?: boolean;
-  source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF';
+  source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF' | 'MANAGER';
+  claimed?: boolean;
+  hasGoogle?: boolean;
+  hasMeta?: boolean;
+  hasKommo?: boolean;
   connectedAt?: string;
   briefingDayOfWeek?: number | null;
   briefingHour?: number | null;
   briefingNotes?: string | null;
+}
+
+// Conta de anúncio acessível pelo token do gestor (Google ou Meta)
+export interface AccessibleAccount {
+  externalId: string;
+  name: string;
 }
 
 export interface ManagerReferral {

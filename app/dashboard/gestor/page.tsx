@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
-import { UserRole, type TrafficManagerClient, type ManagerReferral } from '@/types';
+import { UserRole, type TrafficManagerClient, type ManagerReferral, type AccessibleAccount } from '@/types';
 import ClientReportsModal from '@/components/ClientReportsModal';
 import GestorStatsCard from '@/components/GestorStatsCard';
 import { QRCodeSVG } from 'qrcode.react';
@@ -154,12 +154,16 @@ function TabRelatorio({
   selfEntry,
   onViewDashboard,
   onManageReports,
+  onCreateClient,
+  onInviteClient,
 }: {
   clients: TrafficManagerClient[];
   loading: boolean;
   selfEntry: TrafficManagerClient | undefined;
   onViewDashboard: (c: TrafficManagerClient) => void;
   onManageReports: (c: TrafficManagerClient) => void;
+  onCreateClient: () => void;
+  onInviteClient: (c: TrafficManagerClient) => void;
 }) {
   const realClients = clients.filter((c) => !c.isSelf);
 
@@ -198,12 +202,24 @@ function TabRelatorio({
       {/* Clientes */}
       <div className="rounded-xl p-5 space-y-4" style={card}>
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes</p>
-          {!loading && (
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
-              {realClients.length} {realClients.length === 1 ? 'cliente' : 'clientes'}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes</p>
+            {!loading && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+                {realClients.length} {realClients.length === 1 ? 'cliente' : 'clientes'}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={onCreateClient}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Criar Dashboard
+          </button>
         </div>
 
         {loading ? (
@@ -235,6 +251,27 @@ function TabRelatorio({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {client.source === 'MANAGER' && (
+                    client.claimed ? (
+                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                        Ativado
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => onInviteClient(client)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                        style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80' }}
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                        </svg>
+                        Convidar cliente
+                      </button>
+                    )
+                  )}
                   <button
                     onClick={() => onViewDashboard(client)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
@@ -261,6 +298,84 @@ function TabRelatorio({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Card: Minha conta de anúncio (visão pessoal do gestor) ───────────────────
+
+function MyAccountCard({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  type AccData = { connected: boolean; accounts: AccessibleAccount[]; currentExternalId: string | null };
+  const [google, setGoogle] = useState<AccData | null>(null);
+  const [meta, setMeta] = useState<AccData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<'google_ads' | 'meta' | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [g, m] = await Promise.all([apiService.getAccessibleAccounts('google_ads'), apiService.getAccessibleAccounts('meta')]);
+      setGoogle(g.data);
+      setMeta(m.data);
+    } catch { /* silencia */ } finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handleChange = async (platform: 'google_ads' | 'meta', externalId: string) => {
+    if (!externalId) return;
+    setSaving(platform);
+    try {
+      const res = await apiService.setMyAccount(platform, externalId);
+      showToast(`${res.message} — ${res.data.count} registros sincronizados.`);
+      await load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showToast(msg ?? 'Erro ao vincular conta.', 'error');
+    } finally { setSaving(null); }
+  };
+
+  return (
+    <div className="rounded-xl p-5 space-y-4" style={card}>
+      <div>
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Minha conta de anúncio</p>
+        <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          Escolha qual conta aparece no seu dashboard pessoal. Os dashboards dos clientes são configurados separadamente.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}><Spinner className="h-3 w-3" /> Carregando...</div>
+      ) : (
+        <div className="space-y-3">
+          {([{ key: 'google_ads', label: 'Google Ads', data: google }, { key: 'meta', label: 'Meta Ads', data: meta }] as const).map(({ key, label, data }) => (
+            <div key={key} className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</label>
+              {data?.connected ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={data.currentExternalId ?? ''}
+                    onChange={(e) => void handleChange(key, e.target.value)}
+                    disabled={saving === key}
+                    className="flex-1 rounded-lg px-3 py-2 text-sm"
+                    style={{ backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="">Nenhuma conta selecionada</option>
+                    {data.accounts.map((a) => (
+                      <option key={a.externalId} value={a.externalId}>{a.name} ({a.externalId})</option>
+                    ))}
+                  </select>
+                  {saving === key && <Spinner className="h-4 w-4" />}
+                </div>
+              ) : (
+                <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                  Não conectado — conecte nas Integrações.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -296,6 +411,7 @@ function TabConfiguracoes({
   loadingClients,
   onDisconnect,
   onUpdateClientBriefing,
+  showToast,
 }: {
   referral: ManagerReferral | null;
   loadingReferral: boolean;
@@ -325,11 +441,15 @@ function TabConfiguracoes({
   loadingClients: boolean;
   onDisconnect: (c: TrafficManagerClient) => void;
   onUpdateClientBriefing: (orgId: string, day: number | null, hour: number | null) => void;
+  showToast: (m: string, t?: 'success' | 'error') => void;
 }) {
   const realClients = clients.filter((c) => !c.isSelf);
 
   return (
     <div className="space-y-6">
+
+      {/* Minha conta de anúncio */}
+      <MyAccountCard showToast={showToast} />
 
       {/* Link de Registro */}
       <div className="rounded-xl p-5 space-y-4" style={card}>
@@ -605,7 +725,7 @@ function TabConfiguracoes({
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {client.source === 'LINK' ? 'Via link' : client.source === 'CODE' ? 'Via código' : 'Via admin'}
+                        {client.source === 'LINK' ? 'Via link' : client.source === 'CODE' ? 'Via código' : client.source === 'MANAGER' ? 'Dashboard criado por você' : 'Via admin'}
                       </p>
                     </div>
                   </div>
@@ -658,6 +778,236 @@ function TabConfiguracoes({
   );
 }
 
+// ─── Modal: Criar Dashboard de Cliente ────────────────────────────────────────
+
+function CreateDashboardModal({
+  onClose,
+  onCreated,
+  showToast,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  showToast: (message: string, type?: 'success' | 'error') => void;
+}) {
+  const [name, setName] = useState('');
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [google, setGoogle] = useState<{ connected: boolean; accounts: AccessibleAccount[] }>({ connected: false, accounts: [] });
+  const [meta, setMeta] = useState<{ connected: boolean; accounts: AccessibleAccount[] }>({ connected: false, accounts: [] });
+  const [selectedGoogle, setSelectedGoogle] = useState('');
+  const [selectedMeta, setSelectedMeta] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      setLoadingAccounts(true);
+      try {
+        const [g, m] = await Promise.all([
+          apiService.getAccessibleAccounts('google_ads'),
+          apiService.getAccessibleAccounts('meta'),
+        ]);
+        if (!active) return;
+        setGoogle(g.data);
+        setMeta(m.data);
+      } catch {
+        if (active) showToast('Erro ao carregar suas contas de anúncio.', 'error');
+      } finally {
+        if (active) setLoadingAccounts(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [showToast]);
+
+  const canCreate = name.trim().length >= 2 && (selectedGoogle !== '' || selectedMeta !== '');
+
+  const handleCreate = async () => {
+    if (!canCreate) return;
+    setCreating(true);
+    try {
+      const gAcc = google.accounts.find((a) => a.externalId === selectedGoogle);
+      const mAcc = meta.accounts.find((a) => a.externalId === selectedMeta);
+      const res = await apiService.createClientDashboard({
+        name: name.trim(),
+        google: gAcc ? { externalId: gAcc.externalId, externalName: gAcc.name } : null,
+        meta: mAcc ? { externalId: mAcc.externalId, externalName: mAcc.name } : null,
+      });
+      onCreated();
+      const sync = res.data.sync;
+      const parts: string[] = [];
+      if (sync?.google) parts.push(`Google: ${sync.google.ok ? `${sync.google.count} registros` : 'falha no sync'}`);
+      if (sync?.meta) parts.push(`Meta: ${sync.meta.ok ? `${sync.meta.count} registros` : 'falha no sync'}`);
+      const anyFail = (sync?.google && !sync.google.ok) || (sync?.meta && !sync.meta.ok);
+      showToast(`Dashboard criado. ${parts.join(' · ')}`, anyFail ? 'error' : 'success');
+      onClose();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      showToast(msg ?? 'Erro ao criar dashboard.', 'error');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const selectStyle = { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' };
+  const hintStyle = { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border)' };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl p-6 space-y-5"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', maxHeight: '90vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div>
+          <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Criar Dashboard de Cliente</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            Crie um painel para um cliente usando uma conta de anúncio que você gerencia.
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Nome do cliente</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="ex: Casa do Vidro"
+            className="w-full rounded-lg px-3 py-2 text-sm"
+            style={selectStyle}
+          />
+        </div>
+
+        {loadingAccounts ? (
+          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
+            <Spinner /> Carregando suas contas...
+          </div>
+        ) : (
+          <>
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Conta Google Ads</label>
+              {google.connected ? (
+                <select value={selectedGoogle} onChange={(e) => setSelectedGoogle(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={selectStyle}>
+                  <option value="">Não usar Google</option>
+                  {google.accounts.map((a) => (
+                    <option key={a.externalId} value={a.externalId}>{a.name} ({a.externalId})</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs px-3 py-2 rounded-lg" style={hintStyle}>
+                  Conecte sua conta Google nas Integrações para usar.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs" style={{ color: 'var(--text-muted)' }}>Conta Meta Ads</label>
+              {meta.connected ? (
+                <select value={selectedMeta} onChange={(e) => setSelectedMeta(e.target.value)} className="w-full rounded-lg px-3 py-2 text-sm" style={selectStyle}>
+                  <option value="">Não usar Meta</option>
+                  {meta.accounts.map((a) => (
+                    <option key={a.externalId} value={a.externalId}>{a.name} ({a.externalId})</option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-xs px-3 py-2 rounded-lg" style={hintStyle}>
+                  Conecte sua conta Meta nas Integrações para usar.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Cancelar</button>
+          <button
+            onClick={() => void handleCreate()}
+            disabled={!canCreate || creating}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+            style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: (!canCreate || creating) ? 0.5 : 1 }}
+          >
+            {creating ? <Spinner className="h-4 w-4" /> : null}
+            Criar Dashboard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal: Convidar cliente (claim) ──────────────────────────────────────────
+
+function ClaimLinkModal({ client, onClose }: { client: TrafficManagerClient; onClose: () => void }) {
+  const [link, setLink] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    apiService.generateClaimLink(client.id)
+      .then((res) => {
+        if (!active) return;
+        setLink(res.data.claimLink);
+        setExpiresAt(res.data.expiresAt);
+      })
+      .catch((e: unknown) => {
+        const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+        if (active) setErr(msg ?? 'Erro ao gerar link de convite.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [client.id]);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-6 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }} onClick={(e) => e.stopPropagation()}>
+        <div>
+          <p className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Convidar {client.name}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+            Envie este link para o cliente criar a conta dele e assumir o painel — ele ganha acesso completo à plataforma. Você continua gerenciando.
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}><Spinner /> Gerando link...</div>
+        ) : err ? (
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>{err}</p>
+        ) : (
+          <>
+            <div
+              className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer"
+              style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1.5px dashed rgba(34,197,94,0.3)' }}
+              onClick={() => void copy()}
+            >
+              <span className="text-xs font-mono flex-1 truncate" style={{ color: '#4ade80' }}>{link}</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); void copy(); }}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shrink-0"
+                style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}
+              >
+                {copied ? '✓ Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              Expira em {new Date(expiresAt).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}.
+            </p>
+          </>
+        )}
+
+        <div className="flex justify-end pt-1">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Página Principal ─────────────────────────────────────────────────────────
 
 export default function GestorPage() {
@@ -682,6 +1032,8 @@ export default function GestorPage() {
   const [clients, setClients] = useState<TrafficManagerClient[]>([]);
   const [loadingClients, setLoadingClients] = useState(true);
   const [reportClient, setReportClient] = useState<TrafficManagerClient | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [inviteClient, setInviteClient] = useState<TrafficManagerClient | null>(null);
 
   // ── Briefing ───────────────────────────────────────────────────────────────
   const [briefing, setBriefing] = useState({ enabled: false, chatId: '', chatName: '', hour: 7, dayOfWeek: 0, notificationChannel: 'TELEGRAM' as 'TELEGRAM' | 'WHATSAPP', whatsappPhone: '' });
@@ -792,7 +1144,9 @@ export default function GestorPage() {
 
   const handleViewDashboard = (client: TrafficManagerClient) => {
     apiService.setSelectedClientOrgId(client.id);
-    router.push('/dashboard');
+    // Navegação completa (não router.push) para remontar o layout e sincronizar o
+    // seletor de cliente com a org recém-selecionada — mesmo padrão do dropdown.
+    window.location.href = '/dashboard';
   };
 
   const handleManageReports = (client: TrafficManagerClient) => {
@@ -930,6 +1284,8 @@ export default function GestorPage() {
           selfEntry={selfEntry}
           onViewDashboard={handleViewDashboard}
           onManageReports={handleManageReports}
+          onCreateClient={() => setShowCreateModal(true)}
+          onInviteClient={setInviteClient}
         />
       )}
 
@@ -963,6 +1319,7 @@ export default function GestorPage() {
           loadingClients={loadingClients}
           onDisconnect={handleDisconnect}
           onUpdateClientBriefing={handleUpdateClientBriefing}
+          showToast={showToast}
         />
       )}
 
@@ -970,6 +1327,21 @@ export default function GestorPage() {
         <ClientReportsModal
           clientName={reportClient.name}
           onClose={() => { setReportClient(null); apiService.clearSelectedClientOrgId(); }}
+        />
+      )}
+
+      {showCreateModal && (
+        <CreateDashboardModal
+          onClose={() => setShowCreateModal(false)}
+          onCreated={() => void fetchClients()}
+          showToast={showToast}
+        />
+      )}
+
+      {inviteClient && (
+        <ClaimLinkModal
+          client={inviteClient}
+          onClose={() => setInviteClient(null)}
         />
       )}
     </>

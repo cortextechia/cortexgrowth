@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { apiService } from '@/lib/api';
 import Link from 'next/link';
 
 function Spinner() {
@@ -28,11 +29,24 @@ function RegisterContent() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({ email: '', password: '', name: '', organizationName: '' });
   const [refCode, setRefCode] = useState<string | null>(null);
+  const [claimToken, setClaimToken] = useState<string | null>(null);
+  const [claimInfo, setClaimInfo] = useState<{ valid: boolean; organizationName?: string; managerName?: string | null } | null>(null);
 
-  // Lê ref= da URL — link de registro do gestor
+  // Lê ref= (link de registro do gestor) e claim= (link para assumir um dashboard) da URL
   useEffect(() => {
     const ref = searchParams.get('ref');
     if (ref) setRefCode(ref);
+
+    const claim = searchParams.get('claim');
+    if (claim) {
+      setClaimToken(claim);
+      apiService.getClaimInfo(claim).then((res) => {
+        setClaimInfo(res.data);
+        if (res.data.valid && res.data.organizationName) {
+          setFormData((prev) => ({ ...prev, organizationName: res.data.organizationName! }));
+        }
+      }).catch(() => setClaimInfo({ valid: false }));
+    }
   }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,7 +59,8 @@ function RegisterContent() {
     if (formData.password.length < 8) { setError('Senha deve ter no mínimo 8 caracteres'); return; }
     setIsLoading(true);
     try {
-      const response = await register({ ...formData, ...(refCode ? { ref: refCode } : {}) });
+      // Só envia claim se o convite for válido — claim inválido/expirado vira registro normal
+      const response = await register({ ...formData, ...(refCode ? { ref: refCode } : {}), ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}) });
       if (response.success) {
         sessionStorage.setItem('onboarding_new_account', 'true');
         router.push('/onboarding');
@@ -173,13 +188,36 @@ function RegisterContent() {
                 <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Comece gratuitamente, sem cartão de crédito</p>
               </div>
 
-              {refCode && (
+              {refCode && !claimToken && (
                 <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
                   style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#93c5fd' }}>
                   <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
                   </svg>
                   Você foi convidado por um gestor de tráfego.
+                </div>
+              )}
+
+              {claimInfo?.valid && (
+                <div className="mb-5 flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs"
+                  style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac' }}>
+                  <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>
+                    Você foi convidado para assumir o painel <strong>{claimInfo.organizationName}</strong>
+                    {claimInfo.managerName ? <> (criado por {claimInfo.managerName})</> : null}. Crie sua conta para ter acesso completo.
+                  </span>
+                </div>
+              )}
+
+              {claimInfo && !claimInfo.valid && (
+                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
+                  </svg>
+                  Convite inválido ou expirado. Você ainda pode criar uma conta normal abaixo.
                 </div>
               )}
 
@@ -204,8 +242,13 @@ function RegisterContent() {
                 <div>
                   <label htmlFor="organizationName" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome da empresa</label>
                   <input type="text" id="organizationName" name="organizationName" value={formData.organizationName} onChange={handleChange} required
+                    readOnly={!!claimInfo?.valid}
                     placeholder="Minha Agência" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+                    style={claimInfo?.valid ? { ...inputStyle, opacity: 0.65, cursor: 'not-allowed' } : inputStyle}
+                    onFocus={claimInfo?.valid ? undefined : onFocus} onBlur={claimInfo?.valid ? undefined : onBlur} />
+                  {claimInfo?.valid && (
+                    <p className="mt-1 text-xs" style={{ color: '#475569' }}>Definido pelo convite do gestor.</p>
+                  )}
                 </div>
 
                 <div>

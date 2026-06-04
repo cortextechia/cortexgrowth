@@ -179,6 +179,7 @@ export default function IntegrationsPage() {
 
   const [connectingProvider, setConnectingProvider] = useState<OAuthProvider | null>(null);
   const [syncingType, setSyncingType] = useState<IntegrationType | null>(null);
+  const [backfillingType, setBackfillingType] = useState<IntegrationType | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -231,6 +232,27 @@ export default function IntegrationsPage() {
       showToast(msg, 'error');
     } finally {
       setSyncingType(null);
+    }
+  };
+
+  // Importa o histórico do último ano (cap de 365 dias no backend)
+  const handleBackfill = async (type: IntegrationType) => {
+    if (!confirm('Importar o histórico do último ano? Pode levar alguns minutos.')) return;
+    setBackfillingType(type);
+    try {
+      const until = new Date().toISOString().slice(0, 10);
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - 364);
+      const since = sinceDate.toISOString().slice(0, 10);
+      const result = type === IntegrationType.GOOGLE_ADS
+        ? await apiService.googleBackfill(since, until)
+        : await apiService.metaBackfill(since, until);
+      showToast(`Histórico importado — ${result.data.count} registros.`);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { message?: string } }; message?: string };
+      showToast(e?.response?.data?.message ?? e?.message ?? 'Erro ao importar histórico', 'error');
+    } finally {
+      setBackfillingType(null);
     }
   };
 
@@ -327,6 +349,8 @@ export default function IntegrationsPage() {
             const isConnected = integration?.status === 'CONNECTED';
             const isExpired   = integration?.status === 'EXPIRED';
             const isSyncing   = syncingType === config.type;
+            const isBackfilling = backfillingType === config.type;
+            const supportsBackfill = config.type === IntegrationType.GOOGLE_ADS || config.type === IntegrationType.META_ADS;
             const isConnecting = connectingProvider === config.provider;
             const isDisconnecting = disconnectingId === integration?.id;
             const isLocked = isStarter && config.type === IntegrationType.KOMMO;
@@ -452,6 +476,27 @@ export default function IntegrationsPage() {
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                               Sincronizar
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {supportsBackfill && (
+                        <button
+                          onClick={() => handleBackfill(config.type)}
+                          disabled={isBackfilling || isSyncing}
+                          title="Importar o histórico do último ano"
+                          className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
+                          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}
+                        >
+                          {isBackfilling ? (
+                            <><Spinner /> Importando...</>
+                          ) : (
+                            <>
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                              </svg>
+                              1 ano
                             </>
                           )}
                         </button>

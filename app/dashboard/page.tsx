@@ -727,6 +727,27 @@ export default function DashboardPage() {
     };
   }, [metaCur, googleCur, metaPrev, googlePrev]);
 
+  // ── Conversões nativas das plataformas (Google/Meta) — base do dashboard sem CRM ──
+  const platformConv = useMemo(() => {
+    const sum = (arr: typeof metaCur, key: string) => arr.reduce((s, d) => s + (Number((d as Record<string, unknown>)[key]) || 0), 0);
+    const metaConv    = sum(metaCur, 'conversions');
+    const googleConv  = sum(googleCur, 'conversions');
+    const metaValue   = sum(metaCur, 'conversionsValue');
+    const googleValue = sum(googleCur, 'conversionsValue');
+    const metaSpend   = sum(metaCur, 'spend');
+    const googleSpend = sum(googleCur, 'cost');
+    const totalConv   = metaConv + googleConv;
+    const totalSpend  = metaSpend + googleSpend;
+    const totalValue  = metaValue + googleValue;
+    return {
+      metaConv, googleConv, totalConv, totalValue,
+      cpl:       totalConv  > 0 ? totalSpend  / totalConv  : null,
+      metaCpl:   metaConv   > 0 ? metaSpend   / metaConv   : null,
+      googleCpl: googleConv > 0 ? googleSpend / googleConv : null,
+      roas:      totalValue > 0 && totalSpend > 0 ? totalValue / totalSpend : null,
+    };
+  }, [metaCur, googleCur]);
+
   // ── Sparklines ─────────────────────────────────────────────────────────────
   const sparkSpend  = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.spend, (g) => g.cost), [metaCur, googleCur]);
   const sparkImpr   = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.impressions, (g) => g.impressions), [metaCur, googleCur]);
@@ -1252,6 +1273,37 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── CONVERSÕES DAS PLATAFORMAS — preenche o vazio quando sem CRM ─────── */}
+      {!hasKommo && platformConv.totalConv > 0 && (
+        <div>
+          <SectionLabel>conversões das plataformas · {rangeLabel.toLowerCase()}</SectionLabel>
+          <div className="mb-3 flex items-start gap-2 px-4 py-2.5 rounded-xl" style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#60a5fa" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            </svg>
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Conversões atribuídas pelo próprio Google e Meta — disponíveis mesmo sem CRM. Para vendas fechadas e ROAS real do negócio, conecte o CRM ou insira dados manuais.
+            </span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <BottomKpiCard title="Conversões totais" value={fmtNum(Math.round(platformConv.totalConv))} sub={`Meta ${fmtNum(Math.round(platformConv.metaConv))} · Google ${fmtNum(Math.round(platformConv.googleConv))}`} accent="#60a5fa" />
+            <BottomKpiCard title="CPL real" value={platformConv.cpl != null ? fmtBRL(platformConv.cpl) : '—'} sub="Gasto ÷ conversões" />
+            <BottomKpiCard title="CPL Meta" value={platformConv.metaCpl != null ? fmtBRL(platformConv.metaCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.metaConv))} conversões`} accent={PLATFORM_COLORS.Meta.text} />
+            <BottomKpiCard title="CPL Google" value={platformConv.googleCpl != null ? fmtBRL(platformConv.googleCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.googleConv))} conversões`} accent={PLATFORM_COLORS.Google.text} />
+          </div>
+          {platformConv.roas != null && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+              <BottomKpiCard
+                title="ROAS plataformas"
+                value={`${platformConv.roas.toFixed(2).replace('.', ',')}x`}
+                sub={`Valor de conversão ${fmtMoney(platformConv.totalValue)}`}
+                accent={platformConv.roas >= 4 ? 'var(--badge-success-text)' : platformConv.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)'}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── DADOS MANUAIS — banner quando sem CRM ───────────────────────────── */}
       {!hasKommo && (
         <>
@@ -1329,7 +1381,8 @@ export default function DashboardPage() {
       )}
 
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
-      {attributionSummary && (
+      {/* Fundo de funil (ROAS/CPL/receita/pipeline) precisa de receita — oculta sem CRM/dados manuais */}
+      {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>resultado consolidado — fundo de funil</SectionLabel>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1796,7 +1849,9 @@ export default function DashboardPage() {
       )}
 
       {/* ── 7. SAÚDE FINANCEIRA E PROJEÇÃO ───────────────────────────────────── */}
-      {attributionSummary && (
+      {/* Depende de receita (CRM ou dados manuais) — sem fonte de receita, todos os KPIs
+          ficam "—", então oculta a seção e deixa as conversões das plataformas no lugar. */}
+      {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>saúde financeira e projeção</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

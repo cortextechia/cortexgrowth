@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -8,6 +8,90 @@ import { ProtectedRoute, PermissionGuard } from '@/components/ProtectedRoute';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { apiService } from '@/lib/api';
 import { TrafficManagerClient, UserRole } from '@/types';
+
+// Classificação visual de cada cliente no seletor do gestor
+function clientDot(c: TrafficManagerClient): { color: string; label: string } {
+  if (c.isSelf) return { color: '#a855f7', label: 'Sua conta' };
+  if (c.claimed) return { color: '#22c55e', label: 'Cliente ativo (acesso próprio)' };
+  if (c.source === 'MANAGER') return { color: '#3b82f6', label: 'Dashboard criado por você' };
+  return { color: '#64748b', label: 'Cliente conectado' };
+}
+
+function platformBadges(c: TrafficManagerClient): { label: string; color: string; bg: string }[] {
+  const b: { label: string; color: string; bg: string }[] = [];
+  if (c.hasGoogle) b.push({ label: 'G', color: '#16a34a', bg: 'rgba(34,197,94,0.14)' });
+  if (c.hasMeta) b.push({ label: 'M', color: '#2563eb', bg: 'rgba(59,130,246,0.14)' });
+  if (c.hasKommo) b.push({ label: 'CRM', color: '#d97706', bg: 'rgba(245,158,11,0.14)' });
+  return b;
+}
+
+function ClientSelector({ clients, selectedOrgId, onChange }: { clients: TrafficManagerClient[]; selectedOrgId: string; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const selected = clients.find((c) => c.id === selectedOrgId) ?? clients[0];
+  if (!selected) return null;
+  const selDot = clientDot(selected);
+
+  return (
+    <div ref={ref} className="relative flex-1 min-w-0 max-w-[280px]">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 w-full rounded-md px-2.5 py-1.5 text-sm"
+        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}
+      >
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selDot.color }} />
+        <span className="truncate font-medium" style={{ color: 'var(--text-primary)' }}>
+          {selected.isSelf ? `${selected.name} (Eu)` : selected.name}
+        </span>
+        <div className="flex items-center gap-1 shrink-0">
+          {platformBadges(selected).map((b) => (
+            <span key={b.label} className="text-[10px] font-bold px-1 rounded" style={{ color: b.color, backgroundColor: b.bg }}>{b.label}</span>
+          ))}
+        </div>
+        <svg className="w-4 h-4 shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--text-muted)' }}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-[300px] max-h-[60vh] overflow-y-auto rounded-lg py-1 shadow-lg" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
+          {clients.map((c) => {
+            const dot = clientDot(c);
+            const active = c.id === selectedOrgId;
+            return (
+              <button
+                key={c.id}
+                onClick={() => { setOpen(false); if (c.id !== selectedOrgId) onChange(c.id); }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left"
+                style={{ backgroundColor: active ? 'var(--accent-dim)' : 'transparent' }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot.color }} />
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate" style={{ color: 'var(--text-primary)' }}>{c.isSelf ? `${c.name} (Eu)` : c.name}</span>
+                  {dot.label && <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{dot.label}</span>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {platformBadges(c).map((b) => (
+                    <span key={b.label} className="text-[10px] font-bold px-1 rounded" style={{ color: b.color, backgroundColor: b.bg }}>{b.label}</span>
+                  ))}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const NAV_ITEMS = [
   {
@@ -327,18 +411,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {clientOrgs.length === 0 ? (
                     <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span>
                   ) : (
-                    <select
-                      value={selectedOrgId}
-                      onChange={(e) => handleClientChange(e.target.value)}
-                      className="text-sm rounded-md px-2 py-1 border-0 outline-none cursor-pointer min-w-0 flex-1 max-w-[200px]"
-                      style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
-                    >
-                      {clientOrgs.map((org) => (
-                        <option key={org.id} value={org.id} style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
-                          {org.isSelf ? `${org.name} (Eu)` : org.name}
-                        </option>
-                      ))}
-                    </select>
+                    <ClientSelector clients={clientOrgs} selectedOrgId={selectedOrgId} onChange={handleClientChange} />
                   )}
                 </div>
               ) : (
