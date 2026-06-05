@@ -1202,11 +1202,11 @@ export default function DashboardPage() {
   const mktRoas       = mktTab === 'meta' ? attributionSummary?.roasMeta    : mktTab === 'google' ? attributionSummary?.roasGoogle    : attributionSummary?.roas    ?? null;
   const mktRevenue    = mktTab === 'meta' ? (attributionSummary?.revenueMeta ?? 0) : mktTab === 'google' ? (attributionSummary?.revenueGoogle ?? 0) : (attributionSummary?.revenue ?? 0);
   const mktSpend      = mktTab === 'meta' ? (attributionSummary?.spendMeta   ?? 0) : mktTab === 'google' ? (attributionSummary?.spendGoogle   ?? 0) : (attributionSummary?.spend   ?? 0);
-  const mktCac        = mktTab === 'meta'   ? (canalComparativo.meta.won   > 0 ? canalComparativo.meta.spend   / canalComparativo.meta.won   : null)
-                      : mktTab === 'google' ? (canalComparativo.google.won > 0 ? canalComparativo.google.spend / canalComparativo.google.won : null)
+  const mktCac        = mktTab === 'meta'   ? (canalComparativo.meta.leads   > 0 ? canalComparativo.meta.spend   / canalComparativo.meta.leads   : null)
+                      : mktTab === 'google' ? (canalComparativo.google.leads > 0 ? canalComparativo.google.spend / canalComparativo.google.leads : null)
                       : (attributionSummary?.cac ?? null);
-  const mktLeadsBadge = mktTab === 'meta'   ? `${canalComparativo.meta.won} leads Meta`
-                      : mktTab === 'google' ? `${canalComparativo.google.won} leads Google`
+  const mktLeadsBadge = mktTab === 'meta'   ? `${canalComparativo.meta.leads} leads Meta`
+                      : mktTab === 'google' ? `${canalComparativo.google.leads} leads Google`
                       : `${attributionSummary?.attributedLeads ?? 0} leads atribuídos`;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
@@ -1451,14 +1451,18 @@ export default function DashboardPage() {
             <BottomKpiCard
               title="Receita fechada"
               value={mktClosedValue > 0 ? fmtMoney(mktClosedValue) : '—'}
-              sub={mktWonCount > 0 ? `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}` : 'Nenhuma venda fechada'}
+              sub={mktWonCount > 0
+                ? mktTab === 'total'
+                  ? `${mktWonCount} vendas · inclui leads sem UTM`
+                  : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
+                : 'Nenhuma venda fechada'}
             />
             <BottomKpiCard
               title="Pipeline em negociação"
               value={mktPipeline > 0 ? fmtMoney(mktPipeline) : '—'}
               badge={mktPipeline > 0 ? 'Potencial ativo' : undefined}
               badgeColor="var(--badge-warn-text)"
-              sub="Aguardando fechamento"
+              sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
               accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
             />
           </div>
