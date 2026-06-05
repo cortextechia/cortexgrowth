@@ -359,8 +359,8 @@ class ApiService {
     return response.data;
   }
 
-  async generateInsights(): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
-    const response = await this.client.post('/ai/insights/generate');
+  async generateInsights(daysBack = 30): Promise<{ success: boolean; message: string; data: { analysisId: string } }> {
+    const response = await this.client.post('/ai/insights/generate', { daysBack });
     return response.data;
   }
 

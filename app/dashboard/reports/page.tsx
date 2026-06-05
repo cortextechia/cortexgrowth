@@ -255,6 +255,7 @@ export default function ReportsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
+  const [daysBack, setDaysBack]     = useState(30);
 
   const fetchReports = useCallback(async () => {
     try {
@@ -274,7 +275,7 @@ export default function ReportsPage() {
   const handleGenerate = async () => {
     setGenerating(true);
     try {
-      const res = await apiService.generateInsights();
+      const res = await apiService.generateInsights(daysBack);
       if (res.success) {
         showToast('Relatório gerado com sucesso!', 'ok');
         await fetchReports();
@@ -346,6 +347,20 @@ export default function ReportsPage() {
             Análises e inteligência criativa geradas pelos agentes de IA.
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <select
+            value={daysBack}
+            onChange={(e) => setDaysBack(Number(e.target.value))}
+            disabled={generating}
+            className="rounded-xl px-3 py-2 text-sm font-medium border disabled:opacity-60"
+            style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', borderColor: 'var(--border)' }}
+          >
+            <option value={7}>7 dias</option>
+            <option value={14}>14 dias</option>
+            <option value={30}>30 dias</option>
+            <option value={60}>60 dias</option>
+            <option value={90}>90 dias</option>
+          </select>
         <button
           onClick={handleGenerate}
           disabled={generating}
@@ -369,6 +384,7 @@ export default function ReportsPage() {
             </>
           )}
         </button>
+        </div>
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════════
