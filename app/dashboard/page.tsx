@@ -600,6 +600,7 @@ export default function DashboardPage() {
   const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
+  const [mktTab, setMktTab]           = useState<'total' | 'meta' | 'google'>('total');
   const [selectedCampaign, setSelectedCampaign] = useState<typeof campaigns[0] | null>(null);
   const [colPickerOpen, setColPickerOpen] = useState(false);
   const OPTIONAL_COLS = [
@@ -661,15 +662,15 @@ export default function DashboardPage() {
   // ── Active period ──────────────────────────────────────────────────────────
   const activePeriod = useMemo(() => {
     if (range === 'CUSTOM' && customStart && customEnd) {
-      const s = new Date(customStart); s.setHours(0, 0, 0, 0);
-      const e = new Date(customEnd);   e.setHours(23, 59, 59, 999);
+      const s = new Date(customStart); s.setUTCHours(0, 0, 0, 0);
+      const e = new Date(customEnd);   e.setUTCHours(23, 59, 59, 999);
       return { start: s, end: e };
     }
     const days = PRESETS[range as Exclude<Range, 'CUSTOM'>]?.days ?? 30;
     const e = new Date();
     const s = new Date();
     s.setDate(s.getDate() - days);
-    s.setHours(0, 0, 0, 0);
+    s.setUTCHours(0, 0, 0, 0);
     return { start: s, end: e };
   }, [range, customStart, customEnd]);
 
@@ -704,14 +705,20 @@ export default function DashboardPage() {
   const googlePrev = useMemo(() => prevPeriodRange(googleAdsMetrics,   activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
   const kommoCur   = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
 
+  // ── Filtered arrays for marketing platform tab ────────────────────────────
+  const mktMetaCur    = useMemo(() => mktTab === 'google' ? ([] as typeof metaCur)    : metaCur,    [metaCur,    mktTab]);
+  const mktGoogleCur  = useMemo(() => mktTab === 'meta'   ? ([] as typeof googleCur)  : googleCur,  [googleCur,  mktTab]);
+  const mktMetaPrev   = useMemo(() => mktTab === 'google' ? ([] as typeof metaPrev)   : metaPrev,   [metaPrev,   mktTab]);
+  const mktGooglePrev = useMemo(() => mktTab === 'meta'   ? ([] as typeof googlePrev) : googlePrev, [googlePrev, mktTab]);
+
   // ── KPIs ───────────────────────────────────────────────────────────────────
   const kpis = useMemo(() => {
-    const curSpend   = metaCur.reduce((s, d) => s + d.spend, 0)       + googleCur.reduce((s, d) => s + d.cost, 0);
-    const prevSpend  = metaPrev.reduce((s, d) => s + d.spend, 0)      + googlePrev.reduce((s, d) => s + d.cost, 0);
-    const curImpr    = metaCur.reduce((s, d) => s + d.impressions, 0) + googleCur.reduce((s, d) => s + d.impressions, 0);
-    const prevImpr   = metaPrev.reduce((s, d) => s + d.impressions, 0) + googlePrev.reduce((s, d) => s + d.impressions, 0);
-    const curClicks  = metaCur.reduce((s, d) => s + d.clicks, 0)      + googleCur.reduce((s, d) => s + d.clicks, 0);
-    const prevClicks = metaPrev.reduce((s, d) => s + d.clicks, 0)     + googlePrev.reduce((s, d) => s + d.clicks, 0);
+    const curSpend   = mktMetaCur.reduce((s, d) => s + d.spend, 0)       + mktGoogleCur.reduce((s, d) => s + d.cost, 0);
+    const prevSpend  = mktMetaPrev.reduce((s, d) => s + d.spend, 0)      + mktGooglePrev.reduce((s, d) => s + d.cost, 0);
+    const curImpr    = mktMetaCur.reduce((s, d) => s + d.impressions, 0) + mktGoogleCur.reduce((s, d) => s + d.impressions, 0);
+    const prevImpr   = mktMetaPrev.reduce((s, d) => s + d.impressions, 0) + mktGooglePrev.reduce((s, d) => s + d.impressions, 0);
+    const curClicks  = mktMetaCur.reduce((s, d) => s + d.clicks, 0)      + mktGoogleCur.reduce((s, d) => s + d.clicks, 0);
+    const prevClicks = mktMetaPrev.reduce((s, d) => s + d.clicks, 0)     + mktGooglePrev.reduce((s, d) => s + d.clicks, 0);
     const curCtr     = curImpr  > 0 ? (curClicks  / curImpr)  * 100 : 0;
     const prevCtr    = prevImpr > 0 ? (prevClicks / prevImpr) * 100 : 0;
     const metaSpend  = metaCur.reduce((s, d) => s + d.spend, 0);
@@ -720,12 +727,12 @@ export default function DashboardPage() {
     const cpc        = curClicks > 0 ? curSpend / curClicks : 0;
 
     return {
-      spend:  { value: fmtMoney(curSpend),   delta: calcDelta(curSpend, prevSpend),   sub: `Meta ${fmtMoney(metaSpend)} · Google ${fmtMoney(googleSpend)}` },
+      spend:  { value: fmtMoney(curSpend),   delta: calcDelta(curSpend, prevSpend),   sub: mktTab === 'total' ? `Meta ${fmtMoney(metaSpend)} · Google ${fmtMoney(googleSpend)}` : `CPM médio ${fmtBRL(cpm)}` },
       impr:   { value: fmtNum(curImpr),       delta: calcDelta(curImpr, prevImpr),     sub: `CPM médio ${fmtBRL(cpm)}` },
       clicks: { value: fmtNum(curClicks),     delta: calcDelta(curClicks, prevClicks), sub: `CPC médio ${fmtBRL(cpc)}` },
       ctr:    { value: fmtPct(curCtr),        delta: calcDelta(curCtr, prevCtr),       sub: 'Cliques ÷ Impressões' },
     };
-  }, [metaCur, googleCur, metaPrev, googlePrev]);
+  }, [mktMetaCur, mktGoogleCur, mktMetaPrev, mktGooglePrev, metaCur, googleCur, mktTab]);
 
   // ── Conversões nativas das plataformas (Google/Meta) — base do dashboard sem CRM ──
   const platformConv = useMemo(() => {
@@ -749,14 +756,14 @@ export default function DashboardPage() {
   }, [metaCur, googleCur]);
 
   // ── Sparklines ─────────────────────────────────────────────────────────────
-  const sparkSpend  = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.spend, (g) => g.cost), [metaCur, googleCur]);
-  const sparkImpr   = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.impressions, (g) => g.impressions), [metaCur, googleCur]);
-  const sparkClicks = useMemo(() => dailyValues(metaCur, googleCur, (m) => m.clicks, (g) => g.clicks), [metaCur, googleCur]);
+  const sparkSpend  = useMemo(() => dailyValues(mktMetaCur, mktGoogleCur, (m) => m.spend, (g) => g.cost), [mktMetaCur, mktGoogleCur]);
+  const sparkImpr   = useMemo(() => dailyValues(mktMetaCur, mktGoogleCur, (m) => m.impressions, (g) => g.impressions), [mktMetaCur, mktGoogleCur]);
+  const sparkClicks = useMemo(() => dailyValues(mktMetaCur, mktGoogleCur, (m) => m.clicks, (g) => g.clicks), [mktMetaCur, mktGoogleCur]);
   const sparkCtr    = useMemo(() => {
-    const imprArr  = dailyValues(metaCur, googleCur, (m) => m.impressions, (g) => g.impressions);
-    const clickArr = dailyValues(metaCur, googleCur, (m) => m.clicks, (g) => g.clicks);
+    const imprArr  = dailyValues(mktMetaCur, mktGoogleCur, (m) => m.impressions, (g) => g.impressions);
+    const clickArr = dailyValues(mktMetaCur, mktGoogleCur, (m) => m.clicks, (g) => g.clicks);
     return imprArr.map((imp, i) => imp > 0 ? (clickArr[i] / imp) * 100 : 0);
-  }, [metaCur, googleCur]);
+  }, [mktMetaCur, mktGoogleCur]);
 
   // ── Funnel leads filtered by channel tab ──────────────────────────────────
   const funnelLeads = useMemo(() => {
@@ -806,6 +813,20 @@ export default function DashboardPage() {
     });
     return { pipeline, closedValue };
   }, [kommoCur]);
+
+  // ── Revenue / pipeline filtered by marketing platform tab ─────────────────
+  const { mktClosedValue, mktPipeline, mktWonCount } = useMemo(() => {
+    const leads = mktTab === 'meta'   ? kommoCur.filter(l => l.utmSource === 'meta')
+                : mktTab === 'google' ? kommoCur.filter(l => l.utmSource === 'google')
+                : kommoCur;
+    let mktPipeline = 0, mktClosedValue = 0, mktWonCount = 0;
+    leads.forEach(l => {
+      if (l.price == null || l.price === 0) return;
+      if (WON_STATUSES.includes(l.status)) { mktClosedValue += l.price; mktWonCount++; }
+      else if (!LOST_STATUSES.includes(l.status)) mktPipeline += l.price;
+    });
+    return { mktClosedValue, mktPipeline, mktWonCount };
+  }, [kommoCur, mktTab]);
 
   // ── Recurrent leads (tag "carteira") ──────────────────────────────────────
   const recurrentCount = useMemo(
@@ -1177,6 +1198,17 @@ export default function DashboardPage() {
     Google: { dot: '#059669', bg: 'rgba(5,150,105,0.10)',   text: '#047857' },
   };
 
+  // ── Derived mkt-tab values for bottom KPIs ───────────────────────────────
+  const mktRoas       = mktTab === 'meta' ? attributionSummary?.roasMeta    : mktTab === 'google' ? attributionSummary?.roasGoogle    : attributionSummary?.roas    ?? null;
+  const mktRevenue    = mktTab === 'meta' ? (attributionSummary?.revenueMeta ?? 0) : mktTab === 'google' ? (attributionSummary?.revenueGoogle ?? 0) : (attributionSummary?.revenue ?? 0);
+  const mktSpend      = mktTab === 'meta' ? (attributionSummary?.spendMeta   ?? 0) : mktTab === 'google' ? (attributionSummary?.spendGoogle   ?? 0) : (attributionSummary?.spend   ?? 0);
+  const mktCac        = mktTab === 'meta'   ? (canalComparativo.meta.won   > 0 ? canalComparativo.meta.spend   / canalComparativo.meta.won   : null)
+                      : mktTab === 'google' ? (canalComparativo.google.won > 0 ? canalComparativo.google.spend / canalComparativo.google.won : null)
+                      : (attributionSummary?.cac ?? null);
+  const mktLeadsBadge = mktTab === 'meta'   ? `${canalComparativo.meta.won} leads Meta`
+                      : mktTab === 'google' ? `${canalComparativo.google.won} leads Google`
+                      : `${attributionSummary?.attributedLeads ?? 0} leads atribuídos`;
+
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -1256,7 +1288,21 @@ export default function DashboardPage() {
 
       {/* ── 3. KPIs TOPO DE FUNIL ─────────────────────────────────────────────── */}
       <div>
-        <SectionLabel>marketing — topo de funil · {rangeLabel.toLowerCase()}</SectionLabel>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>marketing — topo de funil · {rangeLabel.toLowerCase()}</p>
+          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                onClick={() => setMktTab(tab)}
+                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                style={mktTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         {dashLoading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[...Array(4)].map((_, i) => (
@@ -1388,32 +1434,32 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <BottomKpiCard
               title="ROAS real"
-              value={attributionSummary.roas != null ? `${attributionSummary.roas.toFixed(2).replace('.', ',')}x` : '—'}
-              badge={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? '↑ acima da meta' : attributionSummary.roas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
-              badgeColor={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? 'var(--badge-success-text)' : attributionSummary.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
-              sub={attributionSummary.revenue > 0 ? `${fmtMoney(attributionSummary.revenue)} receita / ${fmtMoney(attributionSummary.spend)} gasto` : 'Sem receitas fechadas'}
-              accent={attributionSummary.roas != null ? (attributionSummary.roas >= 4 ? 'var(--badge-success-text)' : attributionSummary.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
+              value={mktRoas != null ? `${mktRoas.toFixed(2).replace('.', ',')}x` : '—'}
+              badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
+              badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
+              sub={mktRevenue > 0 ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto` : 'Sem receitas fechadas'}
+              accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
             />
             <BottomKpiCard
               title="CAC"
-              value={attributionSummary.cac != null ? fmtBRL(attributionSummary.cac) : '—'}
-              badge={`${attributionSummary.attributedLeads} leads atribuídos`}
+              value={mktCac != null ? fmtBRL(mktCac) : '—'}
+              badge={mktLeadsBadge}
               badgeColor="#60a5fa"
               sub="Custo por lead no período"
               accent="#60a5fa"
             />
             <BottomKpiCard
               title="Receita fechada"
-              value={closedValue > 0 ? fmtMoney(closedValue) : '—'}
-              sub={ltvData.wonTotal > 0 ? `${ltvData.wonTotal} vendas · ticket médio ${ltvData.ticketMedio ? fmtBRL(ltvData.ticketMedio) : '—'}` : 'Nenhuma venda fechada'}
+              value={mktClosedValue > 0 ? fmtMoney(mktClosedValue) : '—'}
+              sub={mktWonCount > 0 ? `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}` : 'Nenhuma venda fechada'}
             />
             <BottomKpiCard
               title="Pipeline em negociação"
-              value={pipeline > 0 ? fmtMoney(pipeline) : '—'}
-              badge={pipeline > 0 ? 'Potencial ativo' : undefined}
+              value={mktPipeline > 0 ? fmtMoney(mktPipeline) : '—'}
+              badge={mktPipeline > 0 ? 'Potencial ativo' : undefined}
               badgeColor="var(--badge-warn-text)"
               sub="Aguardando fechamento"
-              accent={pipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
+              accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
             />
           </div>
         </div>
