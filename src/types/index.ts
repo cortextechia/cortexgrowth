@@ -588,6 +588,24 @@ export interface ManualRevenueSummary {
   hasData: boolean;
 }
 
+export interface RevenueGoal {
+  id: string;
+  organizationId: string;
+  month: number;
+  year: number;
+  target: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RevenueGoalProgress {
+  month: number;
+  year: number;
+  label: string;
+  realized: number;
+  target: number | null;
+}
+
 export interface CreativeBriefing {
   id: string;
   organizationId: string;

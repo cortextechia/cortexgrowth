@@ -10,7 +10,7 @@ import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
 import Link from 'next/link';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { LineChart, Line, ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -210,6 +210,167 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
       )}
       <p className="text-2xl font-semibold tabular-nums" style={{ color: accent }}>{value}</p>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
+    </div>
+  );
+}
+
+// ─── Meta de faturamento do mês ────────────────────────────────────────────────
+
+function MonthlyGoalCard({ progress, canEdit, onSaved }: {
+  progress: import('@/types').RevenueGoalProgress;
+  canEdit: boolean;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue]     = useState('');
+  const [saving, setSaving]   = useState(false);
+
+  const { realized, target } = progress;
+  const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
+  const pct     = Math.min(pctRaw, 100);
+  const reached = target != null && target > 0 && realized >= target;
+  const barColor = reached
+    ? 'var(--badge-success-text)'
+    : pctRaw >= 70 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)';
+
+  const startEdit = () => {
+    setValue(target != null ? String(target) : '');
+    setEditing(true);
+  };
+
+  const save = async () => {
+    const raw = value.trim();
+    const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+    const num = parseFloat(normalized);
+    if (!isFinite(num) || num < 0) return;
+    setSaving(true);
+    try {
+      await apiService.saveRevenueGoal({ month: progress.month, year: progress.year, target: num });
+      setEditing(false);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+          Meta do mês · {progress.label}
+        </span>
+        {canEdit && !editing && (
+          <button onClick={startEdit} className="text-xs font-medium px-2 py-0.5 rounded transition-colors"
+            style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.12)' }}>
+            {target != null ? 'Editar' : 'Definir meta'}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 flex-1 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            <span className="text-sm" style={{ color: 'var(--text-muted)' }}>R$</span>
+            <input
+              type="text" inputMode="decimal" autoFocus value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+              placeholder="0,00"
+              className="flex-1 bg-transparent text-sm outline-none tabular-nums"
+              style={{ color: 'var(--text-primary)' }}
+            />
+          </div>
+          <button onClick={save} disabled={saving}
+            className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+            style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+            {saving ? 'Salvando…' : 'Salvar'}
+          </button>
+          <button onClick={() => setEditing(false)} className="text-xs font-medium px-2 py-2 rounded-lg" style={{ color: 'var(--text-muted)' }}>
+            Cancelar
+          </button>
+        </div>
+      ) : target == null ? (
+        <div className="flex flex-col gap-1">
+          <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(realized)}</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {canEdit ? 'Nenhuma meta definida para o mês.' : 'Faturamento realizado · meta não definida.'}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-end justify-between gap-2">
+            <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+              {fmtMoney(realized)}
+              <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}> / {fmtMoney(target)}</span>
+            </p>
+            <span className="text-sm font-semibold tabular-nums" style={{ color: barColor }}>{pctRaw.toFixed(0)}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+          </div>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {reached
+              ? `Meta atingida · ${fmtMoney(realized - target)} acima`
+              : `Faltam ${fmtMoney(target - realized)} para a meta`}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Gráfico de faturamento mês a mês (Frente C) ───────────────────────────────
+
+interface ChartTooltipItem { dataKey?: string; value?: number | null }
+
+function RevenueChartTooltip({ active, payload, label }: { active?: boolean; payload?: ChartTooltipItem[]; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const realized = payload.find((p) => p.dataKey === 'realized')?.value;
+  const target   = payload.find((p) => p.dataKey === 'target')?.value;
+  return (
+    <div style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', borderRadius: 8, padding: '8px 10px' }}>
+      <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      <p className="text-xs tabular-nums" style={{ color: 'var(--text-primary)' }}>Receita: {fmtMoney(Number(realized ?? 0))}</p>
+      {target != null && (
+        <p className="text-xs tabular-nums" style={{ color: 'var(--badge-warn-text)' }}>Meta: {fmtMoney(Number(target))}</p>
+      )}
+    </div>
+  );
+}
+
+function MonthlyRevenueChart({ data }: { data: import('@/types').RevenueGoalProgress[] }) {
+  const hasAnyTarget = data.some((d) => d.target != null && d.target > 0);
+  return (
+    <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Faturamento mês a mês</p>
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: '#60a5fa' }} /> Receita fechada
+          </span>
+          {hasAnyTarget && (
+            <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+              <span className="h-0 w-4 border-t-2 border-dashed" style={{ borderColor: 'var(--badge-warn-text)' }} /> Meta
+            </span>
+          )}
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={280}>
+        <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
+          <YAxis
+            tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={78}
+            tickFormatter={(v: number) => `R$ ${Math.round(v).toLocaleString('pt-BR')}`}
+          />
+          <Tooltip content={<RevenueChartTooltip />} cursor={{ fill: 'var(--text-muted)', opacity: 0.08 }} />
+          <Bar dataKey="realized" fill="#60a5fa" radius={[4, 4, 0, 0]} maxBarSize={48} />
+          <Line
+            dataKey="target" stroke="var(--badge-warn-text)" strokeWidth={2} strokeDasharray="5 4"
+            connectNulls dot={{ r: 3, fill: 'var(--badge-warn-text)', strokeWidth: 0 }} activeDot={{ r: 4 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }
@@ -598,6 +759,7 @@ export default function DashboardPage() {
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
+  const [goalProgress, setGoalProgress] = useState<import('@/types').RevenueGoalProgress[] | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
   const [mktTab, setMktTab]           = useState<'total' | 'meta' | 'google'>('total');
@@ -630,13 +792,49 @@ export default function DashboardPage() {
     });
   };
 
+  const BOTTOM_KPI_OPTIONS = [
+    { key: 'roas',      label: 'ROAS real'       },
+    { key: 'cac',       label: 'CAC'             },
+    { key: 'receita',   label: 'Receita fechada' },
+    { key: 'pipeline',  label: 'Pipeline'        },
+    { key: 'leads',     label: 'Leads'           },
+    { key: 'cpl',       label: 'CPL'             },
+    { key: 'conversao', label: 'Conversão'       },
+    { key: 'ticket',    label: 'Ticket médio'    },
+  ] as const;
+  type BottomKpiKey = typeof BOTTOM_KPI_OPTIONS[number]['key'];
+  const DEFAULT_BOTTOM_KPIS: BottomKpiKey[] = ['roas', 'cac', 'receita', 'pipeline'];
+  const [visibleBottomKpis, setVisibleBottomKpis] = useState<BottomKpiKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_BOTTOM_KPIS;
+    try {
+      const saved = localStorage.getItem('dashboard_bottom_kpis');
+      if (saved) return JSON.parse(saved) as BottomKpiKey[];
+    } catch { /* ignore */ }
+    return DEFAULT_BOTTOM_KPIS;
+  });
+  const [bottomKpiPickerOpen, setBottomKpiPickerOpen] = useState(false);
+  const toggleBottomKpi = (key: BottomKpiKey) => {
+    setVisibleBottomKpis((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      localStorage.setItem('dashboard_bottom_kpis', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+  const canEditGoal = isAdmin || user?.role === 'TRAFFIC_MANAGER';
+  const currentGoal = goalProgress && goalProgress.length > 0 ? goalProgress[goalProgress.length - 1] : null;
+
+  const loadGoalProgress = () => {
+    apiService.getRevenueGoalProgress(6).then((r) => { if (r.success) setGoalProgress(r.data); }).catch(() => {});
+  };
 
   useEffect(() => {
     fetchIntegrations();
     fetchAllDashboardData(30);
     fetchLatestInsight();
     apiService.getManualRevenueSummary(3).then((r) => { if (r.success) setManualRevenueSummary(r.data); }).catch(() => {});
+    loadGoalProgress();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1208,6 +1406,9 @@ export default function DashboardPage() {
   const mktLeadsBadge = mktTab === 'meta'   ? `${canalComparativo.meta.leads} leads Meta`
                       : mktTab === 'google' ? `${canalComparativo.google.leads} leads Google`
                       : `${attributionSummary?.attributedLeads ?? 0} leads atribuídos`;
+  const mktCpl      = funnelCounts.generated > 0 && mktSpend > 0 ? mktSpend / funnelCounts.generated : null;
+  const mktConvRate = funnelCounts.generated > 0 ? (funnelCounts.won / funnelCounts.generated) * 100 : null;
+  const mktTicket   = mktWonCount > 0 ? mktClosedValue / mktWonCount : null;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -1426,45 +1627,142 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* ── META DO MÊS ───────────────────────────────────────────────────────── */}
+      {currentGoal && (
+        <div>
+          <SectionLabel>meta do mês</SectionLabel>
+          <MonthlyGoalCard progress={currentGoal} canEdit={canEditGoal} onSaved={loadGoalProgress} />
+        </div>
+      )}
+
+      {/* ── FATURAMENTO MÊS A MÊS (Frente C) ───────────────────────────────────── */}
+      {goalProgress && goalProgress.length > 1 && (
+        <div>
+          <SectionLabel>faturamento mês a mês</SectionLabel>
+          <MonthlyRevenueChart data={goalProgress} />
+        </div>
+      )}
+
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
       {/* Fundo de funil (ROAS/CPL/receita/pipeline) precisa de receita — oculta sem CRM/dados manuais */}
       {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
         <div>
-          <SectionLabel>resultado consolidado — fundo de funil</SectionLabel>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>resultado consolidado — fundo de funil</p>
+            <div className="relative">
+              <button
+                onClick={() => setBottomKpiPickerOpen((o) => !o)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: bottomKpiPickerOpen ? 'rgba(59,130,246,0.10)' : 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  color: bottomKpiPickerOpen ? '#60a5fa' : 'var(--text-muted)',
+                }}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Personalizar
+              </button>
+              {bottomKpiPickerOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-20 rounded-xl p-3 flex flex-wrap gap-2"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', minWidth: 248, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}
+                >
+                  {BOTTOM_KPI_OPTIONS.map(({ key, label }) => {
+                    const on = visibleBottomKpis.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleBottomKpi(key)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                        style={on
+                          ? { backgroundColor: '#3b82f6', color: '#fff' }
+                          : { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }
+                        }
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <BottomKpiCard
-              title="ROAS real"
-              value={mktRoas != null ? `${mktRoas.toFixed(2).replace('.', ',')}x` : '—'}
-              badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
-              badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
-              sub={mktRevenue > 0 ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto` : 'Sem receitas fechadas'}
-              accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
-            />
-            <BottomKpiCard
-              title="CAC"
-              value={mktCac != null ? fmtBRL(mktCac) : '—'}
-              badge={mktLeadsBadge}
-              badgeColor="#60a5fa"
-              sub="Custo por lead no período"
-              accent="#60a5fa"
-            />
-            <BottomKpiCard
-              title="Receita fechada"
-              value={mktClosedValue > 0 ? fmtMoney(mktClosedValue) : '—'}
-              sub={mktWonCount > 0
-                ? mktTab === 'total'
-                  ? `${mktWonCount} vendas · inclui leads sem UTM`
-                  : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
-                : 'Nenhuma venda fechada'}
-            />
-            <BottomKpiCard
-              title="Pipeline em negociação"
-              value={mktPipeline > 0 ? fmtMoney(mktPipeline) : '—'}
-              badge={mktPipeline > 0 ? 'Potencial ativo' : undefined}
-              badgeColor="var(--badge-warn-text)"
-              sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
-              accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
-            />
+            {visibleBottomKpis.includes('roas') && (
+              <BottomKpiCard
+                title="ROAS real"
+                value={mktRoas != null ? `${mktRoas.toFixed(2).replace('.', ',')}x` : '—'}
+                badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
+                badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
+                sub={mktRevenue > 0 ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto` : 'Sem receitas fechadas'}
+                accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
+              />
+            )}
+            {visibleBottomKpis.includes('cac') && (
+              <BottomKpiCard
+                title="CAC"
+                value={mktCac != null ? fmtBRL(mktCac) : '—'}
+                badge={mktLeadsBadge}
+                badgeColor="#60a5fa"
+                sub="Custo por lead no período"
+                accent="#60a5fa"
+              />
+            )}
+            {visibleBottomKpis.includes('receita') && (
+              <BottomKpiCard
+                title="Receita fechada"
+                value={mktClosedValue > 0 ? fmtMoney(mktClosedValue) : '—'}
+                sub={mktWonCount > 0
+                  ? mktTab === 'total'
+                    ? `${mktWonCount} vendas · inclui leads sem UTM`
+                    : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
+                  : 'Nenhuma venda fechada'}
+              />
+            )}
+            {visibleBottomKpis.includes('pipeline') && (
+              <BottomKpiCard
+                title="Pipeline em negociação"
+                value={mktPipeline > 0 ? fmtMoney(mktPipeline) : '—'}
+                badge={mktPipeline > 0 ? 'Potencial ativo' : undefined}
+                badgeColor="var(--badge-warn-text)"
+                sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
+                accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
+              />
+            )}
+            {visibleBottomKpis.includes('leads') && (
+              <BottomKpiCard
+                title="Leads"
+                value={fmtNum(funnelCounts.generated)}
+                sub={`${funnelCounts.won} vendas · ${funnelCounts.lost} perdidos`}
+                accent="#60a5fa"
+              />
+            )}
+            {visibleBottomKpis.includes('cpl') && (
+              <BottomKpiCard
+                title="CPL"
+                value={mktCpl != null ? fmtBRL(mktCpl) : '—'}
+                sub={`Gasto / ${funnelCounts.generated} leads`}
+                accent="#60a5fa"
+              />
+            )}
+            {visibleBottomKpis.includes('conversao') && (
+              <BottomKpiCard
+                title="Conversão final"
+                value={mktConvRate != null ? fmtPct1(mktConvRate) : '—'}
+                sub={`${funnelCounts.won} vendas em ${funnelCounts.generated} leads`}
+                accent={mktConvRate != null ? (mktConvRate >= 10 ? 'var(--badge-success-text)' : mktConvRate >= 5 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
+              />
+            )}
+            {visibleBottomKpis.includes('ticket') && (
+              <BottomKpiCard
+                title="Ticket médio"
+                value={mktTicket != null ? fmtBRL(mktTicket) : '—'}
+                sub={`${mktWonCount} vendas fechadas`}
+              />
+            )}
           </div>
         </div>
       )}

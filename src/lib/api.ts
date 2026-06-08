@@ -731,6 +731,28 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Meta de faturamento mensal ─────────────────────────────────────────────
+
+  async getRevenueGoals(): Promise<{ success: boolean; data: import('@/types').RevenueGoal[] }> {
+    const response = await this.client.get('/revenue-goals');
+    return response.data;
+  }
+
+  async getRevenueGoalProgress(months = 6): Promise<{ success: boolean; data: import('@/types').RevenueGoalProgress[] }> {
+    const response = await this.client.get('/revenue-goals/progress', { params: { months } });
+    return response.data;
+  }
+
+  async saveRevenueGoal(data: { month: number; year: number; target: number }): Promise<{ success: boolean; message: string; data: import('@/types').RevenueGoal }> {
+    const response = await this.client.put('/revenue-goals', data);
+    return response.data;
+  }
+
+  async deleteRevenueGoal(year: number, month: number): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/revenue-goals/${year}/${month}`);
+    return response.data;
+  }
+
   // Helpers para sessão do gestor
   getSelectedClientOrgId(): string | null {
     if (typeof window === 'undefined') return null;
