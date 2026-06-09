@@ -39,8 +39,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>1. Introdução</h2>
             <p>
-              O <strong style={{ color: '#f1f5f9' }}>Cortex Growth</strong>, desenvolvido e operado pela <strong style={{ color: '#f1f5f9' }}>IA Cortex Tech</strong>
-              {' '}(CNPJ em processo de atualização cadastral), é uma plataforma SaaS de analytics de marketing que centraliza dados
+              O <strong style={{ color: '#f1f5f9' }}>Cortex Growth</strong>, desenvolvido e operado pela <strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong>
+              {' '}(CNPJ 52.722.681/0001-03), é uma plataforma SaaS de analytics de marketing que centraliza dados
               de Meta Ads, Google Ads e Kommo CRM em um único dashboard inteligente.
             </p>
             <p className="mt-3">
@@ -104,7 +104,7 @@ export default function PrivacyPage() {
               <li><strong style={{ color: '#f1f5f9' }}>Meta Platforms Inc.</strong> — via API oficial do Meta Ads, para importação de dados de campanhas autorizadas por você via OAuth.</li>
               <li><strong style={{ color: '#f1f5f9' }}>Google LLC</strong> — via API oficial do Google Ads e Google Analytics, para importação de métricas autorizadas por você.</li>
               <li><strong style={{ color: '#f1f5f9' }}>Kommo (amocrm)</strong> — via API oficial do Kommo CRM, para sincronização de leads autorizados por você.</li>
-              <li><strong style={{ color: '#f1f5f9' }}>Google (Gemini API)</strong> — para geração de insights de IA. Apenas métricas agregadas são enviadas, sem dados pessoais identificáveis.</li>
+              <li><strong style={{ color: '#f1f5f9' }}>Anthropic (Claude API)</strong> — para geração de insights de IA. Apenas métricas agregadas são enviadas, sem dados pessoais identificáveis.</li>
             </ul>
             <p className="mt-3">
               Nenhuma outra empresa ou terceiro tem acesso aos seus dados.
