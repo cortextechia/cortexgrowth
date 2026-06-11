@@ -251,11 +251,11 @@ export function useDashboard() {
     }
   }, [isAuthenticated]);
 
-  const fetchAttributionSummary = useCallback(async (days: number) => {
+  const fetchAttributionSummary = useCallback(async (days: number, start?: string, end?: string) => {
     if (!isAuthenticated) return;
     const reqId = ++attributionReqId.current;
     try {
-      const response = await apiService.getAttributionSummary(days);
+      const response = await apiService.getAttributionSummary(days, start, end);
       // descarta resposta se uma requisição mais recente já foi disparada
       if (reqId === attributionReqId.current && response.success) {
         setAttributionSummary(response.data);

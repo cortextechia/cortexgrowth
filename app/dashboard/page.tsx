@@ -147,6 +147,38 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span
+      className="relative inline-flex shrink-0"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        aria-label="O que significa esta métrica?"
+        onClick={() => setOpen((o) => !o)}
+        onBlur={() => setOpen(false)}
+        className="flex items-center justify-center cursor-help"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+        </svg>
+      </button>
+      {open && (
+        <span
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-30 rounded-lg px-2.5 py-2 text-xs font-normal normal-case tracking-normal text-left"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', width: 'min(220px, 78vw)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', whiteSpace: 'normal', lineHeight: 1.45 }}
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 interface KpiCardProps {
   title: string;
   value: string;
@@ -156,15 +188,19 @@ interface KpiCardProps {
   sub: string;
   sparkData: number[];
   animKey: number;
+  info?: string;
 }
 
-function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sub, sparkData, animKey }: KpiCardProps) {
+function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sub, sparkData, animKey, info }: KpiCardProps) {
   const positive = invertDelta ? delta <= 0 : delta >= 0;
   const arrow = delta >= 0 ? '↑' : '↓';
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
+        <span className="flex items-center gap-1 min-w-0">
+          <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
+          {info && <InfoTip text={info} />}
+        </span>
         {delta !== 0 && (
           <span
             className="text-xs font-semibold px-1.5 py-0.5 rounded"
@@ -194,12 +230,16 @@ interface BottomKpiProps {
   badge?: string;
   badgeColor?: string;
   accent?: string;
+  info?: string;
 }
 
-function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--text-primary)' }: BottomKpiProps) {
+function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--text-primary)', info }: BottomKpiProps) {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
+      <span className="flex items-center gap-1 min-w-0">
+        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
+        {info && <InfoTip text={info} />}
+      </span>
       {badge && (
         <span
           className="self-start text-xs px-2 py-0.5 rounded font-medium"
@@ -216,14 +256,16 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
 
 // ─── Meta de faturamento do mês ────────────────────────────────────────────────
 
-function MonthlyGoalCard({ progress, canEdit, onSaved }: {
+function MonthlyGoalCard({ progress, canEdit, onSaved, chartData }: {
   progress: import('@/types').RevenueGoalProgress;
   canEdit: boolean;
   onSaved: () => void;
+  chartData?: import('@/types').RevenueGoalProgress[];
 }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue]     = useState('');
-  const [saving, setSaving]   = useState(false);
+  const [editing, setEditing]     = useState(false);
+  const [value, setValue]         = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [chartOpen, setChartOpen] = useState(false);
 
   const { realized, target } = progress;
   const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
@@ -253,18 +295,34 @@ function MonthlyGoalCard({ progress, canEdit, onSaved }: {
     }
   };
 
+  const showChart = chartData && chartData.length > 1;
+
   return (
     <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
           Meta do mês · {progress.label}
         </span>
-        {canEdit && !editing && (
-          <button onClick={startEdit} className="text-xs font-medium px-2 py-0.5 rounded transition-colors"
-            style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.12)' }}>
-            {target != null ? 'Editar' : 'Definir meta'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {showChart && (
+            <button
+              onClick={() => setChartOpen((o) => !o)}
+              className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded transition-colors"
+              style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+            >
+              Histórico
+              <svg className="h-3 w-3 transition-transform" style={{ transform: chartOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
+          {canEdit && !editing && (
+            <button onClick={startEdit} className="text-xs font-medium px-2 py-0.5 rounded transition-colors"
+              style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.12)' }}>
+              {target != null ? 'Editar' : 'Definir meta'}
+            </button>
+          )}
+        </div>
       </div>
 
       {editing ? (
@@ -315,6 +373,12 @@ function MonthlyGoalCard({ progress, canEdit, onSaved }: {
           </p>
         </>
       )}
+
+      {showChart && chartOpen && (
+        <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+          <MonthlyRevenueChart data={chartData!} />
+        </div>
+      )}
     </div>
   );
 }
@@ -341,9 +405,9 @@ function RevenueChartTooltip({ active, payload, label }: { active?: boolean; pay
 function MonthlyRevenueChart({ data }: { data: import('@/types').RevenueGoalProgress[] }) {
   const hasAnyTarget = data.some((d) => d.target != null && d.target > 0);
   return (
-    <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+    <div className="pt-2">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Faturamento mês a mês</p>
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Faturamento mês a mês</p>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
             <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: '#60a5fa' }} /> Receita fechada
@@ -793,12 +857,12 @@ export default function DashboardPage() {
   };
 
   const BOTTOM_KPI_OPTIONS = [
-    { key: 'roas',      label: 'ROAS real'       },
-    { key: 'cac',       label: 'CAC'             },
+    { key: 'roas',      label: 'ROAS atribuído'  },
+    { key: 'cac',       label: 'CPL'             },
     { key: 'receita',   label: 'Receita fechada' },
     { key: 'pipeline',  label: 'Pipeline'        },
     { key: 'leads',     label: 'Leads'           },
-    { key: 'cpl',       label: 'CPL'             },
+    { key: 'cpl',       label: 'CPL geral'       },
     { key: 'conversao', label: 'Conversão'       },
     { key: 'ticket',    label: 'Ticket médio'    },
   ] as const;
@@ -875,20 +939,28 @@ export default function DashboardPage() {
   const activeDays = useMemo(() => {
     if (range === 'CUSTOM' && customStart && customEnd) {
       const diff = new Date(customEnd).getTime() - new Date(customStart).getTime();
-      return Math.max(1, Math.ceil(diff / 86400000));
+      // +1: janela inclusiva (01/06–11/06 são 11 dias, não 10)
+      return Math.max(1, Math.round(diff / 86400000) + 1);
     }
     return PRESETS[range as Exclude<Range, 'CUSTOM'>]?.days ?? 30;
   }, [range, customStart, customEnd]);
 
   useEffect(() => {
-    fetchAttributionSummary(activeDays);
+    // Range personalizado manda a janela explícita — só "days" fazia o backend
+    // calcular "últimos N dias" e ignorar as datas escolhidas
+    if (range === 'CUSTOM' && customStart && customEnd) {
+      fetchAttributionSummary(activeDays, customStart, customEnd);
+    } else {
+      fetchAttributionSummary(activeDays);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDays]);
+  }, [activeDays, range, customStart, customEnd]);
 
   const rangeLabel = useMemo(() => {
     if (range === 'CUSTOM') {
       if (!customStart || !customEnd) return 'Personalizado';
-      const fmt = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+      // timeZone UTC: 'YYYY-MM-DD' é parseado como meia-noite UTC; formatar em BRT volta um dia
+      const fmt = (d: string) => new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' });
       return `${fmt(customStart)} – ${fmt(customEnd)}`;
     }
     return PRESETS[range].label;
@@ -1409,6 +1481,11 @@ export default function DashboardPage() {
   const mktCpl      = funnelCounts.generated > 0 && mktSpend > 0 ? mktSpend / funnelCounts.generated : null;
   const mktConvRate = funnelCounts.generated > 0 ? (funnelCounts.won / funnelCounts.generated) * 100 : null;
   const mktTicket   = mktWonCount > 0 ? mktClosedValue / mktWonCount : null;
+  // Cobertura de atribuição: % dos leads do período com UTM de canal pago — contexto
+  // obrigatório do ROAS atribuído (sem isso o número parece o ROAS do negócio inteiro)
+  const utmCovPct   = attributionSummary && attributionSummary.totalLeads > 0
+    ? (attributionSummary.attributedLeads / attributionSummary.totalLeads) * 100
+    : null;
 
   // ── JSX ───────────────────────────────────────────────────────────────────
   return (
@@ -1463,7 +1540,9 @@ export default function DashboardPage() {
       {/* Custom date range */}
       {range === 'CUSTOM' && (
         <div className="flex items-center gap-2">
+          {/* min 90 dias: os endpoints de Meta/Google do dashboard só retornam 90d — antes disso os cards de marketing zeram */}
           <input type="date" value={customStart} max={customEnd || undefined}
+            min={new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)}
             onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
             className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
             style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--input-border)', color: 'var(--text-secondary)', colorScheme: isDark ? 'dark' : 'light' }}
@@ -1512,10 +1591,10 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sub={kpis.spend.sub}  sparkData={sparkSpend}  animKey={animKey} />
-            <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sub={kpis.impr.sub}   sparkData={sparkImpr}   animKey={animKey} />
-            <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sub={kpis.clicks.sub} sparkData={sparkClicks} animKey={animKey} />
-            <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sub={kpis.ctr.sub}    sparkData={sparkCtr}    animKey={animKey} />
+            <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sub={kpis.spend.sub}  sparkData={sparkSpend}  animKey={animKey} info="Investimento somado em Meta Ads e Google Ads no período selecionado." />
+            <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sub={kpis.impr.sub}   sparkData={sparkImpr}   animKey={animKey} info="Quantas vezes seus anúncios foram exibidos. Uma mesma pessoa pode gerar várias impressões." />
+            <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sub={kpis.clicks.sub} sparkData={sparkClicks} animKey={animKey} info="Cliques nos anúncios no período. Nem todo clique vira lead — acompanhe junto com o CPL." />
+            <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sub={kpis.ctr.sub}    sparkData={sparkCtr}    animKey={animKey} info="Taxa de cliques: cliques ÷ impressões. Mede se o criativo chama atenção — queda forte costuma indicar fadiga do anúncio." />
           </div>
         )}
       </div>
@@ -1533,10 +1612,10 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <BottomKpiCard title="Conversões totais" value={fmtNum(Math.round(platformConv.totalConv))} sub={`Meta ${fmtNum(Math.round(platformConv.metaConv))} · Google ${fmtNum(Math.round(platformConv.googleConv))}`} accent="#60a5fa" />
-            <BottomKpiCard title="CPL real" value={platformConv.cpl != null ? fmtBRL(platformConv.cpl) : '—'} sub="Gasto ÷ conversões" />
-            <BottomKpiCard title="CPL Meta" value={platformConv.metaCpl != null ? fmtBRL(platformConv.metaCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.metaConv))} conversões`} accent={PLATFORM_COLORS.Meta.text} />
-            <BottomKpiCard title="CPL Google" value={platformConv.googleCpl != null ? fmtBRL(platformConv.googleCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.googleConv))} conversões`} accent={PLATFORM_COLORS.Google.text} />
+            <BottomKpiCard title="Conversões totais" value={fmtNum(Math.round(platformConv.totalConv))} sub={`Meta ${fmtNum(Math.round(platformConv.metaConv))} · Google ${fmtNum(Math.round(platformConv.googleConv))}`} accent="#60a5fa" info="Conversões contadas pelo próprio Meta e Google (leads, mensagens, compras configuradas na plataforma). Não são vendas confirmadas no CRM." />
+            <BottomKpiCard title="CPL real" value={platformConv.cpl != null ? fmtBRL(platformConv.cpl) : '—'} sub="Gasto ÷ conversões" info="Custo por conversão: gasto total ÷ conversões reportadas pelas plataformas." />
+            <BottomKpiCard title="CPL Meta" value={platformConv.metaCpl != null ? fmtBRL(platformConv.metaCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.metaConv))} conversões`} accent={PLATFORM_COLORS.Meta.text} info="Gasto no Meta Ads ÷ conversões reportadas pelo Meta." />
+            <BottomKpiCard title="CPL Google" value={platformConv.googleCpl != null ? fmtBRL(platformConv.googleCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.googleConv))} conversões`} accent={PLATFORM_COLORS.Google.text} info="Gasto no Google Ads ÷ conversões reportadas pelo Google." />
           </div>
           {platformConv.roas != null && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
@@ -1544,6 +1623,7 @@ export default function DashboardPage() {
                 title="ROAS plataformas"
                 value={`${platformConv.roas.toFixed(2).replace('.', ',')}x`}
                 sub={`Valor de conversão ${fmtMoney(platformConv.totalValue)}`}
+                info="Retorno calculado com o valor de conversão que o próprio Meta/Google reporta — não com vendas do CRM. Use como referência, não como faturamento."
                 accent={platformConv.roas >= 4 ? 'var(--badge-success-text)' : platformConv.roas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)'}
               />
             </div>
@@ -1578,24 +1658,28 @@ export default function DashboardPage() {
                   title="ROAS (Meta)"
                   value={manualRevenueSummary.totals.roasMeta != null ? `${manualRevenueSummary.totals.roasMeta.toFixed(2).replace('.', ',')}x` : '—'}
                   sub={`Meta: ${manualRevenueSummary.totals.metaLeads} leads`}
+                  info="Receita informada manualmente para o Meta ÷ gasto no Meta Ads no período."
                   accent={manualRevenueSummary.totals.roasMeta != null ? (manualRevenueSummary.totals.roasMeta >= 4 ? 'var(--badge-success-text)' : manualRevenueSummary.totals.roasMeta >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
                 />
                 <BottomKpiCard
                   title="ROAS (Google)"
                   value={manualRevenueSummary.totals.roasGoogle != null ? `${manualRevenueSummary.totals.roasGoogle.toFixed(2).replace('.', ',')}x` : '—'}
                   sub={`Google: ${manualRevenueSummary.totals.googleLeads} leads`}
+                  info="Receita informada manualmente para o Google ÷ gasto no Google Ads no período."
                   accent={manualRevenueSummary.totals.roasGoogle != null ? (manualRevenueSummary.totals.roasGoogle >= 4 ? 'var(--badge-success-text)' : manualRevenueSummary.totals.roasGoogle >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
                 />
                 <BottomKpiCard
                   title="Receita total"
                   value={manualRevenueSummary.totals.revenue > 0 ? fmtMoney(manualRevenueSummary.totals.revenue) : '—'}
                   sub={`${manualRevenueSummary.totals.sales} vendas · ${manualRevenueSummary.totals.leads} leads`}
+                  info="Soma da receita inserida manualmente no período."
                 />
                 <BottomKpiCard
-                  title="CAC"
+                  title="CPL"
                   value={manualRevenueSummary.totals.cac != null ? fmtBRL(manualRevenueSummary.totals.cac) : '—'}
                   sub="Gasto / leads pagos (Meta + Google)"
                   accent="#60a5fa"
+                  info="Custo por lead: gasto em anúncios ÷ leads de canais pagos informados manualmente. Não é custo por cliente (CAC)."
                 />
               </div>
             </div>
@@ -1631,15 +1715,12 @@ export default function DashboardPage() {
       {currentGoal && (
         <div>
           <SectionLabel>meta do mês</SectionLabel>
-          <MonthlyGoalCard progress={currentGoal} canEdit={canEditGoal} onSaved={loadGoalProgress} />
-        </div>
-      )}
-
-      {/* ── FATURAMENTO MÊS A MÊS (Frente C) ───────────────────────────────────── */}
-      {goalProgress && goalProgress.length > 1 && (
-        <div>
-          <SectionLabel>faturamento mês a mês</SectionLabel>
-          <MonthlyRevenueChart data={goalProgress} />
+          <MonthlyGoalCard
+            progress={currentGoal}
+            canEdit={canEditGoal}
+            onSaved={loadGoalProgress}
+            chartData={goalProgress ?? undefined}
+          />
         </div>
       )}
 
@@ -1693,22 +1774,26 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {visibleBottomKpis.includes('roas') && (
               <BottomKpiCard
-                title="ROAS real"
+                title="ROAS atribuído"
                 value={mktRoas != null ? `${mktRoas.toFixed(2).replace('.', ',')}x` : '—'}
                 badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
                 badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
-                sub={mktRevenue > 0 ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto` : 'Sem receitas fechadas'}
+                sub={mktRevenue > 0
+                  ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto${utmCovPct != null ? ` · cobre ${fmtPct1(utmCovPct)} dos leads` : ''}`
+                  : 'Sem receitas fechadas'}
                 accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
+                info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro."
               />
             )}
             {visibleBottomKpis.includes('cac') && (
               <BottomKpiCard
-                title="CAC"
+                title="CPL"
                 value={mktCac != null ? fmtBRL(mktCac) : '—'}
                 badge={mktLeadsBadge}
                 badgeColor="#60a5fa"
                 sub="Custo por lead no período"
                 accent="#60a5fa"
+                info="Custo por lead: gasto em anúncios ÷ leads atribuídos a canais pagos. Não confundir com CAC (custo por cliente conquistado) — esse está em Saúde Financeira como CAC real."
               />
             )}
             {visibleBottomKpis.includes('receita') && (
@@ -1720,6 +1805,7 @@ export default function DashboardPage() {
                     ? `${mktWonCount} vendas · inclui leads sem UTM`
                     : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
                   : 'Nenhuma venda fechada'}
+                info="Soma do valor das vendas ganhas no CRM dentro do período. Na aba Total inclui todas as vendas, mesmo sem origem identificada."
               />
             )}
             {visibleBottomKpis.includes('pipeline') && (
@@ -1730,6 +1816,7 @@ export default function DashboardPage() {
                 badgeColor="var(--badge-warn-text)"
                 sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
                 accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
+                info="Valor somado dos negócios ainda abertos no CRM — o que pode virar receita se fechar. Não é receita garantida."
               />
             )}
             {visibleBottomKpis.includes('leads') && (
@@ -1738,14 +1825,16 @@ export default function DashboardPage() {
                 value={fmtNum(funnelCounts.generated)}
                 sub={`${funnelCounts.won} vendas · ${funnelCounts.lost} perdidos`}
                 accent="#60a5fa"
+                info="Total de leads que entraram no CRM no período, de todos os canais (pago, WhatsApp, orgânico)."
               />
             )}
             {visibleBottomKpis.includes('cpl') && (
               <BottomKpiCard
-                title="CPL"
+                title="CPL geral"
                 value={mktCpl != null ? fmtBRL(mktCpl) : '—'}
                 sub={`Gasto / ${funnelCounts.generated} leads`}
                 accent="#60a5fa"
+                info="Gasto em anúncios ÷ todos os leads do período, inclusive os sem origem identificada. Tende a ser menor que o CPL atribuído."
               />
             )}
             {visibleBottomKpis.includes('conversao') && (
@@ -1754,6 +1843,7 @@ export default function DashboardPage() {
                 value={mktConvRate != null ? fmtPct1(mktConvRate) : '—'}
                 sub={`${funnelCounts.won} vendas em ${funnelCounts.generated} leads`}
                 accent={mktConvRate != null ? (mktConvRate >= 10 ? 'var(--badge-success-text)' : mktConvRate >= 5 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
+                info="Percentual de leads que viraram venda: vendas ganhas ÷ leads gerados no período."
               />
             )}
             {visibleBottomKpis.includes('ticket') && (
@@ -1761,6 +1851,7 @@ export default function DashboardPage() {
                 title="Ticket médio"
                 value={mktTicket != null ? fmtBRL(mktTicket) : '—'}
                 sub={`${mktWonCount} vendas fechadas`}
+                info="Valor médio por venda: receita fechada ÷ número de vendas no período."
               />
             )}
           </div>
@@ -2214,6 +2305,7 @@ export default function DashboardPage() {
                     value: ltvData.ltv ? fmtMoney(ltvData.ltv) : '—',
                     color: 'var(--badge-success-text)',
                     sub: `ticket × freq. (${ltvData.wonCount} vendas com valor)`,
+                    info: 'Estimativa heurística: ticket médio × frequência de recompra (derivada da tag Carteira). É ordem de grandeza, não o LTV exato do negócio.',
                   },
                   {
                     label: 'CAC real',
@@ -2222,6 +2314,7 @@ export default function DashboardPage() {
                     sub: ltvData.wonFromPaidCount > 0
                       ? `gasto ÷ ${ltvData.wonFromPaidCount} vendas pagas`
                       : 'sem vendas via anúncio no período',
+                    info: 'Custo de aquisição por cliente: gasto em anúncios ÷ vendas ganhas vindas de canal pago. É diferente do CPL, que divide por leads.',
                   },
                   {
                     label: 'Relação LTV/CAC',
@@ -2230,16 +2323,21 @@ export default function DashboardPage() {
                       : '—',
                     color: ltvData.ltvCacRatio && ltvData.ltvCacRatio >= 3 ? 'var(--badge-success-text)' : 'var(--badge-warn-text)',
                     sub: 'meta saudável ≥ 3x',
+                    info: 'Quanto cada cliente devolve em relação ao que custou para adquirir. Como o LTV é estimado, trate como indicador direcional, não como número exato.',
                   },
                   {
                     label: 'Clientes recorr.',
                     value: String(recurrentCount),
                     color: 'var(--badge-warn-text)',
                     sub: 'tag carteira no período',
+                    info: 'Leads marcados com a tag Carteira no Kommo — clientes que voltaram a comprar no período.',
                   },
                 ].map((item, i) => (
                   <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                    <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                    <div className="flex items-center gap-1 mb-1">
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
+                      <InfoTip text={item.info} />
+                    </div>
                     <p className="text-base font-semibold tabular-nums" style={{ color: item.color }}>{item.value}</p>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.sub}</p>
                   </div>

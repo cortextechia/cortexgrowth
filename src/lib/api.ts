@@ -331,8 +331,10 @@ class ApiService {
     return response.data;
   }
 
-  async getAttributionSummary(days: number): Promise<{ success: boolean; data: AttributionSummary }> {
-    const response = await this.client.get('/ads/attribution/summary', { params: { days } });
+  async getAttributionSummary(days: number, start?: string, end?: string): Promise<{ success: boolean; data: AttributionSummary }> {
+    // start/end (YYYY-MM-DD) definem janela explícita no range personalizado; sem eles o backend usa "últimos N dias"
+    const params = start && end ? { days, start, end } : { days };
+    const response = await this.client.get('/ads/attribution/summary', { params });
     return response.data;
   }
 
