@@ -606,6 +606,25 @@ export interface RevenueGoalProgress {
   target: number | null;
 }
 
+export interface CrmHygieneItem {
+  externalId: number;
+  name: string | null;
+  status: string;
+  price: number | null;
+  utmSource: string | null;
+  createdAt: string | null;
+  lastActivityAt: string | null;
+  closedAt: string | null;
+  kommoUrl: string | null;
+}
+
+export interface CrmHygiene {
+  hasData: boolean;
+  stagnant: { count: number; thresholdDays: number; items: CrmHygieneItem[] };
+  wonNoValue: { count: number; windowDays: number; items: CrmHygieneItem[] };
+  noOrigin: { count: number; total: number; pct: number; windowDays: number; items: CrmHygieneItem[] };
+}
+
 export interface CreativeBriefing {
   id: string;
   organizationId: string;

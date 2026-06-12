@@ -745,6 +745,11 @@ class ApiService {
     return response.data;
   }
 
+  async getCrmHygiene(): Promise<{ success: boolean; data: import('@/types').CrmHygiene }> {
+    const response = await this.client.get('/crm-hygiene');
+    return response.data;
+  }
+
   async saveRevenueGoal(data: { month: number; year: number; target: number }): Promise<{ success: boolean; message: string; data: import('@/types').RevenueGoal }> {
     const response = await this.client.put('/revenue-goals', data);
     return response.data;

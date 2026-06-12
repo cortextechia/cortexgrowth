@@ -824,6 +824,8 @@ export default function DashboardPage() {
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
   const [goalProgress, setGoalProgress] = useState<import('@/types').RevenueGoalProgress[] | null>(null);
+  const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
+  const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
   const [mktTab, setMktTab]           = useState<'total' | 'meta' | 'google'>('total');
@@ -899,6 +901,7 @@ export default function DashboardPage() {
     fetchLatestInsight();
     apiService.getManualRevenueSummary(3).then((r) => { if (r.success) setManualRevenueSummary(r.data); }).catch(() => {});
     loadGoalProgress();
+    apiService.getCrmHygiene().then((r) => { if (r.success && r.data.hasData) setCrmHygiene(r.data); }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2102,6 +2105,76 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 5.1 SAÚDE DO CRM ──────────────────────────────────────────────────── */}
+      {crmHygiene && kommoCur.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>saúde do crm · preenchimento do Kommo</p>
+            <InfoTip text="Problemas de preenchimento no Kommo distorcem receita, LTV e atribuição. Cards parados impedem o registro de recompras (conversa nova do cliente cai no card antigo); venda ganha sem valor entra como R$ 0 na receita; lead sem origem fica fora do ROAS atribuído." />
+          </div>
+          <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            {([
+              {
+                key: 'stagnant' as const,
+                ok: crmHygiene.stagnant.count === 0,
+                color: crmHygiene.stagnant.count === 0 ? 'var(--badge-success-text)' : 'var(--badge-warn-text)',
+                label: <><strong>{crmHygiene.stagnant.count}</strong> cards parados há +{crmHygiene.stagnant.thresholdDays} dias em etapa intermediária</>,
+                items: crmHygiene.stagnant.items,
+                detail: (i: import('@/types').CrmHygieneItem) => `${i.status} · parado desde ${i.lastActivityAt ? new Date(i.lastActivityAt).toLocaleDateString('pt-BR') : '—'}`,
+              },
+              {
+                key: 'wonNoValue' as const,
+                ok: crmHygiene.wonNoValue.count === 0,
+                color: crmHygiene.wonNoValue.count === 0 ? 'var(--badge-success-text)' : 'var(--badge-error-text)',
+                label: <><strong>{crmHygiene.wonNoValue.count}</strong> vendas ganhas sem valor nos últimos {crmHygiene.wonNoValue.windowDays} dias</>,
+                items: crmHygiene.wonNoValue.items,
+                detail: (i: import('@/types').CrmHygieneItem) => `ganha em ${i.closedAt ? new Date(i.closedAt).toLocaleDateString('pt-BR') : '—'} · R$ 0`,
+              },
+              {
+                key: 'noOrigin' as const,
+                ok: crmHygiene.noOrigin.pct <= 30,
+                color: crmHygiene.noOrigin.pct <= 30 ? 'var(--badge-success-text)' : 'var(--badge-warn-text)',
+                label: <><strong>{crmHygiene.noOrigin.pct}%</strong> dos leads sem origem nos últimos {crmHygiene.noOrigin.windowDays} dias ({crmHygiene.noOrigin.count} de {crmHygiene.noOrigin.total})</>,
+                items: crmHygiene.noOrigin.items,
+                detail: (i: import('@/types').CrmHygieneItem) => `${i.status} · criado em ${i.createdAt ? new Date(i.createdAt).toLocaleDateString('pt-BR') : '—'}`,
+              },
+            ]).map((row) => (
+              <div key={row.key} className="rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                <button
+                  type="button"
+                  onClick={() => row.items.length > 0 && setHygieneOpen((o) => (o === row.key ? null : row.key))}
+                  className="w-full flex items-center gap-2.5 p-3 text-left"
+                  style={{ cursor: row.items.length > 0 ? 'pointer' : 'default' }}
+                >
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                  <span className="flex-1 text-xs" style={{ color: 'var(--text-secondary)' }}>{row.label}</span>
+                  {row.items.length > 0 && (
+                    <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
+                      {hygieneOpen === row.key ? 'ocultar ⌃' : 'ver ⌄'}
+                    </span>
+                  )}
+                </button>
+                {hygieneOpen === row.key && (
+                  <div className="px-3 pb-3 flex flex-col gap-1 max-h-56 overflow-y-auto">
+                    {row.items.map((i) => (
+                      <div key={i.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                        <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '38%' }}>{i.name ?? `Lead #${i.externalId}`}</span>
+                        <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{row.detail(i)}</span>
+                        {i.kommoUrl && (
+                          <a href={i.kommoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
+                            abrir no Kommo →
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
