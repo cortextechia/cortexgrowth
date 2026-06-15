@@ -256,16 +256,18 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
 
 // ─── Meta de faturamento do mês ────────────────────────────────────────────────
 
-function MonthlyGoalCard({ progress, canEdit, onSaved, chartData }: {
+function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   progress: import('@/types').RevenueGoalProgress;
   canEdit: boolean;
   onSaved: () => void;
   chartData?: import('@/types').RevenueGoalProgress[];
+  wonLeads?: import('@/types').WonLead[];
 }) {
-  const [editing, setEditing]     = useState(false);
-  const [value, setValue]         = useState('');
-  const [saving, setSaving]       = useState(false);
-  const [chartOpen, setChartOpen] = useState(false);
+  const [editing, setEditing]       = useState(false);
+  const [value, setValue]           = useState('');
+  const [saving, setSaving]         = useState(false);
+  const [chartOpen, setChartOpen]   = useState(false);
+  const [leadsOpen, setLeadsOpen]   = useState(false);
 
   const { realized, target } = progress;
   const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
@@ -372,6 +374,47 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData }: {
               : `Faltam ${fmtMoney(target - realized)} para a meta`}
           </p>
         </>
+      )}
+
+      {wonLeads && wonLeads.length > 0 && (
+        <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={() => setLeadsOpen((o) => !o)}
+            className="flex items-center gap-1.5 w-full text-left py-1"
+          >
+            <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Vendas no mês ({wonLeads.length})
+            </span>
+            <svg className="h-3 w-3 transition-transform" style={{ transform: leadsOpen ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {leadsOpen && (
+            <div className="mt-1 flex flex-col gap-0.5">
+              {wonLeads.map((l) => (
+                <div key={l.externalId} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {l.kommoUrl ? (
+                      <a href={l.kommoUrl} target="_blank" rel="noopener noreferrer" className="text-xs truncate hover:underline" style={{ color: 'var(--text-primary)' }}>
+                        {l.name ?? '(sem nome)'}
+                      </a>
+                    ) : (
+                      <span className="text-xs truncate" style={{ color: 'var(--text-primary)' }}>{l.name ?? '(sem nome)'}</span>
+                    )}
+                    {l.closedAt && (
+                      <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
+                        {new Date(l.closedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-medium tabular-nums flex-shrink-0" style={{ color: l.price > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
+                    {fmtMoney(l.price)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {showChart && chartOpen && (
@@ -824,6 +867,7 @@ export default function DashboardPage() {
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
   const [goalProgress, setGoalProgress] = useState<import('@/types').RevenueGoalProgress[] | null>(null);
+  const [wonLeads, setWonLeads] = useState<import('@/types').WonLead[] | null>(null);
   const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
@@ -892,7 +936,17 @@ export default function DashboardPage() {
   const currentGoal = goalProgress && goalProgress.length > 0 ? goalProgress[goalProgress.length - 1] : null;
 
   const loadGoalProgress = () => {
-    apiService.getRevenueGoalProgress(6).then((r) => { if (r.success) setGoalProgress(r.data); }).catch(() => {});
+    apiService.getRevenueGoalProgress(6).then((r) => {
+      if (r.success) {
+        setGoalProgress(r.data);
+        const current = r.data[r.data.length - 1];
+        if (current) {
+          apiService.getWonLeads(current.year, current.month)
+            .then((wr) => { if (wr.success) setWonLeads(wr.data.leads); })
+            .catch(() => {});
+        }
+      }
+    }).catch(() => {});
   };
 
   useEffect(() => {
@@ -1714,19 +1768,6 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* ── META DO MÊS ───────────────────────────────────────────────────────── */}
-      {currentGoal && (
-        <div>
-          <SectionLabel>meta do mês</SectionLabel>
-          <MonthlyGoalCard
-            progress={currentGoal}
-            canEdit={canEditGoal}
-            onSaved={loadGoalProgress}
-            chartData={goalProgress ?? undefined}
-          />
-        </div>
-      )}
-
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
       {/* Fundo de funil (ROAS/CPL/receita/pipeline) precisa de receita — oculta sem CRM/dados manuais */}
       {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
@@ -1858,6 +1899,20 @@ export default function DashboardPage() {
               />
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── META DO MÊS ───────────────────────────────────────────────────────── */}
+      {currentGoal && (
+        <div>
+          <SectionLabel>meta do mês</SectionLabel>
+          <MonthlyGoalCard
+            progress={currentGoal}
+            canEdit={canEditGoal}
+            onSaved={loadGoalProgress}
+            chartData={goalProgress ?? undefined}
+            wonLeads={wonLeads ?? undefined}
+          />
         </div>
       )}
 

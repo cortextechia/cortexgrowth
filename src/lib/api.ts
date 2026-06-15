@@ -760,6 +760,11 @@ class ApiService {
     return response.data;
   }
 
+  async getWonLeads(year: number, month: number): Promise<{ success: boolean; data: { leads: import('@/types').WonLead[]; total: number } }> {
+    const response = await this.client.get('/revenue-goals/won-leads', { params: { year, month } });
+    return response.data;
+  }
+
   // Helpers para sessão do gestor
   getSelectedClientOrgId(): string | null {
     if (typeof window === 'undefined') return null;

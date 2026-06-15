@@ -606,6 +606,14 @@ export interface RevenueGoalProgress {
   target: number | null;
 }
 
+export interface WonLead {
+  name: string | null;
+  price: number;
+  externalId: number;
+  closedAt: string | null;
+  kommoUrl: string | null;
+}
+
 export interface CrmHygieneItem {
   externalId: number;
   name: string | null;
