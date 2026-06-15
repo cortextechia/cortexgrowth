@@ -302,8 +302,9 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   return (
     <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
           Meta do mês · {progress.label}
+          <InfoTip text="Soma das vendas marcadas como ganhas no CRM em junho, pela data de fechamento do negócio — independente de quando o lead entrou. Pode ser maior que a Receita Fechada do funil, que conta só leads criados no período selecionado." />
         </span>
         <div className="flex items-center gap-2">
           {showChart && (
@@ -1849,7 +1850,7 @@ export default function DashboardPage() {
                     ? `${mktWonCount} vendas · inclui leads sem UTM`
                     : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
                   : 'Nenhuma venda fechada'}
-                info="Soma do valor das vendas ganhas no CRM dentro do período. Na aba Total inclui todas as vendas, mesmo sem origem identificada."
+                info="Vendas ganhas de leads criados no período selecionado. Pode ser menor que a Meta do Mês, pois leads criados antes do período (mas fechados agora) não entram aqui."
               />
             )}
             {visibleBottomKpis.includes('pipeline') && (
