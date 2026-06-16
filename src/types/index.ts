@@ -612,6 +612,7 @@ export interface WonLead {
   externalId: number;
   closedAt: string | null;
   kommoUrl: string | null;
+  utmSource: string | null;
 }
 
 export interface CrmHygieneItem {

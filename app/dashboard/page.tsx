@@ -268,6 +268,23 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   const [saving, setSaving]         = useState(false);
   const [chartOpen, setChartOpen]   = useState(false);
   const [leadsOpen, setLeadsOpen]   = useState(false);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme !== 'light';
+
+  const ORIGIN_TAGS: Record<string, { label: string; bg: string; text: string }> = isDark ? {
+    meta:      { label: 'Meta',       bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
+    google:    { label: 'Google',     bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
+    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(74,222,128,0.12)',  text: '#4ade80' },
+    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',     text: 'var(--text-muted)' },
+  } : {
+    meta:      { label: 'Meta',       bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
+    google:    { label: 'Google',     bg: 'rgba(5,150,105,0.10)',  text: '#047857' },
+    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(22,163,74,0.10)',  text: '#16a34a' },
+    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',    text: 'var(--text-muted)' },
+  };
+  const noTrackTag = { label: 'Sem rastreio', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' };
+  const originTag = (utmSource: string | null) =>
+    utmSource ? (ORIGIN_TAGS[utmSource] ?? { label: utmSource, bg: 'var(--bg-elevated)', text: 'var(--text-muted)' }) : noTrackTag;
 
   const { realized, target } = progress;
   const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
@@ -402,6 +419,9 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
                     ) : (
                       <span className="text-xs truncate" style={{ color: 'var(--text-primary)' }}>{l.name ?? '(sem nome)'}</span>
                     )}
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: originTag(l.utmSource).bg, color: originTag(l.utmSource).text }}>
+                      {originTag(l.utmSource).label}
+                    </span>
                     {l.closedAt && (
                       <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
                         {new Date(l.closedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' })}
