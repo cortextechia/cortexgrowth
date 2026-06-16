@@ -1172,7 +1172,7 @@ export default function DashboardPage() {
     leads.forEach(l => {
       if (l.price == null || l.price === 0) return;
       if (WON_STATUSES.includes(l.status)) { mktClosedValue += l.price; mktWonCount++; }
-      else if (!LOST_STATUSES.includes(l.status)) mktPipeline += l.price;
+      else if (NEGOTIATION_STATUSES.includes(l.status)) mktPipeline += l.price;
     });
     return { mktClosedValue, mktPipeline, mktWonCount };
   }, [kommoCur, mktTab]);
@@ -1896,7 +1896,7 @@ export default function DashboardPage() {
                 badgeColor="var(--badge-warn-text)"
                 sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
                 accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
-                info="Valor somado dos negócios ainda abertos no CRM — o que pode virar receita se fechar. Não é receita garantida."
+                info="Valor somado dos leads especificamente na etapa de negociação no CRM, dentro do período selecionado — o que pode virar receita se fechar. Não é receita garantida. Para ver a lista completa de quem está em negociação agora (sem filtro de período), veja a seção 'Pipeline em negociação' abaixo."
               />
             )}
             {visibleBottomKpis.includes('leads') && (
