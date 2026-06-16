@@ -891,6 +891,7 @@ export default function DashboardPage() {
   const [wonLeads, setWonLeads] = useState<import('@/types').WonLead[] | null>(null);
   const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
+  const [negotiatingOpen, setNegotiatingOpen] = useState(false);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
   const [mktTab, setMktTab]           = useState<'total' | 'meta' | 'google'>('total');
@@ -1525,6 +1526,20 @@ export default function DashboardPage() {
 
   const hasKommo = integrations.some(
     (i) => i.type === 'KOMMO' && i.status === 'CONNECTED'
+  );
+
+  const negotiatingLeads = useMemo(() => {
+    const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
+    const kommoUrl = (id: number) => (domain ? `https://${domain}/leads/detail/${id}` : null);
+    return kommoLeads
+      .filter((l) => NEGOTIATION_STATUSES.includes(l.status))
+      .map((l) => ({ ...l, kommoUrl: kommoUrl(l.externalId) }))
+      .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+  }, [kommoLeads, integrations]);
+
+  const negotiatingTotal = useMemo(
+    () => negotiatingLeads.reduce((s, l) => s + (l.price ?? 0), 0),
+    [negotiatingLeads]
   );
 
   if (user?.role === UserRole.SUPER_ADMIN) {
@@ -2251,6 +2266,51 @@ export default function DashboardPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 5.2 PIPELINE EM NEGOCIAÇÃO ────────────────────────────────────────── */}
+      {hasKommo && negotiatingLeads.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>pipeline em negociação</p>
+            <InfoTip text="Todos os leads do Kommo atualmente em etapa de negociação, independente do período selecionado no filtro acima. Ordenados por valor — priorize o tempo nas oportunidades de maior orçamento." />
+          </div>
+          <div className="rounded-xl" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <button
+              type="button"
+              onClick={() => setNegotiatingOpen((o) => !o)}
+              className="w-full flex items-center gap-2.5 p-4 text-left"
+            >
+              <span className="flex-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <strong>{negotiatingLeads.length}</strong> {negotiatingLeads.length === 1 ? 'lead' : 'leads'} em negociação · <strong>{fmtMoney(negotiatingTotal)}</strong> em jogo
+              </span>
+              <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>
+                {negotiatingOpen ? 'ocultar ⌃' : 'ver ⌄'}
+              </span>
+            </button>
+            {negotiatingOpen && (
+              <div className="px-4 pb-4 flex flex-col gap-1 max-h-80 overflow-y-auto" style={{ borderTop: '1px solid var(--border)' }}>
+                {negotiatingLeads.slice(0, 50).map((l) => (
+                  <div key={l.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs mt-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                    <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '40%' }}>{l.name ?? `Lead #${l.externalId}`}</span>
+                    <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{l.status}</span>
+                    <span className="font-semibold tabular-nums shrink-0" style={{ color: l.price ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      {l.price ? fmtMoney(l.price) : 'sem valor'}
+                    </span>
+                    {l.kommoUrl && (
+                      <a href={l.kommoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
+                        abrir no Kommo →
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {negotiatingLeads.length > 50 && (
+                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>mostrando os 50 de maior valor de {negotiatingLeads.length} leads em negociação</p>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
