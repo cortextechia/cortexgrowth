@@ -86,6 +86,24 @@ function fmtNum(v: number): string {
   return Math.round(v).toLocaleString('pt-BR');
 }
 
+type OriginTag = { label: string; bg: string; text: string };
+
+function originTagFor(utmSource: string | null, isDark: boolean): OriginTag {
+  const ORIGIN_TAGS: Record<string, OriginTag> = isDark ? {
+    meta:      { label: 'Meta',       bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
+    google:    { label: 'Google',     bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
+    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(74,222,128,0.12)',  text: '#4ade80' },
+    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',     text: 'var(--text-muted)' },
+  } : {
+    meta:      { label: 'Meta',       bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
+    google:    { label: 'Google',     bg: 'rgba(5,150,105,0.10)',  text: '#047857' },
+    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(22,163,74,0.10)',  text: '#16a34a' },
+    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',    text: 'var(--text-muted)' },
+  };
+  const noTrackTag: OriginTag = { label: 'Sem rastreio', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' };
+  return utmSource ? (ORIGIN_TAGS[utmSource] ?? { label: utmSource, bg: 'var(--bg-elevated)', text: 'var(--text-muted)' }) : noTrackTag;
+}
+
 function fmtPct(v: number): string {
   return `${v.toFixed(2).replace('.', ',')}%`;
 }
@@ -271,20 +289,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== 'light';
 
-  const ORIGIN_TAGS: Record<string, { label: string; bg: string; text: string }> = isDark ? {
-    meta:      { label: 'Meta',       bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
-    google:    { label: 'Google',     bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
-    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(74,222,128,0.12)',  text: '#4ade80' },
-    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',     text: 'var(--text-muted)' },
-  } : {
-    meta:      { label: 'Meta',       bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
-    google:    { label: 'Google',     bg: 'rgba(5,150,105,0.10)',  text: '#047857' },
-    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(22,163,74,0.10)',  text: '#16a34a' },
-    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',    text: 'var(--text-muted)' },
-  };
-  const noTrackTag = { label: 'Sem rastreio', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' };
-  const originTag = (utmSource: string | null) =>
-    utmSource ? (ORIGIN_TAGS[utmSource] ?? { label: utmSource, bg: 'var(--bg-elevated)', text: 'var(--text-muted)' }) : noTrackTag;
+  const originTag = (utmSource: string | null) => originTagFor(utmSource, isDark);
 
   const { realized, target } = progress;
   const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
@@ -2301,7 +2306,10 @@ export default function DashboardPage() {
               <div className="px-4 pb-4 flex flex-col gap-1 max-h-80 overflow-y-auto" style={{ borderTop: '1px solid var(--border)' }}>
                 {negotiatingLeads.slice(0, 50).map((l) => (
                   <div key={l.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs mt-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                    <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '40%' }}>{l.name ?? `Lead #${l.externalId}`}</span>
+                    <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '32%' }}>{l.name ?? `Lead #${l.externalId}`}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: originTagFor(l.utmSource, isDark).bg, color: originTagFor(l.utmSource, isDark).text }}>
+                      {originTagFor(l.utmSource, isDark).label}
+                    </span>
                     <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{l.status}</span>
                     <span className="font-semibold tabular-nums shrink-0" style={{ color: l.price ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                       {l.price ? fmtMoney(l.price) : 'sem valor'}
