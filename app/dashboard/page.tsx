@@ -1163,19 +1163,26 @@ export default function DashboardPage() {
     return { pipeline, closedValue };
   }, [kommoCur]);
 
-  // ── Revenue / pipeline filtered by marketing platform tab ─────────────────
-  const { mktClosedValue, mktPipeline, mktWonCount } = useMemo(() => {
+  // ── Revenue filtered by marketing platform tab ─────────────────────────────
+  const { mktClosedValue, mktWonCount } = useMemo(() => {
     const leads = mktTab === 'meta'   ? kommoCur.filter(l => l.utmSource === 'meta')
                 : mktTab === 'google' ? kommoCur.filter(l => l.utmSource === 'google')
                 : kommoCur;
-    let mktPipeline = 0, mktClosedValue = 0, mktWonCount = 0;
+    let mktClosedValue = 0, mktWonCount = 0;
     leads.forEach(l => {
       if (l.price == null || l.price === 0) return;
       if (WON_STATUSES.includes(l.status)) { mktClosedValue += l.price; mktWonCount++; }
-      else if (NEGOTIATION_STATUSES.includes(l.status)) mktPipeline += l.price;
     });
-    return { mktClosedValue, mktPipeline, mktWonCount };
+    return { mktClosedValue, mktWonCount };
   }, [kommoCur, mktTab]);
+
+  // ── Pipeline em negociação filtrado por canal — estado atual, sem filtro de período ──
+  const mktPipeline = useMemo(() => {
+    const leads = mktTab === 'meta'   ? kommoLeads.filter(l => l.utmSource === 'meta')
+                : mktTab === 'google' ? kommoLeads.filter(l => l.utmSource === 'google')
+                : kommoLeads;
+    return leads.reduce((s, l) => (NEGOTIATION_STATUSES.includes(l.status) ? s + (l.price ?? 0) : s), 0);
+  }, [kommoLeads, mktTab]);
 
   // ── Recurrent leads (tag "carteira") ──────────────────────────────────────
   const recurrentCount = useMemo(
@@ -1896,7 +1903,7 @@ export default function DashboardPage() {
                 badgeColor="var(--badge-warn-text)"
                 sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
                 accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
-                info="Valor somado dos leads especificamente na etapa de negociação no CRM, dentro do período selecionado — o que pode virar receita se fechar. Não é receita garantida. Para ver a lista completa de quem está em negociação agora (sem filtro de período), veja a seção 'Pipeline em negociação' abaixo."
+                info="Valor somado dos leads que estão agora na etapa de negociação no CRM — estado atual, independente do período selecionado no filtro. Pode virar receita se fechar, mas não é receita garantida. Veja a lista completa na seção 'Pipeline em negociação' abaixo."
               />
             )}
             {visibleBottomKpis.includes('leads') && (
