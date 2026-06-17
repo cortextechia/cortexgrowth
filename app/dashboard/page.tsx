@@ -45,6 +45,8 @@ const CONTACT_STATUSES = [
   'Follow- Up 1', 'Follow - Up 1', 'Follow - Up 2', 'Follow - Up 3',
   'Qualificado', 'Aguardando Informações',
 ];
+// "Pipeline em negociação" considera negociação a partir do orçamento enviado (cliente já recebeu proposta)
+const PIPELINE_NEGOTIATION_STATUSES = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES];
 
 interface ActiveAlert {
   type: 'critical' | 'warning' | 'opportunity';
@@ -1186,7 +1188,7 @@ export default function DashboardPage() {
     const leads = mktTab === 'meta'   ? kommoLeads.filter(l => l.utmSource === 'meta')
                 : mktTab === 'google' ? kommoLeads.filter(l => l.utmSource === 'google')
                 : kommoLeads;
-    return leads.reduce((s, l) => (NEGOTIATION_STATUSES.includes(l.status) ? s + (l.price ?? 0) : s), 0);
+    return leads.reduce((s, l) => (PIPELINE_NEGOTIATION_STATUSES.includes(l.status) ? s + (l.price ?? 0) : s), 0);
   }, [kommoLeads, mktTab]);
 
   // ── Recurrent leads (tag "carteira") ──────────────────────────────────────
@@ -1544,7 +1546,7 @@ export default function DashboardPage() {
     const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
     const kommoUrl = (id: number) => (domain ? `https://${domain}/leads/detail/${id}` : null);
     return kommoLeads
-      .filter((l) => NEGOTIATION_STATUSES.includes(l.status))
+      .filter((l) => PIPELINE_NEGOTIATION_STATUSES.includes(l.status))
       .map((l) => ({ ...l, kommoUrl: kommoUrl(l.externalId) }))
       .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
   }, [kommoLeads, integrations]);
@@ -1908,7 +1910,7 @@ export default function DashboardPage() {
                 badgeColor="var(--badge-warn-text)"
                 sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
                 accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
-                info="Valor somado dos leads que estão agora na etapa de negociação no CRM — estado atual, independente do período selecionado no filtro. Pode virar receita se fechar, mas não é receita garantida. Veja a lista completa na seção 'Pipeline em negociação' abaixo."
+                info="Valor somado dos leads que já receberam orçamento/proposta ou estão negociando no CRM — estado atual, independente do período selecionado no filtro. Pode virar receita se fechar, mas não é receita garantida. Veja a lista completa na seção 'Pipeline em negociação' abaixo."
               />
             )}
             {visibleBottomKpis.includes('leads') && (
@@ -2287,7 +2289,7 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-1.5 mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>pipeline em negociação</p>
-            <InfoTip text="Todos os leads do Kommo atualmente em etapa de negociação, independente do período selecionado no filtro acima. Ordenados por valor — priorize o tempo nas oportunidades de maior orçamento." />
+            <InfoTip text="Todos os leads do Kommo que já receberam orçamento/proposta ou estão negociando, independente do período selecionado no filtro acima. Ordenados por valor — priorize o tempo nas oportunidades de maior orçamento." />
           </div>
           <div className="rounded-xl" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
             <button
