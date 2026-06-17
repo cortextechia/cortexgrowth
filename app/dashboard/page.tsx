@@ -960,6 +960,38 @@ export default function DashboardPage() {
     });
   };
 
+  const TOPO_KPI_OPTIONS = [
+    { key: 'reach',        label: 'Alcance (Meta)'       },
+    { key: 'frequency',    label: 'Frequência (Meta)'     },
+    { key: 'conv_meta',    label: 'Conversões Meta'       },
+    { key: 'conv_google',  label: 'Conversões Google'     },
+    { key: 'cpa',          label: 'Custo/Conversão'       },
+    { key: 'leads_meta',   label: 'Leads Meta (Kommo)'    },
+    { key: 'leads_google', label: 'Leads Google (Kommo)'  },
+    { key: 'cpl_meta',     label: 'CPL Meta'              },
+    { key: 'cpl_google',   label: 'CPL Google'            },
+    { key: 'cpm',          label: 'CPM'                   },
+    { key: 'cpc',          label: 'CPC'                   },
+  ] as const;
+  type TopoKpiKey = typeof TOPO_KPI_OPTIONS[number]['key'];
+  const DEFAULT_TOPO_KPIS: TopoKpiKey[] = [];
+  const [visibleTopoKpis, setVisibleTopoKpis] = useState<TopoKpiKey[]>(() => {
+    if (typeof window === 'undefined') return DEFAULT_TOPO_KPIS;
+    try {
+      const saved = localStorage.getItem('dashboard_topo_kpis');
+      if (saved) return JSON.parse(saved) as TopoKpiKey[];
+    } catch { /* ignore */ }
+    return DEFAULT_TOPO_KPIS;
+  });
+  const [topoKpiPickerOpen, setTopoKpiPickerOpen] = useState(false);
+  const toggleTopoKpi = (key: TopoKpiKey) => {
+    setVisibleTopoKpis((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      localStorage.setItem('dashboard_topo_kpis', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const canEditGoal = isAdmin || user?.role === 'TRAFFIC_MANAGER';
   const currentGoal = goalProgress && goalProgress.length > 0 ? goalProgress[goalProgress.length - 1] : null;
@@ -1110,6 +1142,36 @@ export default function DashboardPage() {
       roas:      totalValue > 0 && totalSpend > 0 ? totalValue / totalSpend : null,
     };
   }, [metaCur, googleCur]);
+
+  // ── Topo de Funil — métricas extras para o painel Personalizar ─────────────
+  const topoKpis = useMemo(() => {
+    const metaSpend    = mktMetaCur.reduce((s, d) => s + d.spend, 0);
+    const googleSpend  = mktGoogleCur.reduce((s, d) => s + d.cost, 0);
+    const totalSpend   = metaSpend + googleSpend;
+    const metaImpr     = mktMetaCur.reduce((s, d) => s + d.impressions, 0);
+    const metaClicks   = mktMetaCur.reduce((s, d) => s + d.clicks, 0);
+    const googleImpr   = mktGoogleCur.reduce((s, d) => s + d.impressions, 0);
+    const googleClicks = mktGoogleCur.reduce((s, d) => s + d.clicks, 0);
+    const totalImpr    = metaImpr + googleImpr;
+    const totalClicks  = metaClicks + googleClicks;
+    const reach        = mktMetaCur.reduce((s, d) => s + (d.reach ?? 0), 0);
+    const frequency    = reach > 0 ? metaImpr / reach : null;
+    const metaConv     = mktMetaCur.reduce((s, d) => s + (d.conversions ?? 0), 0);
+    const googleConv   = mktGoogleCur.reduce((s, d) => s + (d.conversions ?? 0), 0);
+    const totalConv    = metaConv + googleConv;
+    const metaLeads    = kommoCur.filter((l) => l.utmSource === 'meta').length;
+    const googleLeads  = kommoCur.filter((l) => l.utmSource === 'google').length;
+    return {
+      reach, frequency,
+      metaConv, googleConv, totalConv,
+      cpa:       totalConv  > 0 ? totalSpend  / totalConv   : null,
+      cpm:       totalImpr  > 0 ? (totalSpend / totalImpr)  * 1000 : null,
+      cpc:       totalClicks > 0 ? totalSpend / totalClicks  : null,
+      metaLeads, googleLeads,
+      cplMeta:   metaLeads   > 0 ? metaSpend   / metaLeads   : null,
+      cplGoogle: googleLeads > 0 ? googleSpend / googleLeads : null,
+    };
+  }, [mktMetaCur, mktGoogleCur, kommoCur]);
 
   // ── Sparklines ─────────────────────────────────────────────────────────────
   const sparkSpend  = useMemo(() => dailyValues(mktMetaCur, mktGoogleCur, (m) => m.spend, (g) => g.cost), [mktMetaCur, mktGoogleCur]);
@@ -1677,17 +1739,54 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>marketing — topo de funil · {rangeLabel.toLowerCase()}</p>
-          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-            {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
+          <div className="flex items-center gap-2">
+            <div className="relative">
               <button
-                key={tab}
-                onClick={() => setMktTab(tab)}
-                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                style={mktTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+                onClick={() => setTopoKpiPickerOpen((o) => !o)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
               >
-                {label}
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Personalizar
               </button>
-            ))}
+              {topoKpiPickerOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-20 rounded-xl p-3 flex flex-wrap gap-2"
+                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', minWidth: 280, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}
+                >
+                  {TOPO_KPI_OPTIONS.map(({ key, label }) => {
+                    const on = visibleTopoKpis.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => toggleTopoKpi(key)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                        style={on
+                          ? { backgroundColor: '#3b82f6', color: '#fff' }
+                          : { backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+              {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  onClick={() => setMktTab(tab)}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                  style={mktTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
         {dashLoading ? (
@@ -1697,12 +1796,51 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <KpiCard title="Gasto total"   value={kpis.spend.value}  delta={kpis.spend.delta}  neutralDelta sub={kpis.spend.sub}  sparkData={sparkSpend}  animKey={animKey} info="Investimento somado em Meta Ads e Google Ads no período selecionado." />
             <KpiCard title="Impressões"    value={kpis.impr.value}   delta={kpis.impr.delta}   sub={kpis.impr.sub}   sparkData={sparkImpr}   animKey={animKey} info="Quantas vezes seus anúncios foram exibidos. Uma mesma pessoa pode gerar várias impressões." />
             <KpiCard title="Cliques"       value={kpis.clicks.value} delta={kpis.clicks.delta} sub={kpis.clicks.sub} sparkData={sparkClicks} animKey={animKey} info="Cliques nos anúncios no período. Nem todo clique vira lead — acompanhe junto com o CPL." />
             <KpiCard title="CTR"           value={kpis.ctr.value}    delta={kpis.ctr.delta}    sub={kpis.ctr.sub}    sparkData={sparkCtr}    animKey={animKey} info="Taxa de cliques: cliques ÷ impressões. Mede se o criativo chama atenção — queda forte costuma indicar fadiga do anúncio." />
           </div>
+          {visibleTopoKpis.length > 0 && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
+              {visibleTopoKpis.includes('reach') && (
+                <BottomKpiCard title="Alcance" value={topoKpis.reach > 0 ? fmtNum(topoKpis.reach) : '—'} sub="Pessoas únicas · Meta Ads" accent={PLATFORM_COLORS.Meta.text} info="Número de pessoas únicas que viram pelo menos um anúncio no período. Disponível apenas para Meta Ads." />
+              )}
+              {visibleTopoKpis.includes('frequency') && (
+                <BottomKpiCard title="Frequência" value={topoKpis.frequency != null ? topoKpis.frequency.toFixed(1).replace('.', ',') : '—'} sub="Impressões ÷ Alcance · Meta" accent={topoKpis.frequency != null && topoKpis.frequency > 3 ? 'var(--badge-warn-text)' : PLATFORM_COLORS.Meta.text} info="Média de vezes que cada pessoa viu seus anúncios. Acima de 3–4 costuma indicar fadiga criativa — hora de renovar os criativos." />
+              )}
+              {visibleTopoKpis.includes('conv_meta') && (
+                <BottomKpiCard title="Conversões Meta" value={topoKpis.metaConv > 0 ? fmtNum(Math.round(topoKpis.metaConv)) : '—'} sub="Registradas pelo Meta" accent={PLATFORM_COLORS.Meta.text} info="Conversões contadas pela própria Meta (leads, mensagens, compras configurados no pixel). Pode não bater com o Kommo — muda conforme a janela de atribuição configurada no anúncio." />
+              )}
+              {visibleTopoKpis.includes('conv_google') && (
+                <BottomKpiCard title="Conversões Google" value={topoKpis.googleConv > 0 ? fmtNum(Math.round(topoKpis.googleConv)) : '—'} sub="Registradas pelo Google" accent={PLATFORM_COLORS.Google.text} info="Conversões contadas pelo próprio Google Ads (cliques em chamada, preenchimento de formulário, etc). Pode não bater com o Kommo — depende do que está configurado no Google Ads." />
+              )}
+              {visibleTopoKpis.includes('cpa') && (
+                <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="#60a5fa" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
+              )}
+              {visibleTopoKpis.includes('leads_meta') && (
+                <BottomKpiCard title="Leads Meta (CRM)" value={topoKpis.metaLeads > 0 ? fmtNum(topoKpis.metaLeads) : '—'} sub="Com utm_source=meta no Kommo" accent={PLATFORM_COLORS.Meta.text} info="Leads no Kommo com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente." />
+              )}
+              {visibleTopoKpis.includes('leads_google') && (
+                <BottomKpiCard title="Leads Google (CRM)" value={topoKpis.googleLeads > 0 ? fmtNum(topoKpis.googleLeads) : '—'} sub="Com utm_source=google no Kommo" accent={PLATFORM_COLORS.Google.text} info="Leads no Kommo com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente." />
+              )}
+              {visibleTopoKpis.includes('cpl_meta') && (
+                <BottomKpiCard title="CPL Meta" value={topoKpis.cplMeta != null ? fmtMoney(topoKpis.cplMeta) : '—'} sub={`${topoKpis.metaLeads} leads Kommo`} accent={PLATFORM_COLORS.Meta.text} info="Gasto no Meta Ads ÷ leads com origem Meta no Kommo. Diferente do CPL da própria Meta, que usa o pixel — este usa os leads reais no CRM." />
+              )}
+              {visibleTopoKpis.includes('cpl_google') && (
+                <BottomKpiCard title="CPL Google" value={topoKpis.cplGoogle != null ? fmtMoney(topoKpis.cplGoogle) : '—'} sub={`${topoKpis.googleLeads} leads Kommo`} accent={PLATFORM_COLORS.Google.text} info="Gasto no Google Ads ÷ leads com origem Google no Kommo. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM." />
+              )}
+              {visibleTopoKpis.includes('cpm') && (
+                <BottomKpiCard title="CPM" value={topoKpis.cpm != null ? fmtMoney(topoKpis.cpm) : '—'} sub="Custo por mil impressões" accent="#60a5fa" info="Custo por mil impressões: gasto ÷ impressões × 1000. Mede o custo de alcançar audiência — sobe quando a competição pelo público aumenta." />
+              )}
+              {visibleTopoKpis.includes('cpc') && (
+                <BottomKpiCard title="CPC" value={topoKpis.cpc != null ? fmtMoney(topoKpis.cpc) : '—'} sub="Custo por clique" accent="#60a5fa" info="Custo por clique: gasto ÷ cliques totais. Combina CPC do Meta e do Google ponderado pelo gasto de cada plataforma." />
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
 
