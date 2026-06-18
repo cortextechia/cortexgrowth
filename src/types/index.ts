@@ -645,8 +645,17 @@ export interface CreativeBriefing {
   createdAt: string;
 }
 
+export type CreativePlatform = 'meta' | 'google';
+
+export interface CreativeCampaign {
+  name: string;
+  platform: CreativePlatform;
+  spend: number;
+}
+
 export interface FatigueCampaign {
   name: string;
+  platform: CreativePlatform;
   ctrToday: number;
   ctr3dAgo: number;
   dropPct: number;

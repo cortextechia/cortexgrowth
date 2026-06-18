@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from '@/lib/api';
 import {
   CreativeAnalysis, FatigueCampaign, CreativeIdeasOutput,
   CreativeBriefingOutput, CopyOutput, CompetitiveOutput, CreativeProfile,
+  CreativeCampaign, CreativePlatform,
 } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,16 +62,39 @@ function ErrorMsg({ msg }: { msg: string }) {
   return <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'rgba(239,68,68,0.06)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)' }}>{msg}</p>;
 }
 
-function CampaignInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+function CampaignSelect({ campaigns, value, platform, onChange }: {
+  campaigns: CreativeCampaign[];
+  value: string;
+  platform: CreativePlatform;
+  onChange: (name: string, platform: CreativePlatform) => void;
+}) {
+  const meta = campaigns.filter(c => c.platform === 'meta');
+  const google = campaigns.filter(c => c.platform === 'google');
+  const selectValue = value ? `${platform}::${value}` : '';
   return (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder ?? 'Nome da campanha…'}
+    <select
+      value={selectValue}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (!v) { onChange('', 'meta'); return; }
+        const sep = v.indexOf('::');
+        onChange(v.slice(sep + 2), v.slice(0, sep) as CreativePlatform);
+      }}
       className="w-full rounded-lg px-3 py-2 text-xs outline-none"
       style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-    />
+    >
+      <option value="">{campaigns.length ? 'Selecione uma campanha…' : 'Nenhuma campanha encontrada'}</option>
+      {meta.length > 0 && (
+        <optgroup label="Meta">
+          {meta.map(c => <option key={`meta::${c.name}`} value={`meta::${c.name}`}>{c.name}</option>)}
+        </optgroup>
+      )}
+      {google.length > 0 && (
+        <optgroup label="Google">
+          {google.map(c => <option key={`google::${c.name}`} value={`google::${c.name}`}>{c.name}</option>)}
+        </optgroup>
+      )}
+    </select>
   );
 }
 
@@ -157,10 +181,11 @@ function AnaliseCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =>
 
 // ─── Geração de Ideias ────────────────────────────────────────────────────────
 
-function IdeiasCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => void }) {
+function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' | 'err') => void; campaigns: CreativeCampaign[] }) {
   const [loading, setLoading] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [campaign, setCampaign] = useState('');
+  const [platform, setPlatform] = useState<CreativePlatform>('meta');
   const [fatigued, setFatigued] = useState<FatigueCampaign[]>([]);
   const [result, setResult] = useState<CreativeIdeasOutput | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -180,7 +205,7 @@ function IdeiasCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => 
     if (!campaign.trim()) { setError('Informe o nome da campanha'); return; }
     setLoading(true); setError('');
     try {
-      const r = await apiService.generateCreativeIdeas(campaign.trim());
+      const r = await apiService.generateCreativeIdeas(campaign.trim(), platform);
       setResult(r.data.ideas); setExpanded(true);
       showToast(`${r.data.ideas.ideas.length} ideias geradas!`, 'ok');
     } catch (e: any) {
@@ -202,7 +227,7 @@ function IdeiasCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => 
       {fatigued.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {fatigued.map(c => (
-            <button key={c.name} onClick={() => setCampaign(c.name)}
+            <button key={`${c.platform}-${c.name}`} onClick={() => { setCampaign(c.name); setPlatform(c.platform); }}
               className="text-xs px-2 py-1 rounded-lg transition-colors"
               style={{ backgroundColor: campaign === c.name ? 'rgba(168,85,247,0.2)' : 'rgba(239,68,68,0.07)', color: campaign === c.name ? '#c084fc' : '#f87171', border: `1px solid ${campaign === c.name ? 'rgba(168,85,247,0.3)' : 'rgba(239,68,68,0.15)'}` }}
             >
@@ -211,7 +236,7 @@ function IdeiasCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => 
           ))}
         </div>
       )}
-      <CampaignInput value={campaign} onChange={setCampaign} />
+      <CampaignSelect campaigns={campaigns} value={campaign} platform={platform} onChange={(n, p) => { setCampaign(n); setPlatform(p); }} />
       {error && <ErrorMsg msg={error} />}
       <RunButton onClick={run} loading={loading} label="Gerar ideias de ângulo" />
       {result && (
@@ -244,9 +269,10 @@ function IdeiasCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => 
 
 // ─── Briefing Automatizado ────────────────────────────────────────────────────
 
-function BriefingCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => void }) {
+function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: string, t: 'ok' | 'err') => void; onUseInCopy: (campaign: string, briefingId: string) => void; campaigns: CreativeCampaign[] }) {
   const [loading, setLoading] = useState(false);
   const [campaign, setCampaign] = useState('');
+  const [platform, setPlatform] = useState<CreativePlatform>('meta');
   const [result, setResult] = useState<CreativeBriefingOutput | null>(null);
   const [briefingId, setBriefingId] = useState('');
   const [expanded, setExpanded] = useState(false);
@@ -256,7 +282,7 @@ function BriefingCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =
     if (!campaign.trim()) { setError('Informe o nome da campanha'); return; }
     setLoading(true); setError('');
     try {
-      const r = await apiService.generateCreativeBriefing(campaign.trim());
+      const r = await apiService.generateCreativeBriefing(campaign.trim(), platform);
       setResult(r.data.briefing as CreativeBriefingOutput);
       setBriefingId(r.data.briefingId);
       setExpanded(true);
@@ -274,7 +300,7 @@ function BriefingCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =
       </svg>
     }>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gera briefing completo: público, ângulo, formato, copy e critérios de sucesso.</p>
-      <CampaignInput value={campaign} onChange={setCampaign} />
+      <CampaignSelect campaigns={campaigns} value={campaign} platform={platform} onChange={(n, p) => { setCampaign(n); setPlatform(p); }} />
       {error && <ErrorMsg msg={error} />}
       <RunButton onClick={run} loading={loading} label="Gerar briefing" />
       {result && (
@@ -283,7 +309,7 @@ function BriefingCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =
             {expanded ? '▲ Ocultar briefing' : '▼ Ver briefing completo'}
           </button>
           {briefingId && (
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>ID: <code className="text-xs" style={{ color: '#9d71cc' }}>{briefingId}</code> — use no agente de Copy</p>
+            <RunButton onClick={() => onUseInCopy(campaign.trim(), briefingId)} loading={false} label="Gerar copy a partir deste briefing →" />
           )}
         </>
       )}
@@ -341,19 +367,23 @@ function BriefingCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =
 
 // ─── Copy & Variações ─────────────────────────────────────────────────────────
 
-function CopyCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => void }) {
+function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t: 'ok' | 'err') => void; handoff: { campaign: string; briefingId: string; nonce: number } | null; campaigns: CreativeCampaign[] }) {
   const [loading, setLoading] = useState(false);
   const [campaign, setCampaign] = useState('');
+  const [platform, setPlatform] = useState<CreativePlatform>('meta');
   const [briefingId, setBriefingId] = useState('');
   const [result, setResult] = useState<CopyOutput | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
+  const anchorRef = useRef<HTMLDivElement>(null);
 
-  const run = async () => {
-    if (!campaign.trim()) { setError('Informe o nome da campanha'); return; }
+  const run = async (overrideCampaign?: string, overrideBriefingId?: string) => {
+    const camp = (overrideCampaign ?? campaign).trim();
+    const brief = (overrideBriefingId ?? briefingId).trim();
+    if (!camp) { setError('Informe o nome da campanha'); return; }
     setLoading(true); setError('');
     try {
-      const r = await apiService.generateCopy(campaign.trim(), briefingId.trim() || undefined);
+      const r = await apiService.generateCopy(camp, brief || undefined);
       setResult(r.data.copy as CopyOutput); setExpanded(true);
       showToast('3 variações de copy geradas!', 'ok');
     } catch (e: any) {
@@ -361,6 +391,17 @@ function CopyCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => vo
       setError(msg); showToast(msg, 'err');
     } finally { setLoading(false); }
   };
+
+  // Handoff do Briefing: preenche os campos, rola até o card e gera a copy automaticamente
+  useEffect(() => {
+    if (!handoff) return;
+    setCampaign(handoff.campaign);
+    setBriefingId(handoff.briefingId);
+    setPlatform(campaigns.find(c => c.name === handoff.campaign)?.platform ?? 'meta');
+    anchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    run(handoff.campaign, handoff.briefingId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoff?.nonce]);
 
   const VARIATION_COLORS: Record<string, string> = { A: '#3b82f6', B: '#a855f7', C: '#22c55e' };
 
@@ -370,16 +411,17 @@ function CopyCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => vo
         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     }>
+      <div ref={anchorRef} />
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gera 3 variações A/B de headline, body copy e CTA com ângulos distintos.</p>
-      <CampaignInput value={campaign} onChange={setCampaign} />
+      <CampaignSelect campaigns={campaigns} value={campaign} platform={platform} onChange={(n, p) => { setCampaign(n); setPlatform(p); }} />
       <input
         type="text" value={briefingId} onChange={(e) => setBriefingId(e.target.value)}
-        placeholder="ID do briefing (opcional — melhora a qualidade)"
+        placeholder="ID do briefing (preenchido automaticamente ao gerar pelo briefing)"
         className="w-full rounded-lg px-3 py-2 text-xs outline-none"
         style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
       />
       {error && <ErrorMsg msg={error} />}
-      <RunButton onClick={run} loading={loading} label="Gerar copy A/B" />
+      <RunButton onClick={() => run()} loading={loading} label="Gerar copy A/B" />
       {result && (
         <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
           {expanded ? '▲ Ocultar variações' : '▼ Ver 3 variações'}
@@ -590,9 +632,12 @@ function ConfigPanel({ profile, onSave }: { profile: CreativeProfile | null; onS
 
 export function CreativeSection({ showToast }: { showToast: (m: string, t: 'ok' | 'err') => void }) {
   const [profile, setProfile] = useState<CreativeProfile | null>(null);
+  const [campaigns, setCampaigns] = useState<CreativeCampaign[]>([]);
+  const [copyHandoff, setCopyHandoff] = useState<{ campaign: string; briefingId: string; nonce: number } | null>(null);
 
   useEffect(() => {
     apiService.getCreativeProfile().then((r) => setProfile(r.data)).catch(() => {});
+    apiService.getCreativeCampaigns().then((r) => setCampaigns(r.data)).catch(() => {});
   }, []);
 
   return (
@@ -621,9 +666,9 @@ export function CreativeSection({ showToast }: { showToast: (m: string, t: 'ok' 
       {/* Grid de agentes */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <AnaliseCard showToast={showToast} />
-        <IdeiasCard showToast={showToast} />
-        <BriefingCard showToast={showToast} />
-        <CopyCard showToast={showToast} />
+        <IdeiasCard showToast={showToast} campaigns={campaigns} />
+        <BriefingCard showToast={showToast} onUseInCopy={(campaign, briefingId) => setCopyHandoff({ campaign, briefingId, nonce: Date.now() })} campaigns={campaigns} />
+        <CopyCard showToast={showToast} handoff={copyHandoff} campaigns={campaigns} />
         <div className="sm:col-span-2">
           <CompetitiveCard profile={profile} showToast={showToast} />
         </div>

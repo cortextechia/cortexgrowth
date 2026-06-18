@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { AiAnalysis, AgentOutput } from '@/types';
-import { CreativeSection } from './CreativeSection';
 import {
   LineChart,
   Line,
@@ -344,7 +344,7 @@ export default function ReportsPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-            Análises e inteligência criativa geradas pelos agentes de IA.
+            Análises de performance geradas pelos agentes de IA.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -480,12 +480,30 @@ export default function ReportsPage() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════════
-          SEÇÃO 2 — INTELIGÊNCIA CRIATIVA
+          REFERÊNCIA — INTELIGÊNCIA CRIATIVA (agora em página própria)
       ══════════════════════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <SectionDivider label="Inteligência Criativa" accent="#a855f7" />
-        <CreativeSection showToast={showToast} />
-      </div>
+      <Link
+        href="/dashboard/criativo"
+        className="group flex items-center gap-4 rounded-2xl p-5 transition-colors"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(168,85,247,0.15)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.35)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.15)'; }}
+      >
+        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.7}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Inteligência Criativa</p>
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            Briefings, copy e ideias de criativo agora ficam na aba <span style={{ color: '#c084fc' }}>Criativos</span>. Clique para abrir.
+          </p>
+        </div>
+        <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
     </div>
   );
 }

@@ -670,13 +670,18 @@ class ApiService {
     return response.data;
   }
 
-  async generateCreativeIdeas(campaignName: string): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; ideas: import('@/types').CreativeIdeasOutput } }> {
-    const response = await this.client.post('/creative/ideas', { campaignName });
+  async getCreativeCampaigns(): Promise<{ success: boolean; data: import('@/types').CreativeCampaign[] }> {
+    const response = await this.client.get('/creative/campaigns');
     return response.data;
   }
 
-  async generateCreativeBriefing(campaignName: string): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; briefing: import('@/types').CreativeBriefingOutput } }> {
-    const response = await this.client.post('/creative/briefing', { campaignName });
+  async generateCreativeIdeas(campaignName: string, platform: import('@/types').CreativePlatform = 'meta'): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; ideas: import('@/types').CreativeIdeasOutput } }> {
+    const response = await this.client.post('/creative/ideas', { campaignName, platform });
+    return response.data;
+  }
+
+  async generateCreativeBriefing(campaignName: string, platform: import('@/types').CreativePlatform = 'meta'): Promise<{ success: boolean; message: string; data: { briefingId: string; tokensUsed: number; briefing: import('@/types').CreativeBriefingOutput } }> {
+    const response = await this.client.post('/creative/briefing', { campaignName, platform });
     return response.data;
   }
 
