@@ -626,15 +626,18 @@ function ConfigPanel({ profile, onSave }: { profile: CreativeProfile | null; onS
       {open && (
         <div className="px-5 pb-5 space-y-3" style={{ borderTop: '1px solid var(--border)' }}>
           <div className="pt-3">
-            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Produto / Serviço</label>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>O negócio: o que vende, onde atua e diferenciais</label>
             <textarea
               value={desc} onChange={(e) => setDesc(e.target.value)}
-              placeholder="Descreva brevemente o produto ou serviço desta conta (ex: 'Escritório de contabilidade para MEI e pequenas empresas em São Paulo')…"
-              rows={2}
+              placeholder={"Inclua: (1) o que vende, (2) ONDE atua/atende (cidade e região) e (3) 1–2 diferenciais reais.\nEx: 'Fábrica de laje e corte/dobra de aço em Maranguape-CE, atende Fortaleza e região metropolitana. Diferenciais: entrega rápida e peça sob medida conforme o projeto.'"}
+              rows={4}
               className="w-full rounded-lg px-3 py-2 text-xs outline-none resize-none"
               style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
-              maxLength={500}
+              maxLength={800}
             />
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              Quanto mais específico (local, público e diferenciais reais), mais fiel fica o briefing e a copy — e evita a IA inventar dados como cidade ou prazo.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
