@@ -191,6 +191,17 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
 
+  // Recarrega a última geração salva ao abrir a aba (persiste entre navegações)
+  useEffect(() => {
+    apiService.getCreativeHistory('IDEAS').then(async (r) => {
+      const last = r.data?.[0];
+      if (!last) return;
+      const item = await apiService.getCreativeHistoryItem(last.id);
+      setResult(item.data.outputData as CreativeIdeasOutput);
+      if (item.data.campaignName) setCampaign(item.data.campaignName);
+    }).catch(() => {});
+  }, []);
+
   const detect = async () => {
     setDetecting(true); setError('');
     try {
@@ -277,6 +288,18 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
   const [briefingId, setBriefingId] = useState('');
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
+
+  // Recarrega o último briefing salvo ao abrir a aba (persiste entre navegações)
+  useEffect(() => {
+    apiService.getCreativeHistory('BRIEFING').then(async (r) => {
+      const last = r.data?.[0];
+      if (!last) return;
+      const item = await apiService.getCreativeHistoryItem(last.id);
+      setResult(item.data.outputData as CreativeBriefingOutput);
+      setBriefingId(item.data.id);
+      if (item.data.campaignName) setCampaign(item.data.campaignName);
+    }).catch(() => {});
+  }, []);
 
   const run = async () => {
     if (!campaign.trim()) { setError('Informe o nome da campanha'); return; }
@@ -376,6 +399,17 @@ function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t:
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState('');
   const anchorRef = useRef<HTMLDivElement>(null);
+
+  // Recarrega a última copy salva ao abrir a aba (persiste entre navegações)
+  useEffect(() => {
+    apiService.getCreativeHistory('COPY').then(async (r) => {
+      const last = r.data?.[0];
+      if (!last) return;
+      const item = await apiService.getCreativeHistoryItem(last.id);
+      setResult(item.data.outputData as CopyOutput);
+      if (item.data.campaignName) setCampaign(item.data.campaignName);
+    }).catch(() => {});
+  }, []);
 
   const run = async (overrideCampaign?: string, overrideBriefingId?: string) => {
     const camp = (overrideCampaign ?? campaign).trim();
