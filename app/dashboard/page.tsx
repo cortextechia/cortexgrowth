@@ -899,6 +899,7 @@ export default function DashboardPage() {
   const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
   const [sellersRanking, setSellersRanking] = useState<import('@/types').SellersRanking | null>(null);
+  const [rankingMonth, setRankingMonth] = useState<{ year: number; month: number } | null>(null);
   const [negotiatingOpen, setNegotiatingOpen] = useState(false);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
@@ -997,6 +998,19 @@ export default function DashboardPage() {
   const canEditGoal = isAdmin || user?.role === 'TRAFFIC_MANAGER';
   const currentGoal = goalProgress && goalProgress.length > 0 ? goalProgress[goalProgress.length - 1] : null;
 
+  const loadSellersRanking = (year: number, month: number) => {
+    setRankingMonth({ year, month });
+    apiService.getSellersRanking(year, month)
+      .then((sr) => { if (sr.success) setSellersRanking(sr.data); })
+      .catch(() => {});
+  };
+
+  const navRankingMonth = (delta: number) => {
+    if (!rankingMonth) return;
+    const d = new Date(rankingMonth.year, rankingMonth.month - 1 + delta, 1);
+    loadSellersRanking(d.getFullYear(), d.getMonth() + 1);
+  };
+
   const loadGoalProgress = () => {
     apiService.getRevenueGoalProgress(6).then((r) => {
       if (r.success) {
@@ -1006,9 +1020,7 @@ export default function DashboardPage() {
           apiService.getWonLeads(current.year, current.month)
             .then((wr) => { if (wr.success) setWonLeads(wr.data.leads); })
             .catch(() => {});
-          apiService.getSellersRanking(current.year, current.month)
-            .then((sr) => { if (sr.success && sr.data.hasData) setSellersRanking(sr.data); })
-            .catch(() => {});
+          loadSellersRanking(current.year, current.month);
         }
       }
     }).catch(() => {});
@@ -2427,28 +2439,61 @@ export default function DashboardPage() {
       )}
 
       {/* ── 5.1.5 RANKING DE VENDEDORES ───────────────────────────────────────── */}
-      {sellersRanking && hasKommo && sellersRanking.ranking.length > 0 && (
-        <div>
-          <div className="flex items-center gap-1.5 mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ranking de vendedores · vendas fechadas no mês</p>
-            <InfoTip text="Receita das vendas ganhas no Kommo agregada pelo vendedor responsável, considerando a data de fechamento (closed_at) do mês corrente — mesma base da Meta do Mês. Vendas sem responsável aparecem como 'Não atribuído'." />
-          </div>
-          <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-            {sellersRanking.ranking.map((s, idx) => (
-              <div key={s.userId} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                <span className="text-xs font-bold tabular-nums shrink-0 w-5 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
-                <span className="font-medium truncate text-xs flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
-                <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{s.sales} {s.sales === 1 ? 'venda' : 'vendas'} · ticket {fmtMoney(s.avgTicket)}</span>
-                <span className="font-semibold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.revenue)}</span>
+      {hasKommo && kommoCur.length > 0 && rankingMonth && sellersRanking && (() => {
+        const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+        const label = `${MES[rankingMonth.month - 1]}/${String(rankingMonth.year).slice(2)}`;
+        const now = new Date();
+        const atCurrent = rankingMonth.year === now.getFullYear() && rankingMonth.month === now.getMonth() + 1;
+        const rows = sellersRanking.ranking;
+        return (
+          <div>
+            <div className="flex items-center gap-1.5 mb-3">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ranking de vendedores</p>
+              <InfoTip text="Vendas ganhas no Kommo por vendedor responsável, pela data de fechamento (closed_at) do mês. Conversão = ganhos ÷ (ganhos + perdidos) decididos no mês. 'Pipeline' é o valor em negociação atual do vendedor — do orçamento enviado em diante, mesma base da seção Pipeline em Negociação (independe do mês). 'Fecha em' = tempo médio entre criação e fechamento. A seta compara a receita com o mês anterior. Use ◀ ▶ para navegar entre os meses." />
+              <div className="flex items-center gap-2 ml-auto">
+                <button type="button" onClick={() => navRankingMonth(-1)} className="text-sm leading-none px-1" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>◀</button>
+                <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                <button type="button" onClick={() => !atCurrent && navRankingMonth(1)} disabled={atCurrent} className="text-sm leading-none px-1" style={{ color: atCurrent ? 'var(--border)' : 'var(--text-muted)', cursor: atCurrent ? 'default' : 'pointer' }}>▶</button>
               </div>
-            ))}
-            <div className="flex items-center justify-between pt-1.5 mt-0.5 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              <span>{sellersRanking.totalSales} {sellersRanking.totalSales === 1 ? 'venda' : 'vendas'} no mês</span>
-              <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sellersRanking.totalRevenue)}</span>
+            </div>
+            <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              {rows.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhuma venda fechada em {label}.</p>
+              ) : (
+                <>
+                  {rows.map((s, idx) => {
+                    const parts = [`${s.sales} ${s.sales === 1 ? 'venda' : 'vendas'}`];
+                    if (s.winRate !== null) parts.push(`conv. ${Math.round(s.winRate * 100)}%`);
+                    parts.push(`ticket ${fmtMoney(s.avgTicket)}`);
+                    if (s.avgDaysToClose !== null) parts.push(`fecha em ${s.avgDaysToClose}d`);
+                    if (s.openPipeline > 0) parts.push(`pipeline ${fmtMoney(s.openPipeline)}`);
+                    const deltaPct = s.prevRevenue > 0 ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null;
+                    return (
+                      <div key={s.userId} className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-bold tabular-nums shrink-0 w-5 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
+                          <span className="font-medium truncate text-xs flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
+                          {deltaPct !== null && (
+                            <span className="text-xs font-medium shrink-0 tabular-nums" style={{ color: deltaPct >= 0 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
+                              {deltaPct >= 0 ? '↑' : '↓'}{Math.abs(deltaPct)}%
+                            </span>
+                          )}
+                          <span className="font-semibold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.revenue)}</span>
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)', paddingLeft: '2rem' }}>{parts.join(' · ')}</div>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center justify-between pt-1.5 mt-0.5 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                    <span>{sellersRanking.totalSales} {sellersRanking.totalSales === 1 ? 'venda' : 'vendas'} em {label}</span>
+                    <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sellersRanking.totalRevenue)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ── 5.2 PIPELINE EM NEGOCIAÇÃO ────────────────────────────────────────── */}
       {hasKommo && negotiatingLeads.length > 0 && (

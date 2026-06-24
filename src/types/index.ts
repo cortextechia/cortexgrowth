@@ -640,6 +640,10 @@ export interface SellerRankingRow {
   sales: number;
   revenue: number;
   avgTicket: number;
+  winRate: number | null;
+  avgDaysToClose: number | null;
+  openPipeline: number;
+  prevRevenue: number;
 }
 
 export interface SellersRanking {
