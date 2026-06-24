@@ -770,6 +770,11 @@ class ApiService {
     return response.data;
   }
 
+  async getSellersRanking(year: number, month: number): Promise<{ success: boolean; data: import('@/types').SellersRanking }> {
+    const response = await this.client.get('/revenue-goals/sellers-ranking', { params: { year, month } });
+    return response.data;
+  }
+
   // Helpers para sessão do gestor
   getSelectedClientOrgId(): string | null {
     if (typeof window === 'undefined') return null;

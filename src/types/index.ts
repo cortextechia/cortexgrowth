@@ -634,6 +634,21 @@ export interface CrmHygiene {
   noOrigin: { count: number; total: number; pct: number; windowDays: number; items: CrmHygieneItem[] };
 }
 
+export interface SellerRankingRow {
+  userId: number;
+  name: string;
+  sales: number;
+  revenue: number;
+  avgTicket: number;
+}
+
+export interface SellersRanking {
+  ranking: SellerRankingRow[];
+  totalRevenue: number;
+  totalSales: number;
+  hasData: boolean;
+}
+
 export interface CreativeBriefing {
   id: string;
   organizationId: string;

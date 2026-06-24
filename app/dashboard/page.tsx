@@ -898,6 +898,7 @@ export default function DashboardPage() {
   const [wonLeads, setWonLeads] = useState<import('@/types').WonLead[] | null>(null);
   const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
+  const [sellersRanking, setSellersRanking] = useState<import('@/types').SellersRanking | null>(null);
   const [negotiatingOpen, setNegotiatingOpen] = useState(false);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
@@ -1004,6 +1005,9 @@ export default function DashboardPage() {
         if (current) {
           apiService.getWonLeads(current.year, current.month)
             .then((wr) => { if (wr.success) setWonLeads(wr.data.leads); })
+            .catch(() => {});
+          apiService.getSellersRanking(current.year, current.month)
+            .then((sr) => { if (sr.success && sr.data.hasData) setSellersRanking(sr.data); })
             .catch(() => {});
         }
       }
@@ -2418,6 +2422,30 @@ export default function DashboardPage() {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 5.1.5 RANKING DE VENDEDORES ───────────────────────────────────────── */}
+      {sellersRanking && hasKommo && sellersRanking.ranking.length > 0 && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-3">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ranking de vendedores · vendas fechadas no mês</p>
+            <InfoTip text="Receita das vendas ganhas no Kommo agregada pelo vendedor responsável, considerando a data de fechamento (closed_at) do mês corrente — mesma base da Meta do Mês. Vendas sem responsável aparecem como 'Não atribuído'." />
+          </div>
+          <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            {sellersRanking.ranking.map((s, idx) => (
+              <div key={s.userId} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                <span className="text-xs font-bold tabular-nums shrink-0 w-5 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
+                <span className="font-medium truncate text-xs flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
+                <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>{s.sales} {s.sales === 1 ? 'venda' : 'vendas'} · ticket {fmtMoney(s.avgTicket)}</span>
+                <span className="font-semibold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.revenue)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-1.5 mt-0.5 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <span>{sellersRanking.totalSales} {sellersRanking.totalSales === 1 ? 'venda' : 'vendas'} no mês</span>
+              <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sellersRanking.totalRevenue)}</span>
+            </div>
           </div>
         </div>
       )}
