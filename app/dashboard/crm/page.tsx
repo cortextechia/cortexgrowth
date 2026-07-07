@@ -5,7 +5,7 @@
 // Visível apenas para orgs sem Kommo conectado (o layout já esconde o menu;
 // esta página também trata o acesso direto por URL).
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type {
@@ -65,6 +65,28 @@ function originLabel(o: CrmOrigin): string {
   return ORIGIN_OPTIONS.find((x) => x.key === o)?.label ?? o;
 }
 
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase();
+}
+
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+}
+
+// Mesmo threshold da regra de cards parados do CRM_HYGIENE (30d)
+const STALE_SALE_DAYS = 30;
+
+function OriginPill({ origin }: { origin: CrmOrigin }) {
+  return (
+    <span
+      className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap"
+      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+    >
+      {originLabel(origin)}
+    </span>
+  );
+}
+
 function apiErrorMsg(err: unknown, fallback: string): string {
   const anyErr = err as { response?: { data?: { message?: string } } };
   return anyErr?.response?.data?.message ?? fallback;
@@ -99,8 +121,9 @@ export default function CrmPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [showNewClient, setShowNewClient] = useState(false);
   const [saleModalClient, setSaleModalClient] = useState<CrmClientDetail | null>(null);
-  const [winSaleTarget, setWinSaleTarget] = useState<CrmSale | null>(null);
-  const [loseSaleTarget, setLoseSaleTarget] = useState<CrmSale | null>(null);
+  // id+value bastam para os modais de desfecho — permite abrir tanto do drawer quanto do kanban
+  const [winSaleTarget, setWinSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
+  const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
 
@@ -109,10 +132,19 @@ export default function CrmPage() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const loadAll = useCallback(async (searchTerm?: string) => {
+  // Auto-refresh: ids já vistos (p/ avisar card novo) e busca atual (p/ o polling)
+  const knownIdsRef = useRef<Set<string> | null>(null);
+  const searchRef = useRef('');
+  // Anti-corrida do drag and drop: respostas fora de ordem são descartadas e
+  // nenhum refresh sobrescreve a lista enquanto um movimento está em andamento
+  const reqSeqRef = useRef(0);
+  const movingRef = useRef(0);
+
+  const loadAll = useCallback(async (searchTerm?: string, opts?: { force?: boolean }) => {
+    const seq = ++reqSeqRef.current;
     try {
       const st = await apiService.getCrmStatus();
-      if (!st.success) return;
+      if (!st.success || seq !== reqSeqRef.current) return;
       setStatus(st.data);
       if (!st.data.enabled) { setLoading(false); return; }
 
@@ -120,8 +152,27 @@ export default function CrmPage() {
         apiService.getCrmSummary(),
         apiService.getCrmClients({ take: 100, ...(searchTerm ? { search: searchTerm } : {}) }),
       ]);
+      if (seq !== reqSeqRef.current) return; // resposta velha — chegou outra depois
+      if (movingRef.current > 0 && !opts?.force) return; // drag em andamento — preserva o otimista
       if (sum.success) setSummary(sum.data);
-      if (cl.success) { setClients(cl.data.clients); setTotalClients(cl.data.total); }
+      if (cl.success) {
+        setClients(cl.data.clients);
+        setTotalClients(cl.data.total);
+        // Aviso de card novo — só em lista completa (busca filtrada reintroduz ids e geraria falso positivo)
+        if (!searchTerm) {
+          const ids = new Set(cl.data.clients.map((c) => c.id));
+          if (knownIdsRef.current) {
+            const novos = cl.data.clients.filter((c) => !knownIdsRef.current!.has(c.id));
+            if (novos.length === 1) {
+              const n = novos[0]!;
+              showToast('success', n.origin === 'WHATSAPP' ? `💬 Novo lead do WhatsApp: ${n.name}` : `Novo cliente: ${n.name}`);
+            } else if (novos.length > 1) {
+              showToast('success', `${novos.length} novos clientes chegaram.`);
+            }
+          }
+          knownIdsRef.current = ids;
+        }
+      }
     } catch {
       showToast('error', 'Erro ao carregar o CRM.');
     } finally {
@@ -131,8 +182,17 @@ export default function CrmPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Polling leve: cards criados via WhatsApp aparecem sem F5 (e ao voltar o foco)
+  useEffect(() => {
+    const tick = () => loadAll(searchRef.current.trim() || undefined);
+    const interval = setInterval(tick, 15000);
+    window.addEventListener('focus', tick);
+    return () => { clearInterval(interval); window.removeEventListener('focus', tick); };
+  }, [loadAll]);
+
   // Busca com debounce
   useEffect(() => {
+    searchRef.current = search;
     if (!status?.enabled) return;
     const t = setTimeout(() => { loadAll(search.trim() || undefined); }, 350);
     return () => clearTimeout(t);
@@ -152,8 +212,9 @@ export default function CrmPage() {
   };
 
   const refreshDetail = async () => {
-    if (!detail) return;
-    await Promise.all([openClient(detail.id), loadAll(search.trim() || undefined)]);
+    // Sem drawer aberto (ação veio do kanban), atualiza só a lista
+    if (!detail) { await loadAll(searchRef.current.trim() || undefined); return; }
+    await Promise.all([openClient(detail.id), loadAll(searchRef.current.trim() || undefined)]);
   };
 
   const handleEnable = async () => {
@@ -175,6 +236,46 @@ export default function CrmPage() {
       const res = await apiService.getUsers();
       if (res.success) setOrgUsers(res.users);
     } catch { /* transferência fica indisponível, sem quebrar o drawer */ }
+  };
+
+  // ─── Drag and drop no kanban ──────────────────────────────────────────
+
+  const [draggingSaleId, setDraggingSaleId] = useState<string | null>(null);
+  const [dropStageId, setDropStageId] = useState<string | null>(null);
+  const [dropOutcome, setDropOutcome] = useState<'win' | 'lose' | null>(null);
+  const justDraggedRef = useRef(false); // evita o click de abrir o drawer logo após soltar
+
+  // Soltar o card em Ganhar/Perder abre o modal de desfecho correspondente
+  const handleOutcomeDrop = (kind: 'win' | 'lose', payload: string) => {
+    const saleId = payload.split('|')[0];
+    setDraggingSaleId(null);
+    setDropStageId(null);
+    setDropOutcome(null);
+    const sale = clients.flatMap((c) => c.sales).find((s) => s.id === saleId);
+    if (!sale) return;
+    if (kind === 'win') setWinSaleTarget({ id: sale.id, value: sale.value });
+    else setLoseSaleTarget({ id: sale.id, value: sale.value });
+  };
+
+  const handleDropOnStage = async (stageId: string, saleId: string, fromStageId: string | null) => {
+    setDraggingSaleId(null);
+    setDropStageId(null);
+    if (!saleId || stageId === fromStageId) return;
+    // Otimista: move na UI antes da API responder
+    setClients((prev) => prev.map((c) => ({
+      ...c,
+      sales: c.sales.map((s) => (s.id === saleId ? { ...s, stageId } : s)),
+    })));
+    movingRef.current++;
+    try {
+      await apiService.changeCrmSaleStage(saleId, stageId);
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao mover a venda.'));
+    } finally {
+      movingRef.current--;
+      // Reconcilia só quando o último movimento em voo terminar (drags rápidos em sequência)
+      if (movingRef.current === 0) await loadAll(searchRef.current.trim() || undefined, { force: true });
+    }
   };
 
   // ─── Estados de página ───────────────────────────────────────────────
@@ -294,8 +395,26 @@ export default function CrmPage() {
         {status.stages.map((stage) => {
           const items = openSalesByStage.get(stage.id) ?? [];
           const total = items.reduce((acc, i) => acc + i.sale.value, 0);
+          const isDropTarget = dropStageId === stage.id && draggingSaleId !== null;
           return (
-            <div key={stage.id} className="w-64 shrink-0 rounded-xl p-3" style={card}>
+            <div
+              key={stage.id}
+              className="w-64 shrink-0 rounded-xl p-3 transition-colors"
+              style={{
+                ...card,
+                ...(isDropTarget ? { border: '1px dashed var(--accent)', backgroundColor: 'var(--accent-dim)' } : {}),
+              }}
+              onDragOver={(e) => { e.preventDefault(); if (dropStageId !== stage.id) setDropStageId(stage.id); }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node) && dropStageId === stage.id) setDropStageId(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const payload = e.dataTransfer.getData('text/plain');
+                const [saleId, fromStageId] = payload.split('|');
+                void handleDropOnStage(stage.id, saleId ?? '', fromStageId || null);
+              }}
+            >
               <div className="flex items-baseline justify-between mb-1">
                 <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{stage.name}</span>
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{items.length}</span>
@@ -305,25 +424,99 @@ export default function CrmPage() {
                 {items.map(({ sale, client }) => (
                   <button
                     key={sale.id}
-                    onClick={() => openClient(client.id)}
-                    className="w-full text-left rounded-lg p-2.5 transition-colors"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', `${sale.id}|${sale.stageId ?? ''}`);
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggingSaleId(sale.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingSaleId(null);
+                      setDropStageId(null);
+                      justDraggedRef.current = true;
+                      setTimeout(() => { justDraggedRef.current = false; }, 200);
+                    }}
+                    onClick={() => { if (!justDraggedRef.current) openClient(client.id); }}
+                    className="w-full text-left rounded-lg p-2.5 transition-colors cursor-grab active:cursor-grabbing"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      border: '1px solid var(--border)',
+                      opacity: draggingSaleId === sale.id ? 0.4 : 1,
+                    }}
                   >
-                    <div className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</div>
-                    <div className="flex items-center justify-between mt-1">
-                      <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{originLabel(client.origin)}</span>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                        style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
+                        aria-hidden
+                      >
+                        {initials(client.name)}
+                      </div>
+                      <div className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>{client.name}</div>
+                      {daysSince(sale.createdAt) >= STALE_SALE_DAYS ? (
+                        <span
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                          style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}
+                          title={`Venda aberta há ${daysSince(sale.createdAt)} dias — atenção`}
+                        >
+                          {daysSince(sale.createdAt)}d
+                        </span>
+                      ) : (
+                        <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }} title="Dias desde a abertura da venda">
+                          {daysSince(sale.createdAt)}d
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5 pl-8">
+                      <OriginPill origin={client.origin} />
                       <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sale.value)}</span>
                     </div>
                   </button>
                 ))}
                 {items.length === 0 && (
-                  <div className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>—</div>
+                  <div className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
+                    {isDropTarget ? 'Solte aqui' : '—'}
+                  </div>
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Zonas de desfecho — etapa é caminho, ganho/perda é destino. Só existem durante o arrasto. */}
+      {draggingSaleId && (
+        <div className="flex gap-3 mt-3">
+          <div
+            onDragOver={(e) => { e.preventDefault(); if (dropOutcome !== 'win') setDropOutcome('win'); }}
+            onDragLeave={() => dropOutcome === 'win' && setDropOutcome(null)}
+            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('win', e.dataTransfer.getData('text/plain')); }}
+            className="flex-1 rounded-xl py-4 text-center text-sm font-semibold transition-all"
+            style={{
+              border: `2px dashed var(--badge-success-text)`,
+              color: 'var(--badge-success-text)',
+              backgroundColor: dropOutcome === 'win' ? 'var(--badge-success-bg)' : 'transparent',
+              transform: dropOutcome === 'win' ? 'scale(1.01)' : 'none',
+            }}
+          >
+            ✓ Soltar aqui para GANHAR
+          </div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); if (dropOutcome !== 'lose') setDropOutcome('lose'); }}
+            onDragLeave={() => dropOutcome === 'lose' && setDropOutcome(null)}
+            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('lose', e.dataTransfer.getData('text/plain')); }}
+            className="flex-1 rounded-xl py-4 text-center text-sm font-semibold transition-all"
+            style={{
+              border: `2px dashed var(--badge-error-text)`,
+              color: 'var(--badge-error-text)',
+              backgroundColor: dropOutcome === 'lose' ? 'var(--badge-error-bg)' : 'transparent',
+              transform: dropOutcome === 'lose' ? 'scale(1.01)' : 'none',
+            }}
+          >
+            ✗ Soltar aqui para PERDER
+          </div>
+        </div>
+      )}
 
       {noStage.length > 0 && (
         <p className="text-xs mt-1" style={{ color: 'var(--badge-warn-text)' }}>
@@ -361,7 +554,7 @@ export default function CrmPage() {
                   >
                     <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-primary)' }}>{c.name}</td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
-                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{originLabel(c.origin)}</td>
+                    <td className="py-2.5 pr-4"><OriginPill origin={c.origin} /></td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{c.responsible?.name ?? '—'}</td>
                     <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-secondary)' }}>{c.openSales}</td>
                     <td className="py-2.5 text-right font-semibold" style={{ color: c.ltv > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
@@ -1127,7 +1320,7 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
 }
 
 function WinModal({ sale, onClose, onConfirm }: {
-  sale: CrmSale;
+  sale: Pick<CrmSale, 'id' | 'value'>;
   onClose: () => void;
   onConfirm: (value?: number) => void;
 }) {

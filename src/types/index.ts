@@ -695,7 +695,7 @@ export interface CrmClientSummary {
   notes: string | null;
   responsibleId: string | null;
   responsible?: { id: string; name: string } | null;
-  sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt'>[];
+  sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt' | 'createdAt'>[];
   ltv: number;
   openSales: number;
   updatedAt: string;
