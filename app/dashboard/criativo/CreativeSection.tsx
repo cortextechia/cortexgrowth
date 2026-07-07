@@ -50,7 +50,7 @@ function RunButton({ onClick, loading, label }: { onClick: () => void; loading: 
       onClick={onClick}
       disabled={loading}
       className="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg text-xs font-medium transition-opacity disabled:opacity-60"
-      style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.2)' }}
+      style={{ backgroundColor: 'var(--creative-accent-bg)', color: 'var(--creative-accent-text)', border: '1px solid var(--creative-accent-border)' }}
     >
       {loading ? <Spinner /> : null}
       {loading ? 'Processando…' : label}
@@ -655,7 +655,7 @@ function ConfigPanel({ profile, onSave }: { profile: CreativeProfile | null; onS
           <button
             onClick={save} disabled={saving}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium disabled:opacity-60"
-            style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.25)' }}
+            style={{ backgroundColor: 'var(--creative-accent-bg)', color: 'var(--creative-accent-text)', border: '1px solid var(--creative-accent-border)' }}
           >
             {saving ? <Spinner /> : null}{saving ? 'Salvando…' : 'Salvar configuração'}
           </button>

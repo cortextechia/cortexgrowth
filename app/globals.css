@@ -31,6 +31,9 @@
   --badge-error-text: #f87171;
   --badge-warn-bg: rgba(234,179,8,0.1);
   --badge-warn-text: #facc15;
+  --creative-accent-text:   #c084fc;
+  --creative-accent-bg:     rgba(168,85,247,0.12);
+  --creative-accent-border: rgba(168,85,247,0.20);
 }
 
 /* ─── Light theme ────────────────────────────────────────────────────────── */
@@ -63,6 +66,9 @@
   --badge-error-text: #dc2626;
   --badge-warn-bg: #fef9c3;
   --badge-warn-text: #ca8a04;
+  --creative-accent-text:   #7c3aed;
+  --creative-accent-bg:     rgba(124,58,237,0.10);
+  --creative-accent-border: rgba(124,58,237,0.22);
 }
 
 @theme inline {
