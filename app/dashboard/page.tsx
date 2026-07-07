@@ -1619,6 +1619,12 @@ export default function DashboardPage() {
   const hasKommo = integrations.some(
     (i) => i.type === 'KOMMO' && i.status === 'CONNECTED'
   );
+  // CRM Cortex projeta as vendas no mesmo read model do Kommo — pra exibição de
+  // receita/funil as duas fontes são equivalentes (Ranking de Vendedores e
+  // deep-links continuam exclusivos do Kommo).
+  const hasCrmSource = hasKommo || integrations.some(
+    (i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED'
+  );
 
   const negotiatingLeads = useMemo(() => {
     const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
@@ -1861,7 +1867,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── CONVERSÕES DAS PLATAFORMAS — preenche o vazio quando sem CRM ─────── */}
-      {!hasKommo && platformConv.totalConv > 0 && (
+      {!hasCrmSource && platformConv.totalConv > 0 && (
         <div>
           <SectionLabel>conversões das plataformas · {rangeLabel.toLowerCase()}</SectionLabel>
           <div className="mb-3 flex items-start gap-2 px-4 py-2.5 rounded-xl" style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
@@ -1893,7 +1899,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── DADOS MANUAIS — banner quando sem CRM ───────────────────────────── */}
-      {!hasKommo && (
+      {!hasCrmSource && (
         <>
           {manualRevenueSummary?.hasData ? (
             <div>
@@ -1974,7 +1980,7 @@ export default function DashboardPage() {
 
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
       {/* Fundo de funil (ROAS/CPL/receita/pipeline) precisa de receita — oculta sem CRM/dados manuais */}
-      {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
+      {attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>resultado consolidado — fundo de funil</p>
@@ -2456,37 +2462,55 @@ export default function DashboardPage() {
                 <button type="button" onClick={() => !atCurrent && navRankingMonth(1)} disabled={atCurrent} className="text-sm leading-none px-1" style={{ color: atCurrent ? 'var(--border)' : 'var(--text-muted)', cursor: atCurrent ? 'default' : 'pointer' }}>▶</button>
               </div>
             </div>
-            <div className="rounded-xl p-4 flex flex-col gap-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               {rows.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhuma venda fechada em {label}.</p>
+                <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nenhuma venda fechada em {label}.</p>
               ) : (
                 <>
                   {rows.map((s, idx) => {
-                    const parts = [`${s.sales} ${s.sales === 1 ? 'venda' : 'vendas'}`];
-                    if (s.winRate !== null) parts.push(`conv. ${Math.round(s.winRate * 100)}%`);
-                    parts.push(`ticket ${fmtMoney(s.avgTicket)}`);
-                    if (s.avgDaysToClose !== null) parts.push(`fecha em ${s.avgDaysToClose}d`);
-                    if (s.openPipeline > 0) parts.push(`pipeline ${fmtMoney(s.openPipeline)}`);
+                    const metrics: { label: string; value: string; valueFirst?: boolean }[] = [];
+                    metrics.push({ label: s.sales === 1 ? 'venda' : 'vendas', value: String(s.sales), valueFirst: true });
+                    if (s.winRate !== null) metrics.push({ label: 'conv.', value: `${Math.round(s.winRate * 100)}%` });
+                    metrics.push({ label: 'ticket', value: fmtMoney(s.avgTicket) });
+                    if (s.avgDaysToClose !== null) metrics.push({ label: 'fecha em', value: `${s.avgDaysToClose}d` });
+                    if (s.openPipeline > 0) metrics.push({ label: 'pipeline', value: fmtMoney(s.openPipeline) });
                     const deltaPct = s.prevRevenue > 0 ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null;
                     return (
-                      <div key={s.userId} className="rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                      <div key={s.userId} className="rounded-lg px-3.5 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold tabular-nums shrink-0 w-5 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
-                          <span className="font-medium truncate text-xs flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
+                          <span className="text-base font-bold tabular-nums shrink-0 w-6 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
+                          <span className="font-semibold truncate text-sm flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
                           {deltaPct !== null && (
-                            <span className="text-xs font-medium shrink-0 tabular-nums" style={{ color: deltaPct >= 0 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
+                            <span className="text-xs font-semibold shrink-0 tabular-nums" style={{ color: deltaPct >= 0 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
                               {deltaPct >= 0 ? '↑' : '↓'}{Math.abs(deltaPct)}%
                             </span>
                           )}
-                          <span className="font-semibold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.revenue)}</span>
+                          <span className="text-base font-bold tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.revenue)}</span>
                         </div>
-                        <div className="text-xs mt-1" style={{ color: 'var(--text-muted)', paddingLeft: '2rem' }}>{parts.join(' · ')}</div>
+                        <div className="text-xs mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5" style={{ paddingLeft: '2.25rem' }}>
+                          {metrics.map((m, i) => (
+                            <span key={i} className="inline-flex items-baseline gap-1">
+                              {i > 0 && <span className="mr-1" style={{ color: 'var(--text-muted)' }}>·</span>}
+                              {m.valueFirst ? (
+                                <>
+                                  <span className="font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{m.value}</span>
+                                  <span style={{ color: 'var(--text-muted)' }}>{m.label}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ color: 'var(--text-muted)' }}>{m.label}</span>
+                                  <span className="font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{m.value}</span>
+                                </>
+                              )}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     );
                   })}
-                  <div className="flex items-center justify-between pt-1.5 mt-0.5 text-xs" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                  <div className="flex items-center justify-between pt-2 mt-0.5 text-sm" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
                     <span>{sellersRanking.totalSales} {sellersRanking.totalSales === 1 ? 'venda' : 'vendas'} em {label}</span>
-                    <span className="font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sellersRanking.totalRevenue)}</span>
+                    <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(sellersRanking.totalRevenue)}</span>
                   </div>
                 </>
               )}
@@ -2727,7 +2751,7 @@ export default function DashboardPage() {
       {/* ── 7. SAÚDE FINANCEIRA E PROJEÇÃO ───────────────────────────────────── */}
       {/* Depende de receita (CRM ou dados manuais) — sem fonte de receita, todos os KPIs
           ficam "—", então oculta a seção e deixa as conversões das plataformas no lugar. */}
-      {attributionSummary && (hasKommo || manualRevenueSummary?.hasData) && (
+      {attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>saúde financeira e projeção</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

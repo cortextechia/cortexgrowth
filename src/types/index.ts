@@ -31,6 +31,7 @@ export enum IntegrationType {
   GOOGLE_ANALYTICS = 'GOOGLE_ANALYTICS',
   KOMMO = 'KOMMO',
   META_ADS = 'META_ADS',
+  CRM_CORTEX = 'CRM_CORTEX',
 }
 
 export enum IntegrationStatus {
@@ -651,6 +652,95 @@ export interface SellersRanking {
   totalRevenue: number;
   totalSales: number;
   hasData: boolean;
+}
+
+// ===== CRM PRÓPRIO (CRM CORTEX) =====
+export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'ORGANICO' | 'OUTRO';
+export type CrmSaleStatus = 'OPEN' | 'WON' | 'LOST';
+export type CrmLostReason = 'INATIVIDADE' | 'PRECO' | 'CONCORRENCIA' | 'SEM_RESPOSTA' | 'DESISTENCIA' | 'OUTRO';
+
+export interface CrmStage {
+  id: string;
+  name: string;
+  order: number;
+}
+
+export interface CrmSaleSegment {
+  id: string;
+  name: string;
+  value: number;
+}
+
+export interface CrmSale {
+  id: string;
+  seq: number;
+  clientId: string;
+  title: string | null;
+  value: number;
+  status: CrmSaleStatus;
+  stageId: string | null;
+  stage?: CrmStage | null;
+  lostReason: CrmLostReason | null;
+  origin: CrmOrigin;
+  closedAt: string | null;
+  createdAt: string;
+  segments?: CrmSaleSegment[];
+}
+
+export interface CrmClientSummary {
+  id: string;
+  name: string;
+  phone: string;
+  origin: CrmOrigin;
+  notes: string | null;
+  responsibleId: string | null;
+  responsible?: { id: string; name: string } | null;
+  sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt'>[];
+  ltv: number;
+  openSales: number;
+  updatedAt: string;
+}
+
+export interface CrmEvent {
+  id: string;
+  type: string;
+  payload: Record<string, unknown>;
+  actor?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface CrmClientDetail extends Omit<CrmClientSummary, 'sales' | 'openSales'> {
+  sales: CrmSale[];
+  events: CrmEvent[];
+}
+
+export interface CrmStatus {
+  enabled: boolean;
+  kommoConnected: boolean;
+  stages: CrmStage[];
+  clientCount: number;
+  maxClients: number | null;
+}
+
+export interface CrmSummary {
+  funnel: { id: string; name: string; count: number; value: number }[];
+  pipeline: { count: number; value: number };
+  lostReasons: { reason: CrmLostReason | null; count: number }[];
+}
+
+// CRM — WhatsApp do vendedor (Evolution API)
+export interface CrmWaStatus {
+  configured: boolean;
+  connected: boolean;
+  phone?: string;
+  stale?: boolean; // Evolution fora do ar — último estado conhecido
+}
+
+export interface CrmWaMessage {
+  id: string;
+  fromMe: boolean;
+  text: string;
+  timestamp: number; // Unix segundos
 }
 
 export interface CreativeBriefing {

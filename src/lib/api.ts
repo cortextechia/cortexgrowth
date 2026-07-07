@@ -775,6 +775,100 @@ class ApiService {
     return response.data;
   }
 
+  // ─── CRM Próprio (CRM Cortex) ───────────────────────────────────────────────
+
+  async getCrmStatus(): Promise<{ success: boolean; data: import('@/types').CrmStatus }> {
+    const response = await this.client.get('/crm/status');
+    return response.data;
+  }
+
+  async enableCrm(): Promise<{ success: boolean; message: string; data: { stages: import('@/types').CrmStage[] } }> {
+    const response = await this.client.post('/crm/enable');
+    return response.data;
+  }
+
+  async getCrmSummary(): Promise<{ success: boolean; data: import('@/types').CrmSummary }> {
+    const response = await this.client.get('/crm/summary');
+    return response.data;
+  }
+
+  async saveCrmStages(stages: { id?: string; name: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
+    const response = await this.client.put('/crm/stages', { stages });
+    return response.data;
+  }
+
+  async getCrmClients(params?: { search?: string; take?: number; skip?: number }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number } }> {
+    const response = await this.client.get('/crm/clients', { params });
+    return response.data;
+  }
+
+  async createCrmClient(data: { name: string; phone: string; origin?: string; responsibleId?: string; notes?: string }): Promise<{ success: boolean; message: string; data: { client: import('@/types').CrmClientSummary; created: boolean } }> {
+    const response = await this.client.post('/crm/clients', data);
+    return response.data;
+  }
+
+  async getCrmClient(id: string): Promise<{ success: boolean; data: import('@/types').CrmClientDetail }> {
+    const response = await this.client.get(`/crm/clients/${id}`);
+    return response.data;
+  }
+
+  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/clients/${id}`, data);
+    return response.data;
+  }
+
+  async transferCrmResponsible(clientId: string, responsibleId: string | null): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/clients/${clientId}/responsible`, { responsibleId });
+    return response.data;
+  }
+
+  async createCrmSale(clientId: string, data: { value: number; title?: string; stageId?: string; origin?: string; segments?: { name: string; value: number }[] }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/sales`, data);
+    return response.data;
+  }
+
+  async changeCrmSaleStage(saleId: string, stageId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/sales/${saleId}/stage`, { stageId });
+    return response.data;
+  }
+
+  async winCrmSale(saleId: string, data?: { value?: number }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/sales/${saleId}/win`, data ?? {});
+    return response.data;
+  }
+
+  async loseCrmSale(saleId: string, lostReason: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/sales/${saleId}/lose`, { lostReason });
+    return response.data;
+  }
+
+  async deleteCrmSale(saleId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/sales/${saleId}`);
+    return response.data;
+  }
+
+  // ─── CRM — WhatsApp do vendedor (Evolution API) ─────────────────────────────
+
+  async connectCrmWhatsapp(): Promise<{ success: boolean; message: string; data: { connected: boolean; qrcode: string | null } }> {
+    const response = await this.client.post('/crm/whatsapp/connect');
+    return response.data;
+  }
+
+  async getCrmWhatsappStatus(): Promise<{ success: boolean; data: import('@/types').CrmWaStatus }> {
+    const response = await this.client.get('/crm/whatsapp/status');
+    return response.data;
+  }
+
+  async disconnectCrmWhatsapp(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/crm/whatsapp/disconnect');
+    return response.data;
+  }
+
+  async getCrmWhatsappMessages(clientId: string): Promise<{ success: boolean; data: { available: boolean; messages: import('@/types').CrmWaMessage[] } }> {
+    const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/messages`);
+    return response.data;
+  }
+
   // Helpers para sessão do gestor
   getSelectedClientOrgId(): string | null {
     if (typeof window === 'undefined') return null;
