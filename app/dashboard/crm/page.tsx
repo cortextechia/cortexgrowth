@@ -1063,19 +1063,30 @@ function WaConversation({ clientId }: { clientId: string }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await apiService.getCrmWhatsappMessages(clientId);
       setAvailable(res.data.available);
       setMessages(res.data.messages);
     } catch {
-      setAvailable(false);
-      setMessages([]);
+      if (!silent) {
+        setAvailable(false);
+        setMessages([]);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [clientId]);
+
+  // Conversa ao vivo: refresh silencioso enquanto a seção está aberta
+  useEffect(() => {
+    if (!open || !available) return;
+    const id = setInterval(() => {
+      if (!document.hidden) void load(true);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [open, available, load]);
 
   const send = async () => {
     const text = draft.trim();
