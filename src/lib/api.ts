@@ -869,6 +869,11 @@ class ApiService {
     return response.data;
   }
 
+  async sendCrmWhatsappMessage(clientId: string, text: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send`, { text });
+    return response.data;
+  }
+
   // Helpers para sessão do gestor
   getSelectedClientOrgId(): string | null {
     if (typeof window === 'undefined') return null;

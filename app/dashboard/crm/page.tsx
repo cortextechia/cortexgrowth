@@ -1059,6 +1059,9 @@ function WaConversation({ clientId }: { clientId: string }) {
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [messages, setMessages] = useState<CrmWaMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1073,6 +1076,22 @@ function WaConversation({ clientId }: { clientId: string }) {
       setLoading(false);
     }
   }, [clientId]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      await apiService.sendCrmWhatsappMessage(clientId, text);
+      setDraft('');
+      await load();
+    } catch (err) {
+      setSendError(apiErrorMsg(err, 'Erro ao enviar a mensagem.'));
+    } finally {
+      setSending(false);
+    }
+  };
 
   const toggle = () => {
     const next = !open;
@@ -1127,6 +1146,34 @@ function WaConversation({ clientId }: { clientId: string }) {
                 </div>
               ))}
             </div>
+          )}
+          {available && (
+            <form
+              className="mt-2 flex items-center gap-2"
+              onSubmit={(e) => { e.preventDefault(); void send(); }}
+            >
+              <input
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder="Responder no WhatsApp..."
+                maxLength={4096}
+                disabled={sending}
+                className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none"
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              />
+              <button
+                type="submit"
+                disabled={sending || !draft.trim()}
+                className="text-xs font-semibold rounded-lg px-3 py-2 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+              >
+                {sending ? 'Enviando...' : 'Enviar'}
+              </button>
+            </form>
+          )}
+          {sendError && (
+            <p className="text-xs mt-1" style={{ color: 'var(--badge-error-text)' }}>{sendError}</p>
           )}
         </div>
       )}
