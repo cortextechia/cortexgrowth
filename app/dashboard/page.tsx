@@ -130,6 +130,24 @@ function filterKommoByRange(leads: KommoLead[], start: Date, end: Date): KommoLe
   });
 }
 
+function getKommoClosedDate(lead: KommoLead): Date | null {
+  const raw = lead.rawData as Record<string, unknown>;
+  const ts =
+    (raw?.closed_at as number | undefined) ??
+    ((raw?.rawData as Record<string, unknown> | undefined)?.closed_at as number | undefined);
+  return ts ? new Date(ts * 1000) : null;
+}
+
+// Vendas ganhas/perdidas são contadas pela data de FECHAMENTO (closed_at) — mesma base
+// da Meta do Mês. Fallback para a data de criação quando o closed_at está ausente
+// (mesma regra do backend em /api/revenue-goals/progress).
+function filterKommoByClosedRange(leads: KommoLead[], start: Date, end: Date): KommoLead[] {
+  return leads.filter((l) => {
+    const d = getKommoClosedDate(l) ?? getKommoDate(l);
+    return d >= start && d <= end;
+  });
+}
+
 function dailyValues(
   meta: MetaInsight[],
   google: GoogleAdsMetric[],
@@ -1108,6 +1126,11 @@ export default function DashboardPage() {
   const metaPrev   = useMemo(() => prevPeriodRange(metaInsights,       activePeriod.start, activePeriod.end).filter((d) => !d.level || d.level === 'campaign'), [metaInsights, activePeriod]);
   const googlePrev = useMemo(() => prevPeriodRange(googleAdsMetrics,   activePeriod.start, activePeriod.end), [googleAdsMetrics, activePeriod]);
   const kommoCur   = useMemo(() => filterKommoByRange(kommoLeads, activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
+  // Vendas fechadas (ganhas/perdidas) DENTRO do período, por closed_at — inclui leads
+  // criados antes do período. As etapas do funil (gerados/atendidos/orçamento) seguem
+  // por data de criação (kommoCur).
+  const kommoWonCur  = useMemo(() => filterKommoByClosedRange(kommoLeads.filter((l) => WON_STATUSES.includes(l.status)),  activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
+  const kommoLostCur = useMemo(() => filterKommoByClosedRange(kommoLeads.filter((l) => LOST_STATUSES.includes(l.status)), activePeriod.start, activePeriod.end), [kommoLeads, activePeriod]);
 
   // ── Filtered arrays for marketing platform tab ────────────────────────────
   const mktMetaCur    = useMemo(() => mktTab === 'google' ? ([] as typeof metaCur)    : metaCur,    [metaCur,    mktTab]);
@@ -1222,44 +1245,52 @@ export default function DashboardPage() {
   }, [kommoCur]);
 
   // ── Funnel counts (cumulative — how many reached or passed each stage) ─────
+  // Etapas (gerados → negociando) são coorte por data de criação; ganho/perdido são
+  // contados por data de FECHAMENTO no período (podem vir de leads criados antes).
   const funnelCounts = useMemo<FunnelCounts>(() => {
     const contactedOrBeyond = [...CONTACT_STATUSES, ...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
     const quotedOrBeyond    = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES, ...WON_STATUSES];
     const negOrBeyond       = [...NEGOTIATION_STATUSES, ...WON_STATUSES];
+    const byTab = (leads: KommoLead[]) =>
+      funnelTab === 'meta'   ? leads.filter((l) => l.utmSource === 'meta')
+    : funnelTab === 'google' ? leads.filter((l) => l.utmSource === 'google')
+    : leads;
     return {
       generated:   funnelLeads.length,
       contacted:   funnelLeads.filter((l) => contactedOrBeyond.includes(l.status)).length,
       quoted:      funnelLeads.filter((l) => quotedOrBeyond.includes(l.status)).length,
       negotiating: funnelLeads.filter((l) => negOrBeyond.includes(l.status)).length,
-      won:         funnelLeads.filter((l) => WON_STATUSES.includes(l.status)).length,
-      lost:        funnelLeads.filter((l) => LOST_STATUSES.includes(l.status)).length,
+      won:         byTab(kommoWonCur).length,
+      lost:        byTab(kommoLostCur).length,
     };
-  }, [funnelLeads]);
+  }, [funnelLeads, kommoWonCur, kommoLostCur, funnelTab]);
 
   // ── Revenue / pipeline from Kommo ─────────────────────────────────────────
+  // closedValue: vendas fechadas no período (closed_at). Pipeline: leads abertos
+  // criados no período (coorte — segue por created_at).
   const { closedValue, pipeline } = useMemo(() => {
     let pipeline = 0;
-    let closedValue = 0;
     kommoCur.forEach((l) => {
       if (l.price == null || l.price === 0) return;
-      if (WON_STATUSES.includes(l.status)) closedValue += l.price;
-      else if (!LOST_STATUSES.includes(l.status)) pipeline += l.price;
+      if (!WON_STATUSES.includes(l.status) && !LOST_STATUSES.includes(l.status)) pipeline += l.price;
     });
+    const closedValue = kommoWonCur.reduce((s, l) => s + (l.price ?? 0), 0);
     return { pipeline, closedValue };
-  }, [kommoCur]);
+  }, [kommoCur, kommoWonCur]);
 
   // ── Revenue filtered by marketing platform tab ─────────────────────────────
+  // Vendas fechadas no período (closed_at), filtradas pela aba de plataforma.
   const { mktClosedValue, mktWonCount } = useMemo(() => {
-    const leads = mktTab === 'meta'   ? kommoCur.filter(l => l.utmSource === 'meta')
-                : mktTab === 'google' ? kommoCur.filter(l => l.utmSource === 'google')
-                : kommoCur;
+    const leads = mktTab === 'meta'   ? kommoWonCur.filter(l => l.utmSource === 'meta')
+                : mktTab === 'google' ? kommoWonCur.filter(l => l.utmSource === 'google')
+                : kommoWonCur;
     let mktClosedValue = 0, mktWonCount = 0;
     leads.forEach(l => {
       if (l.price == null || l.price === 0) return;
-      if (WON_STATUSES.includes(l.status)) { mktClosedValue += l.price; mktWonCount++; }
+      mktClosedValue += l.price; mktWonCount++;
     });
     return { mktClosedValue, mktWonCount };
-  }, [kommoCur, mktTab]);
+  }, [kommoWonCur, mktTab]);
 
   // ── Pipeline em negociação filtrado por canal — estado atual, sem filtro de período ──
   const mktPipeline = useMemo(() => {
@@ -1464,12 +1495,13 @@ export default function DashboardPage() {
 
   // ── LTV & projection ──────────────────────────────────────────────────────
   const ltvData = useMemo(() => {
-    // Sempre usa kommoCur (todos os canais) — independente da aba do funil selecionada.
+    // Todos os canais, independente da aba do funil. Vendas contadas por data de
+    // FECHAMENTO no período (kommoWonCur) — mesma base do closedValue.
     // wonWithPrice: vendas com valor registrado (base do ticket médio)
-    const wonWithPrice = kommoCur.filter(
-      (l) => WON_STATUSES.includes(l.status) && l.price != null && (l.price as number) > 0,
+    const wonWithPrice = kommoWonCur.filter(
+      (l) => l.price != null && (l.price as number) > 0,
     );
-    const wonTotal = kommoCur.filter((l) => WON_STATUSES.includes(l.status)).length;
+    const wonTotal = kommoWonCur.length;
     const wonCount = wonWithPrice.length;
     const ticketMedio = wonCount > 0 ? closedValue / wonCount : null;
     // Cap de 1.0 (100%) no repeat rate — evita LTV inflado quando há mais tags Carteira
@@ -1491,7 +1523,7 @@ export default function DashboardPage() {
 
     const ltvCacRatio = ltv && cacReal && cacReal > 0 ? ltv / cacReal : null;
     return { ticketMedio, ltv, ltvCacRatio, wonTotal, wonCount, cacReal, wonFromPaidCount: wonFromPaid.length };
-  }, [kommoCur, closedValue, recurrentCount, attributionSummary]);
+  }, [kommoCur, kommoWonCur, closedValue, recurrentCount, attributionSummary]);
 
   const projection = useMemo(() => {
     const today = new Date();
@@ -2059,7 +2091,7 @@ export default function DashboardPage() {
                     ? `${mktWonCount} vendas · inclui leads sem UTM`
                     : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
                   : 'Nenhuma venda fechada'}
-                info="Vendas ganhas de leads criados no período selecionado. Pode ser menor que a Meta do Mês, pois leads criados antes do período (mas fechados agora) não entram aqui."
+                info="Vendas fechadas dentro do período selecionado, pela data de fechamento — mesma base da Meta do Mês. Inclui vendas de leads criados antes do período."
               />
             )}
             {visibleBottomKpis.includes('pipeline') && (
@@ -2097,7 +2129,7 @@ export default function DashboardPage() {
                 value={mktConvRate != null ? fmtPct1(mktConvRate) : '—'}
                 sub={`${funnelCounts.won} vendas em ${funnelCounts.generated} leads`}
                 accent={mktConvRate != null ? (mktConvRate >= 10 ? 'var(--badge-success-text)' : mktConvRate >= 5 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
-                info="Percentual de leads que viraram venda: vendas ganhas ÷ leads gerados no período."
+                info="Vendas fechadas no período ÷ leads gerados no período. Como as vendas contam pela data de fechamento, podem incluir leads antigos — em janelas curtas a taxa pode passar de 100%."
               />
             )}
             {visibleBottomKpis.includes('ticket') && (
@@ -2162,6 +2194,11 @@ export default function DashboardPage() {
                   <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.generated} leads</strong>
                   </p>
+                  {funnelCounts.won > funnelCounts.generated && (
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      inclui vendas de leads criados antes do período
+                    </p>
+                  )}
                 </div>
 
                 {/* Alertas do funil */}
