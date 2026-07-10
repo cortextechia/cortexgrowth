@@ -693,6 +693,11 @@ export interface CrmClientSummary {
   phone: string;
   origin: CrmOrigin;
   notes: string | null;
+  company: string | null;
+  clientType: string | null;
+  tags: string[];
+  lastInboundAt: string | null;
+  lastReadAt: string | null;
   responsibleId: string | null;
   responsible?: { id: string; name: string } | null;
   sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt' | 'createdAt'>[];

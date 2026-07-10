@@ -812,8 +812,13 @@ class ApiService {
     return response.data;
   }
 
-  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string }): Promise<{ success: boolean; message: string }> {
+  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; tags?: string[] }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${id}`, data);
+    return response.data;
+  }
+
+  async addCrmNote(clientId: string, text: string): Promise<{ success: boolean; message: string; data: import('@/types').CrmEvent }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/notes`, { text });
     return response.data;
   }
 

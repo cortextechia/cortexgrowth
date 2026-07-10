@@ -43,6 +43,7 @@ const EVENT_LABELS: Record<string, string> = {
   SALE_WON: 'Venda ganha',
   SALE_LOST: 'Venda perdida',
   SALE_DELETED: 'Venda removida',
+  NOTE: 'Nota',
 };
 
 function fmtMoney(v: number): string {
@@ -76,6 +77,23 @@ function daysSince(iso: string): number {
 // Mesmo threshold da regra de cards parados do CRM_HYGIENE (30d)
 const STALE_SALE_DAYS = 30;
 
+// Mensagem WhatsApp não lida — recebida depois da última abertura da conversa.
+// Comparação lexicográfica funciona: as datas vêm como ISO-8601 UTC.
+function hasUnread(c: { lastInboundAt: string | null; lastReadAt: string | null }): boolean {
+  return !!c.lastInboundAt && (!c.lastReadAt || c.lastInboundAt > c.lastReadAt);
+}
+
+function UnreadDot() {
+  return (
+    <span
+      className="h-2 w-2 rounded-full shrink-0 animate-pulse"
+      style={{ backgroundColor: '#22c55e' }}
+      title="Mensagem não lida no WhatsApp"
+      aria-label="Mensagem não lida no WhatsApp"
+    />
+  );
+}
+
 function OriginPill({ origin }: { origin: CrmOrigin }) {
   return (
     <span
@@ -90,6 +108,21 @@ function OriginPill({ origin }: { origin: CrmOrigin }) {
 function apiErrorMsg(err: unknown, fallback: string): string {
   const anyErr = err as { response?: { data?: { message?: string } } };
   return anyErr?.response?.data?.message ?? fallback;
+}
+
+// Desktop = drawer em duas colunas (card + conversa lateral); mobile empilha.
+// Hook único evita montar a conversa duas vezes (o polling de 5s duplicaria).
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setIsDesktop(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
 }
 
 const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
@@ -452,7 +485,10 @@ export default function CrmPage() {
                       >
                         {initials(client.name)}
                       </div>
-                      <div className="text-sm font-medium truncate flex-1" style={{ color: 'var(--text-primary)' }}>{client.name}</div>
+                      <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                        <span className="truncate">{client.name}</span>
+                        {hasUnread(client) && <UnreadDot />}
+                      </div>
                       {daysSince(sale.createdAt) >= STALE_SALE_DAYS ? (
                         <span
                           className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
@@ -552,7 +588,12 @@ export default function CrmPage() {
                     className="cursor-pointer"
                     style={{ borderTop: '1px solid var(--border)' }}
                   >
-                    <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-primary)' }}>{c.name}</td>
+                    <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-primary)' }}>
+                      <span className="inline-flex items-center gap-1.5">
+                        {c.name}
+                        {hasUnread(c) && <UnreadDot />}
+                      </span>
+                    </td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
                     <td className="py-2.5 pr-4"><OriginPill origin={c.origin} /></td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{c.responsible?.name ?? '—'}</td>
@@ -601,6 +642,20 @@ export default function CrmPage() {
               showToast('success', 'Venda removida.');
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao remover venda.')); }
+          }}
+          onUpdateClient={async (data) => {
+            if (!detail) return;
+            try {
+              await apiService.updateCrmClient(detail.id, data);
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao atualizar o cliente.')); }
+          }}
+          onAddNote={async (text) => {
+            if (!detail) return;
+            try {
+              await apiService.addCrmNote(detail.id, text);
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao adicionar a nota.')); }
           }}
         />
       )}
@@ -697,6 +752,65 @@ function Toast({ toast }: { toast: { type: 'success' | 'error'; msg: string } })
 
 // ─── Drawer do cliente ────────────────────────────────────────────────────────
 
+// ─── Header do card (banner estilo Kommo) ─────────────────────────────────────
+// O banner tem fundo escuro FIXO nos dois temas (como o Kommo faz mesmo no light).
+// Por isso as cores de texto/chips daqui são hardcoded de propósito — a regra
+// "sem hex no JSX" vale para superfícies que trocam com o tema; aqui o contraste
+// é garantido porque o fundo nunca muda (mesma exceção do Chart.js).
+const CARD_HEADER_BG = 'linear-gradient(135deg, #0e2f4b 0%, #14536e 100%)';
+
+const TAG_COLORS = [
+  { bg: 'rgba(74,222,128,0.16)',  border: 'rgba(74,222,128,0.5)',  text: '#86efac' }, // verde
+  { bg: 'rgba(251,191,36,0.16)',  border: 'rgba(251,191,36,0.5)',  text: '#fcd34d' }, // âmbar
+  { bg: 'rgba(244,114,182,0.16)', border: 'rgba(244,114,182,0.5)', text: '#f9a8d4' }, // rosa
+  { bg: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.5)', text: '#c4b5fd' }, // violeta
+  { bg: 'rgba(34,211,238,0.16)',  border: 'rgba(34,211,238,0.5)',  text: '#67e8f9' }, // ciano
+];
+
+// Cor determinística por nome — a mesma tag tem sempre a mesma cor em qualquer card
+function tagColor(tag: string) {
+  let h = 0;
+  for (const c of tag.toLowerCase()) h = (h * 31 + c.charCodeAt(0)) | 0;
+  return TAG_COLORS[Math.abs(h) % TAG_COLORS.length]!;
+}
+
+// Valor editável inline da seção "Principal" (clique → input → Enter/blur salva)
+function InlineField({ value, placeholder, maxLength, onSave }: {
+  value: string | null;
+  placeholder: string;
+  maxLength: number;
+  onSave: (v: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => { setDraft(value ?? ''); setEditing(true); }}
+        className="text-sm text-left truncate max-w-full"
+        style={{ color: value ? 'var(--text-primary)' : 'var(--text-muted)' }}
+        title="Clique para editar"
+      >
+        {value || placeholder} <span style={{ color: 'var(--text-muted)' }}>✎</span>
+      </button>
+    );
+  }
+  const save = () => { setEditing(false); const v = draft.trim(); if (v !== (value ?? '')) onSave(v || null); };
+  return (
+    <input
+      autoFocus
+      className="rounded-md px-2 py-1 text-sm w-full"
+      style={input}
+      value={draft}
+      maxLength={maxLength}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+    />
+  );
+}
+
 function ClientDrawer(props: {
   detail: CrmClientDetail | null;
   loading: boolean;
@@ -711,11 +825,52 @@ function ClientDrawer(props: {
   onChangeStage: (saleId: string, stageId: string) => void;
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
+  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
+  onAddNote: (text: string) => Promise<void>;
 }) {
   const { detail, loading, stages, isAdmin, orgUsers } = props;
-  const [showEvents, setShowEvents] = useState(false);
+  const isDesktop = useIsDesktop();
+  const [showEvents, setShowEvents] = useState(true);
   const [transferring, setTransferring] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [addingTag, setAddingTag] = useState(false);
+  const [tagDraft, setTagDraft] = useState('');
+  const [noteDraft, setNoteDraft] = useState('');
+  const [savingNote, setSavingNote] = useState(false);
+
+  // Trava a rolagem da página enquanto o drawer está aberto — sem isso o wheel
+  // "vaza" pro kanban atrás quando o gesto cai numa área sem rolagem própria.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const addTag = () => {
+    const t = tagDraft.trim();
+    setAddingTag(false);
+    setTagDraft('');
+    if (!detail || !t) return;
+    if (detail.tags.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    void props.onUpdateClient({ tags: [...detail.tags, t] });
+  };
+
+  const removeTag = (tag: string) => {
+    if (!detail) return;
+    void props.onUpdateClient({ tags: detail.tags.filter((t) => t !== tag) });
+  };
+
+  const submitNote = async () => {
+    const text = noteDraft.trim();
+    if (!text) return;
+    setSavingNote(true);
+    try {
+      await props.onAddNote(text);
+      setNoteDraft('');
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   const statusPill = (s: CrmSale) => {
     if (s.status === 'WON') return { label: 'Ganha', color: 'var(--badge-success-text)', bg: 'var(--badge-success-bg)' };
@@ -727,7 +882,7 @@ function ClientDrawer(props: {
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={props.onClose} />
       <aside
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-md flex flex-col overflow-y-auto"
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg lg:max-w-4xl flex flex-col overflow-hidden"
         style={{ backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}
       >
         {loading || !detail ? (
@@ -735,69 +890,173 @@ function ClientDrawer(props: {
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span>
           </div>
         ) : (
+          // Desktop: card à esquerda + conversa lateral (como no Kommo). Mobile: empilhado.
+          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden overscroll-contain">
+          <div className="flex-1 min-w-0 lg:overflow-y-auto overscroll-contain">
           <div className="p-5">
-            {/* Cabeçalho do card */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--accent)' }}>
-                  Card permanente · Cliente
-                </span>
-                <h2 className="text-lg font-semibold truncate mt-0.5" style={{ color: 'var(--text-primary)' }}>{detail.name}</h2>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                  📞 {fmtPhone(detail.phone)} · origem: {originLabel(detail.origin)}
-                </p>
+            {/* Cabeçalho do card — banner escuro estilo Kommo (fundo fixo nos 2 temas) */}
+            <div className="-m-5 mb-0 p-5 pb-4" style={{ background: CARD_HEADER_BG, borderBottom: '1px solid var(--border)' }}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7dd3fc' }}>
+                    Card permanente · Cliente
+                  </span>
+                  <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                </div>
+                <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }} aria-label="Fechar">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'var(--text-muted)' }} aria-label="Fechar">
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
 
-            {/* LTV */}
-            <div
-              className="inline-block mt-3 px-3 py-1.5 rounded-lg text-sm font-bold"
-              style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
-            >
-              LTV {fmtMoney(detail.ltv)} · soma automática das vendas ganhas
-            </div>
-
-            {/* Responsável */}
-            <div className="mt-4 flex items-center gap-2 text-sm">
-              <span style={{ color: 'var(--text-muted)' }}>Responsável:</span>
-              {isAdmin ? (
-                transferring ? (
-                  <select
+              {/* Tags — chips coloridos (cor determinística por nome, como no Kommo) */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                {detail.tags.map((tag) => {
+                  const c = tagColor(tag);
+                  return (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md"
+                      style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}
+                    >
+                      {tag}
+                      <button onClick={() => removeTag(tag)} aria-label={`Remover tag ${tag}`} style={{ color: 'rgba(255,255,255,0.55)' }}>×</button>
+                    </span>
+                  );
+                })}
+                {addingTag ? (
+                  <input
                     autoFocus
-                    className="rounded-md px-2 py-1 text-sm"
-                    style={input}
-                    defaultValue={detail.responsibleId ?? ''}
-                    onBlur={() => setTransferring(false)}
-                    onChange={(e) => { setTransferring(false); props.onTransfer(e.target.value || null); }}
-                  >
-                    <option value="">Não atribuído</option>
-                    {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
+                    className="rounded-md px-2 py-0.5 text-[11px] w-28 outline-none"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)', color: '#ffffff' }}
+                    value={tagDraft}
+                    maxLength={30}
+                    placeholder="nova tag"
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    onBlur={addTag}
+                    onKeyDown={(e) => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') { setAddingTag(false); setTagDraft(''); } }}
+                  />
                 ) : (
                   <button
-                    onClick={() => { props.onLoadUsers(); setTransferring(true); }}
-                    className="underline decoration-dotted"
-                    style={{ color: 'var(--text-secondary)' }}
-                    title="Transferir responsável"
+                    onClick={() => setAddingTag(true)}
+                    className="text-[11px] px-2 py-0.5 rounded-md"
+                    style={{ border: '1px dashed rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.75)' }}
                   >
-                    {detail.responsible?.name ?? 'Não atribuído'} ✎
+                    + tag
                   </button>
-                )
-              ) : (
-                <span style={{ color: 'var(--text-secondary)' }}>{detail.responsible?.name ?? 'Não atribuído'}</span>
-              )}
+                )}
+              </div>
+
+              {/* Funil de vendas — etapa atual + barra de progresso (como no Kommo) */}
+              {(() => {
+                const openSale = detail.sales.find((s) => s.status === 'OPEN');
+                const lastSale = detail.sales[0];
+                const activeIdx = openSale ? stages.findIndex((st) => st.id === openSale.stageId) : -1;
+                const outcome = !openSale && lastSale ? lastSale.status : null;
+                const stageName = openSale
+                  ? (openSale.stage?.name ?? stages.find((st) => st.id === openSale.stageId)?.name ?? 'Sem etapa')
+                  : outcome === 'WON' ? 'Venda ganha'
+                  : outcome === 'LOST' ? 'Venda perdida'
+                  : 'Sem venda aberta';
+                // Cores fixas — o banner tem fundo escuro nos dois temas
+                const stageColor = outcome === 'WON' ? '#4ade80'
+                  : outcome === 'LOST' ? '#f87171'
+                  : openSale ? '#ffffff' : 'rgba(255,255,255,0.6)';
+                return (
+                  <div className="mt-3">
+                    <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Funil de Vendas</p>
+                    <p className="text-sm font-semibold mt-0.5" style={{ color: stageColor }}>{stageName}</p>
+                    <div className="flex gap-1 mt-1.5">
+                      {stages.map((st, i) => {
+                        const filled = outcome === 'WON' ? '#4ade80'
+                          : outcome === 'LOST' ? '#f87171'
+                          : openSale && i <= activeIdx ? '#60a5fa'
+                          : 'rgba(255,255,255,0.22)';
+                        return <span key={st.id} title={st.name} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: filled }} />;
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
-            {detail.notes && (
-              <p className="mt-3 text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
-                {detail.notes}
-              </p>
-            )}
+            {/* Principal — campos do card (espelha a aba "Principal" do Kommo) */}
+            <div className="mt-4 space-y-2.5">
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Responsável</span>
+                {isAdmin ? (
+                  transferring ? (
+                    <select
+                      autoFocus
+                      className="rounded-md px-2 py-1 text-sm"
+                      style={input}
+                      defaultValue={detail.responsibleId ?? ''}
+                      onBlur={() => setTransferring(false)}
+                      onChange={(e) => { setTransferring(false); props.onTransfer(e.target.value || null); }}
+                    >
+                      <option value="">Não atribuído</option>
+                      {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                  ) : (
+                    <button
+                      onClick={() => { props.onLoadUsers(); setTransferring(true); }}
+                      className="text-sm text-left"
+                      style={{ color: 'var(--text-primary)' }}
+                      title="Transferir responsável"
+                    >
+                      {detail.responsible?.name ?? 'Não atribuído'} <span style={{ color: 'var(--text-muted)' }}>✎</span>
+                    </button>
+                  )
+                ) : (
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{detail.responsible?.name ?? 'Não atribuído'}</span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>LTV</span>
+                <span className="text-sm font-bold" style={{ color: 'var(--badge-success-text)' }} title="Soma automática das vendas ganhas">
+                  {fmtMoney(detail.ltv)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Tipo de cliente</span>
+                <InlineField
+                  value={detail.clientType}
+                  placeholder="ex: Engenheiro"
+                  maxLength={60}
+                  onSave={(v) => void props.onUpdateClient({ clientType: v })}
+                />
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Origem</span>
+                <select
+                  className="rounded-md px-2 py-1 text-sm w-fit"
+                  style={input}
+                  value={detail.origin}
+                  onChange={(e) => void props.onUpdateClient({ origin: e.target.value as CrmOrigin })}
+                >
+                  {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Empresa</span>
+                <InlineField
+                  value={detail.company}
+                  placeholder="adicionar empresa"
+                  maxLength={120}
+                  onSave={(v) => void props.onUpdateClient({ company: v })}
+                />
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Telefone</span>
+                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{fmtPhone(detail.phone)}</span>
+              </div>
+            </div>
 
             {/* Vendas */}
             <div className="flex items-center justify-between mt-6 mb-2">
@@ -890,28 +1149,80 @@ function ClientDrawer(props: {
               })}
             </div>
 
-            {/* Histórico */}
+            {/* Notas e histórico */}
             <button
               onClick={() => setShowEvents((v) => !v)}
               className="mt-6 text-sm font-semibold flex items-center gap-1"
               style={{ color: 'var(--text-primary)' }}
             >
-              Histórico {showEvents ? '▾' : '▸'}
+              Notas e histórico {showEvents ? '▾' : '▸'}
             </button>
+
+            {/* Composer de nota */}
+            <div className="mt-2 flex gap-2">
+              <textarea
+                className="rounded-md px-2.5 py-1.5 text-sm flex-1 resize-none"
+                style={input}
+                rows={noteDraft ? 3 : 1}
+                maxLength={2000}
+                placeholder="Escrever nota..."
+                value={noteDraft}
+                onChange={(e) => setNoteDraft(e.target.value)}
+              />
+              {noteDraft.trim() && (
+                <button
+                  onClick={() => void submitNote()}
+                  disabled={savingNote}
+                  className="text-xs px-3 py-1.5 rounded-md font-medium text-white self-end disabled:opacity-60"
+                  style={{ backgroundColor: 'var(--accent)' }}
+                >
+                  {savingNote ? '...' : 'Salvar'}
+                </button>
+              )}
+            </div>
+
             {showEvents && (
-              <div className="mt-2 space-y-1.5">
-                {detail.events.map((e) => (
-                  <div key={e.id} className="text-xs flex items-baseline gap-2" style={{ color: 'var(--text-muted)' }}>
-                    <span className="shrink-0 tabular-nums">{fmtDate(e.createdAt)}</span>
-                    <span style={{ color: 'var(--text-secondary)' }}>{EVENT_LABELS[e.type] ?? e.type}</span>
-                    {e.actor?.name && <span>· {e.actor.name}</span>}
-                  </div>
-                ))}
+              <div className="mt-3 space-y-2">
+                {detail.events.length === 0 && (
+                  <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum registro ainda.</p>
+                )}
+                {detail.events.map((e) =>
+                  e.type === 'NOTE' ? (
+                    <div
+                      key={e.id}
+                      className="rounded-lg p-2.5 text-xs"
+                      style={{ backgroundColor: 'var(--bg-elevated)', borderLeft: '2px solid var(--accent)' }}
+                    >
+                      <p className="whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{String(e.payload?.text ?? '')}</p>
+                      <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {e.actor?.name ?? 'Nota'} · {fmtDate(e.createdAt)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div key={e.id} className="text-xs flex items-baseline gap-2" style={{ color: 'var(--text-muted)' }}>
+                      <span className="shrink-0 tabular-nums">{fmtDate(e.createdAt)}</span>
+                      <span style={{ color: 'var(--text-secondary)' }}>{EVENT_LABELS[e.type] ?? e.type}</span>
+                      {e.actor?.name && <span>· {e.actor.name}</span>}
+                    </div>
+                  )
+                )}
               </div>
             )}
 
-            {/* Conversa WhatsApp (busca on-demand na Evolution) */}
-            <WaConversation clientId={detail.id} />
+            {/* Conversa WhatsApp no fluxo — só no mobile (desktop usa o painel lateral) */}
+            {!isDesktop && <WaConversation clientId={detail.id} />}
+          </div>
+          </div>
+
+          {/* Painel lateral da conversa (desktop) — como no Kommo */}
+          {isDesktop && (
+            <div
+              className="w-[380px] shrink-0 flex flex-col min-h-0"
+              style={{ borderLeft: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
+            >
+              <WaConversation clientId={detail.id} variant="panel" />
+            </div>
+          )}
           </div>
         )}
       </aside>
@@ -1054,14 +1365,18 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
   );
 }
 
-function WaConversation({ clientId }: { clientId: string }) {
-  const [open, setOpen] = useState(false);
+function WaConversation({ clientId, variant = 'inline' }: { clientId: string; variant?: 'inline' | 'panel' }) {
+  // 'panel' = coluna lateral do drawer (desktop): sempre aberta, ocupa a altura
+  // toda e rola pro fim como um chat. 'inline' = seção colapsável (mobile).
+  const isPanel = variant === 'panel';
+  const [open, setOpen] = useState(isPanel);
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [messages, setMessages] = useState<CrmWaMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1079,6 +1394,11 @@ function WaConversation({ clientId }: { clientId: string }) {
     }
   }, [clientId]);
 
+  // Painel lateral já abre carregado (o inline carrega ao expandir)
+  useEffect(() => {
+    if (isPanel) void load();
+  }, [isPanel, load]);
+
   // Conversa ao vivo: refresh silencioso enquanto a seção está aberta
   useEffect(() => {
     if (!open || !available) return;
@@ -1087,6 +1407,12 @@ function WaConversation({ clientId }: { clientId: string }) {
     }, 5000);
     return () => clearInterval(id);
   }, [open, available, load]);
+
+  // Comportamento de chat: rola pro fim quando a conversa muda
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
 
   const send = async () => {
     const text = draft.trim();
@@ -1114,11 +1440,15 @@ function WaConversation({ clientId }: { clientId: string }) {
     new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div>
-      <div className="flex items-center justify-between mt-6">
-        <button onClick={toggle} className="text-sm font-semibold flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
-          Conversa WhatsApp {open ? '▾' : '▸'}
-        </button>
+    <div className={isPanel ? 'flex flex-col h-full min-h-0 p-4' : ''}>
+      <div className={`flex items-center justify-between ${isPanel ? 'mb-1' : 'mt-6'}`}>
+        {isPanel ? (
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conversa WhatsApp</p>
+        ) : (
+          <button onClick={toggle} className="text-sm font-semibold flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+            Conversa WhatsApp {open ? '▾' : '▸'}
+          </button>
+        )}
         {open && (
           <button onClick={() => void load()} className="text-xs" style={{ color: 'var(--text-muted)' }} disabled={loading}>
             {loading ? 'Carregando...' : 'Atualizar'}
@@ -1126,23 +1456,32 @@ function WaConversation({ clientId }: { clientId: string }) {
         )}
       </div>
       {open && (
-        <div className="mt-2">
+        <div className={isPanel ? 'mt-2 flex-1 min-h-0 flex flex-col' : 'mt-2'}>
           {loading && messages.length === 0 && (
             <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>Buscando conversa...</p>
           )}
           {!loading && available === false && (
-            <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>
-              Nenhum WhatsApp conectado para este cliente — conecte o seu no botão do topo da página.
-            </p>
+            <div className={isPanel ? 'flex-1 flex items-center justify-center px-4' : ''}>
+              <p className="text-xs py-3 text-center max-w-[260px] mx-auto" style={{ color: 'var(--text-muted)' }}>
+                Sem WhatsApp disponível neste card — a conversa usa o WhatsApp de quem aparece
+                em &quot;Responsável&quot;. Conecte um WhatsApp no botão do topo da página para
+                conversar e responder por aqui.
+              </p>
+            </div>
           )}
           {available && messages.length === 0 && !loading && (
             <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>Nenhuma mensagem com este número ainda.</p>
           )}
+          {/* No painel, empurra o composer pro rodapé quando não há mensagens */}
+          {isPanel && messages.length === 0 && <div className="flex-1" />}
           {messages.length > 0 && (
             <div
-              className="space-y-1.5 max-h-72 overflow-y-auto rounded-lg p-2.5"
-              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+              ref={listRef}
+              className={`space-y-1.5 overflow-y-auto overscroll-contain rounded-lg p-2.5 ${isPanel ? 'flex-1 min-h-0 flex flex-col' : 'max-h-72'}`}
+              style={{ backgroundColor: isPanel ? 'var(--bg-base)' : 'var(--bg-elevated)', border: '1px solid var(--border)' }}
             >
+              {/* Conversa curta fica junto do composer (chat cresce de baixo pra cima) */}
+              {isPanel && <div className="flex-1" />}
               {messages.map((m) => (
                 <div key={m.id} className={`flex ${m.fromMe ? 'justify-end' : 'justify-start'}`}>
                   <div
