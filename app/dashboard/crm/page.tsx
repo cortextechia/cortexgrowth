@@ -10,8 +10,29 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReason, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, User, CrmWaStatus, CrmWaMessage,
 } from '@/types';
+
+// Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
+function WaAvatar({ url, name, className }: { url: string | null; name: string; className: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [url]);
+  if (url && !failed) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={url} alt="" onError={() => setFailed(true)} className={`${className} rounded-full object-cover shrink-0`} />
+    );
+  }
+  return (
+    <div
+      className={`${className} rounded-full flex items-center justify-center font-bold shrink-0`}
+      style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
+      aria-hidden
+    >
+      {initials(name)}
+    </div>
+  );
+}
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -25,15 +46,6 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
   { key: 'OUTRO',     label: 'Outro' },
 ];
 
-const LOST_REASON_OPTIONS: { key: CrmLostReason; label: string }[] = [
-  { key: 'INATIVIDADE',  label: 'Inatividade (cliente sumiu)' },
-  { key: 'PRECO',        label: 'Preço' },
-  { key: 'CONCORRENCIA', label: 'Concorrência' },
-  { key: 'SEM_RESPOSTA', label: 'Proposta sem resposta' },
-  { key: 'DESISTENCIA',  label: 'Desistência' },
-  { key: 'OUTRO',        label: 'Outro' },
-];
-
 const EVENT_LABELS: Record<string, string> = {
   CLIENT_CREATED: 'Cliente criado',
   SALE_CREATED: 'Venda aberta',
@@ -44,6 +56,8 @@ const EVENT_LABELS: Record<string, string> = {
   SALE_LOST: 'Venda perdida',
   SALE_DELETED: 'Venda removida',
   NOTE: 'Nota',
+  FOLLOWUP_SET: 'Follow-up agendado',
+  FOLLOWUP_CLEARED: 'Follow-up removido',
 };
 
 function fmtMoney(v: number): string {
@@ -77,6 +91,36 @@ function daysSince(iso: string): number {
 // Mesmo threshold da regra de cards parados do CRM_HYGIENE (30d)
 const STALE_SALE_DAYS = 30;
 
+// Follow-up agendado: vencido (dia passou), hoje, ou futuro — cor por urgência
+function followUpInfo(iso: string | null): { label: string; tone: 'overdue' | 'today' | 'future' } | null {
+  if (!iso) return null;
+  const day = new Date(iso); day.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const tone = day < today ? 'overdue' : day.getTime() === today.getTime() ? 'today' : 'future';
+  return { label: new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), tone };
+}
+
+const FOLLOWUP_TONE: Record<'overdue' | 'today' | 'future', { color: string; bg: string }> = {
+  overdue: { color: 'var(--badge-error-text)', bg: 'var(--badge-error-bg)' },
+  today:   { color: 'var(--badge-warn-text)',  bg: 'var(--badge-warn-bg)' },
+  future:  { color: 'var(--text-muted)',       bg: 'var(--bg-elevated)' },
+};
+
+function FollowUpChip({ iso }: { iso: string | null }) {
+  const info = followUpInfo(iso);
+  if (!info) return null;
+  const tone = FOLLOWUP_TONE[info.tone];
+  return (
+    <span
+      className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap"
+      style={{ backgroundColor: tone.bg, color: tone.color }}
+      title={info.tone === 'overdue' ? 'Follow-up vencido' : info.tone === 'today' ? 'Follow-up hoje' : 'Follow-up agendado'}
+    >
+      📅 {info.label}
+    </span>
+  );
+}
+
 // Mensagem WhatsApp não lida — recebida depois da última abertura da conversa.
 // Comparação lexicográfica funciona: as datas vêm como ISO-8601 UTC.
 function hasUnread(c: { lastInboundAt: string | null; lastReadAt: string | null }): boolean {
@@ -84,13 +128,18 @@ function hasUnread(c: { lastInboundAt: string | null; lastReadAt: string | null 
 }
 
 function UnreadDot() {
+  // Balão de mensagem (não bolinha — bolinha parece status "online")
   return (
     <span
-      className="h-2 w-2 rounded-full shrink-0 animate-pulse"
+      className="inline-flex items-center justify-center h-4 w-4 rounded-full shrink-0 animate-pulse"
       style={{ backgroundColor: '#22c55e' }}
-      title="Mensagem não lida no WhatsApp"
-      aria-label="Mensagem não lida no WhatsApp"
-    />
+      title="Mensagem não respondida no WhatsApp"
+      aria-label="Mensagem não respondida no WhatsApp"
+    >
+      <svg viewBox="0 0 20 20" fill="#ffffff" className="h-2.5 w-2.5">
+        <path d="M10 2.5c-4.4 0-8 2.8-8 6.3 0 2 1.2 3.8 3 4.9L4.4 17a.4.4 0 0 0 .6.5l3.2-1.8c.6.1 1.2.2 1.8.2 4.4 0 8-2.8 8-6.3s-3.6-6.3-8-6.3z" />
+      </svg>
+    </span>
   );
 }
 
@@ -158,6 +207,7 @@ export default function CrmPage() {
   const [winSaleTarget, setWinSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
+  const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
@@ -406,13 +456,22 @@ export default function CrmPage() {
         />
         <WhatsappConnectButton showToast={showToast} />
         {isAdmin && (
-          <button
-            onClick={() => setShowStagesEditor(true)}
-            className="px-3 py-2 rounded-lg text-sm"
-            style={{ ...card, color: 'var(--text-secondary)' }}
-          >
-            Editar funil
-          </button>
+          <>
+            <button
+              onClick={() => setShowStagesEditor(true)}
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{ ...card, color: 'var(--text-secondary)' }}
+            >
+              Editar funil
+            </button>
+            <button
+              onClick={() => setShowLostReasonsEditor(true)}
+              className="px-3 py-2 rounded-lg text-sm"
+              style={{ ...card, color: 'var(--text-secondary)' }}
+            >
+              Motivos de perda
+            </button>
+          </>
         )}
         <button
           onClick={() => setShowNewClient(true)}
@@ -478,13 +537,7 @@ export default function CrmPage() {
                     }}
                   >
                     <div className="flex items-center gap-2">
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
-                        style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
-                        aria-hidden
-                      >
-                        {initials(client.name)}
-                      </div>
+                      <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
                       <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
                         {hasUnread(client) && <UnreadDot />}
@@ -503,8 +556,11 @@ export default function CrmPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between mt-1.5 pl-8">
-                      <OriginPill origin={client.origin} />
+                    <div className="flex items-center justify-between gap-1.5 mt-1.5 pl-8">
+                      <span className="inline-flex items-center gap-1.5 min-w-0">
+                        <OriginPill origin={client.origin} />
+                        <FollowUpChip iso={client.nextFollowUpAt} />
+                      </span>
                       <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sale.value)}</span>
                     </div>
                   </button>
@@ -576,6 +632,7 @@ export default function CrmPage() {
                   <th className="text-left font-medium py-2 pr-4">Telefone</th>
                   <th className="text-left font-medium py-2 pr-4">Origem</th>
                   <th className="text-left font-medium py-2 pr-4">Responsável</th>
+                  <th className="text-left font-medium py-2 pr-4">Follow-up</th>
                   <th className="text-right font-medium py-2 pr-4">Em aberto</th>
                   <th className="text-right font-medium py-2">LTV</th>
                 </tr>
@@ -590,6 +647,7 @@ export default function CrmPage() {
                   >
                     <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-primary)' }}>
                       <span className="inline-flex items-center gap-1.5">
+                        <WaAvatar url={c.waAvatarUrl} name={c.name} className="w-5 h-5 text-[9px]" />
                         {c.name}
                         {hasUnread(c) && <UnreadDot />}
                       </span>
@@ -597,6 +655,9 @@ export default function CrmPage() {
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
                     <td className="py-2.5 pr-4"><OriginPill origin={c.origin} /></td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{c.responsible?.name ?? '—'}</td>
+                    <td className="py-2.5 pr-4">
+                      {c.nextFollowUpAt ? <FollowUpChip iso={c.nextFollowUpAt} /> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
                     <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-secondary)' }}>{c.openSales}</td>
                     <td className="py-2.5 text-right font-semibold" style={{ color: c.ltv > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
                       {fmtMoney(c.ltv)}
@@ -728,6 +789,17 @@ export default function CrmPage() {
         />
       )}
 
+      {showLostReasonsEditor && (
+        <LostReasonsEditorModal
+          onClose={() => setShowLostReasonsEditor(false)}
+          onSaved={(msg) => {
+            setShowLostReasonsEditor(false);
+            showToast('success', msg);
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
       {toast && <Toast toast={toast} />}
     </div>
   );
@@ -811,6 +883,72 @@ function InlineField({ value, placeholder, maxLength, onSave }: {
   );
 }
 
+// Follow-up do card: data agendada com atalhos (padrão "Próximo agendamento" do
+// Kommo). Guarda 23:59 local do dia escolhido — só vence quando o dia passa.
+function FollowUpField({ value, onSave }: {
+  value: string | null;
+  onSave: (iso: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const info = followUpInfo(value);
+
+  const saveDay = (d: Date) => {
+    setEditing(false);
+    d.setHours(23, 59, 59, 0);
+    onSave(d.toISOString());
+  };
+  const fromInput = (v: string) => {
+    if (!v) return;
+    const [y, m, day] = v.split('-').map(Number);
+    saveDay(new Date(y!, (m ?? 1) - 1, day ?? 1));
+  };
+  const plusDays = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    saveDay(d);
+  };
+
+  if (!editing) {
+    const tone = info ? FOLLOWUP_TONE[info.tone] : null;
+    return (
+      <button onClick={() => setEditing(true)} className="text-sm text-left" title="Clique para agendar">
+        {info && tone ? (
+          <span className="font-semibold" style={{ color: tone.color }}>
+            {new Date(value!).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+            {info.tone === 'overdue' ? ' · vencido' : info.tone === 'today' ? ' · hoje' : ''}
+          </span>
+        ) : (
+          <span style={{ color: 'var(--text-muted)' }}>agendar follow-up</span>
+        )}
+        {' '}<span style={{ color: 'var(--text-muted)' }}>✎</span>
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <button onClick={() => plusDays(0)} className="text-[11px] px-2 py-1 rounded-md" style={input}>Hoje</button>
+      <button onClick={() => plusDays(1)} className="text-[11px] px-2 py-1 rounded-md" style={input}>Amanhã</button>
+      <button onClick={() => plusDays(3)} className="text-[11px] px-2 py-1 rounded-md" style={input}>+3 dias</button>
+      <input
+        type="date"
+        className="text-[11px] rounded-md px-2 py-1"
+        style={input}
+        onChange={(e) => fromInput(e.target.value)}
+      />
+      {value && (
+        <button
+          onClick={() => { setEditing(false); onSave(null); }}
+          className="text-[11px] px-2 py-1"
+          style={{ color: 'var(--badge-error-text)' }}
+        >
+          Limpar
+        </button>
+      )}
+      <button onClick={() => setEditing(false)} className="text-[11px] px-1" style={{ color: 'var(--text-muted)' }}>✕</button>
+    </div>
+  );
+}
+
 function ClientDrawer(props: {
   detail: CrmClientDetail | null;
   loading: boolean;
@@ -825,7 +963,7 @@ function ClientDrawer(props: {
   onChangeStage: (saleId: string, stageId: string) => void;
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
-  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
+  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
 }) {
   const { detail, loading, stages, isAdmin, orgUsers } = props;
@@ -837,6 +975,17 @@ function ClientDrawer(props: {
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(detail?.waAvatarUrl ?? null);
+
+  // Foto de perfil do WhatsApp: usa o cache do card e pede refresh ao backend
+  // (que renova na Evolution quando a URL assinada passa de 24h)
+  const detailId = detail?.id;
+  useEffect(() => {
+    if (!detailId) return;
+    apiService.getCrmClientAvatar(detailId)
+      .then((res) => setAvatarUrl(res.data.avatarUrl))
+      .catch(() => { /* mantém o cache/iniciais */ });
+  }, [detailId]);
 
   // Trava a rolagem da página enquanto o drawer está aberto — sem isso o wheel
   // "vaza" pro kanban atrás quando o gesto cai numa área sem rolagem própria.
@@ -897,11 +1046,14 @@ function ClientDrawer(props: {
             {/* Cabeçalho do card — banner escuro estilo Kommo (fundo fixo nos 2 temas) */}
             <div className="-m-5 mb-0 p-5 pb-4" style={{ background: CARD_HEADER_BG, borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7dd3fc' }}>
-                    Card permanente · Cliente
-                  </span>
-                  <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                <div className="min-w-0 flex items-center gap-3">
+                  <WaAvatar url={avatarUrl} name={detail.name} className="w-11 h-11 text-sm" />
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7dd3fc' }}>
+                      Card permanente · Cliente
+                    </span>
+                    <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                  </div>
                 </div>
                 <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }} aria-label="Fechar">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1056,6 +1208,24 @@ function ClientDrawer(props: {
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Telefone</span>
                 <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{fmtPhone(detail.phone)}</span>
               </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>E-mail</span>
+                <InlineField
+                  value={detail.email}
+                  placeholder="adicionar e-mail"
+                  maxLength={160}
+                  onSave={(v) => void props.onUpdateClient({ email: v })}
+                />
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Follow-up</span>
+                <FollowUpField
+                  value={detail.nextFollowUpAt}
+                  onSave={(iso) => void props.onUpdateClient({ nextFollowUpAt: iso })}
+                />
+              </div>
             </div>
 
             {/* Vendas */}
@@ -1099,7 +1269,7 @@ function ClientDrawer(props: {
 
                     {s.status === 'LOST' && s.lostReason && (
                       <div className="text-[11px] mt-1.5" style={{ color: 'var(--badge-error-text)' }}>
-                        Motivo: {LOST_REASON_OPTIONS.find((r) => r.key === s.lostReason)?.label ?? s.lostReason}
+                        Motivo: {s.lostReason}
                       </div>
                     )}
 
@@ -1365,6 +1535,233 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
   );
 }
 
+// Placeholder de mídia sem caption ("[imagem]", "[áudio]"...) — não repete o
+// texto quando a mídia em si é renderizada
+const isMediaPlaceholder = (text: string) => /^\[.+\]$/.test(text);
+
+const MEDIA_BUTTON_LABEL: Record<NonNullable<CrmWaMessage['mediaType']>, string> = {
+  image: '📷 Ver imagem',
+  video: '🎬 Ver vídeo',
+  audio: '▶ Ouvir áudio',
+  document: '📎 Baixar documento',
+  sticker: '📷 Ver figurinha',
+};
+
+// Extensão pelo mimetype quando o nome do arquivo vem sem ela — sem isso o
+// Windows não sabe abrir o download
+const EXT_BY_MIME: Record<string, string> = {
+  'application/pdf': '.pdf',
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'audio/ogg': '.ogg',
+  'audio/mpeg': '.mp3',
+  'video/mp4': '.mp4',
+  'text/plain': '.txt',
+  'application/zip': '.zip',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+};
+
+function downloadFileName(fileName: string | undefined, mimetype: string): string {
+  const base = (fileName ?? '').trim() || 'documento';
+  if (/\.[a-z0-9]{2,5}$/i.test(base)) return base;
+  return base + (EXT_BY_MIME[mimetype.split(';')[0]!.trim()] ?? '');
+}
+
+function base64ToBlob(base64: string, mimetype: string): Blob {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mimetype });
+}
+
+// Player de áudio estilo WhatsApp: play redondo + forma de onda real (o áudio
+// é decodificado e amostrado em 32 barras) + velocidade 1x/1.5x/2x.
+// O <audio controls> nativo destoa do design system.
+const WAVE_BARS = 32;
+
+function fmtAudioTime(s: number): string {
+  if (!isFinite(s) || s < 0) return '0:00';
+  const m = Math.floor(s / 60);
+  return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+}
+
+function WaAudioPlayer({ src }: { src: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const waveRef = useRef<HTMLDivElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0); // 0..1
+  const [duration, setDuration] = useState(0);
+  const [rate, setRate] = useState(1);
+  const [bars, setBars] = useState<number[] | null>(null);
+
+  // Forma de onda + duração exata via WebAudio (data URI de ogg/opus reporta
+  // duration Infinity no <audio> — o buffer decodificado é a fonte confiável)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const buf = await (await fetch(src)).arrayBuffer();
+        const ctx = new AudioContext();
+        const decoded = await ctx.decodeAudioData(buf);
+        const data = decoded.getChannelData(0);
+        const block = Math.max(1, Math.floor(data.length / WAVE_BARS));
+        const peaks = Array.from({ length: WAVE_BARS }, (_, i) => {
+          let sum = 0;
+          let n = 0;
+          for (let j = 0; j < block; j += 32) { sum += Math.abs(data[i * block + j] ?? 0); n++; }
+          return n ? sum / n : 0;
+        });
+        const max = Math.max(...peaks, 0.001);
+        if (!cancelled) {
+          setBars(peaks.map((p) => Math.max(0.18, p / max)));
+          setDuration(decoded.duration);
+        }
+        void ctx.close();
+      } catch {
+        // Decodificação falhou — barras neutras (player continua funcional)
+        if (!cancelled) setBars(Array.from({ length: WAVE_BARS }, (_, i) => 0.3 + 0.45 * Math.abs(Math.sin(i * 1.7))));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [src]);
+
+  const toggle = () => {
+    const el = audioRef.current;
+    if (!el) return;
+    if (playing) { el.pause(); } else { el.playbackRate = rate; void el.play(); }
+  };
+
+  const cycleRate = () => {
+    const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  };
+
+  const seek = (e: React.MouseEvent) => {
+    const el = audioRef.current;
+    const wave = waveRef.current;
+    if (!el || !wave || !duration) return;
+    const rect = wave.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    el.currentTime = frac * duration;
+    setProgress(frac);
+  };
+
+  return (
+    <div className="flex items-center gap-2 py-0.5" style={{ minWidth: 210 }}>
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setProgress(0); }}
+        onTimeUpdate={(e) => duration && setProgress(e.currentTarget.currentTime / duration)}
+      />
+      <button
+        onClick={toggle}
+        aria-label={playing ? 'Pausar áudio' : 'Ouvir áudio'}
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white"
+        style={{ backgroundColor: 'var(--accent)' }}
+      >
+        {playing ? (
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 ml-0.5"><path d="M8 5.5v13l10-6.5z" /></svg>
+        )}
+      </button>
+      <div ref={waveRef} onClick={seek} className="flex-1 h-8 flex items-center gap-[2px] cursor-pointer" role="slider" aria-label="Posição do áudio">
+        {(bars ?? Array.from({ length: WAVE_BARS }, () => 0.25)).map((b, i) => (
+          <span
+            key={i}
+            className="flex-1 rounded-full"
+            style={{
+              height: `${Math.round(b * 100)}%`,
+              minWidth: 2,
+              backgroundColor: i / WAVE_BARS <= progress ? 'var(--accent)' : 'var(--border-md)',
+            }}
+          />
+        ))}
+      </div>
+      <span className="text-[10px] tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
+        {fmtAudioTime(playing || progress > 0 ? progress * duration : duration)}
+      </span>
+      <button
+        onClick={cycleRate}
+        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+        aria-label="Velocidade de reprodução"
+      >
+        {rate}x
+      </button>
+    </div>
+  );
+}
+
+// Mídia sob demanda: o clique baixa o base64 da Evolution (via backend) e
+// renderiza imagem/áudio/vídeo inline; documento dispara download. O estado
+// sobrevive ao polling de 5s porque o React reconcilia por key={m.id}.
+function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const mediaType = msg.mediaType!;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await apiService.getCrmWaMedia(clientId, msg.id);
+      if (mediaType === 'document') {
+        // Documento não tem preview — baixa via Blob (nome/extensão confiáveis)
+        const blobUrl = URL.createObjectURL(base64ToBlob(res.data.base64, res.data.mimetype));
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = downloadFileName(msg.fileName, res.data.mimetype);
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+      } else {
+        setSrc(`data:${res.data.mimetype};base64,${res.data.base64}`);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId, msg.id, msg.fileName, mediaType]);
+
+  // Mídia leve (figurinha/imagem/áudio — o WhatsApp comprime) carrega sozinha;
+  // vídeo fica por clique (pesado) e documento também (senão baixaria sozinho)
+  const autoLoad = mediaType === 'sticker' || mediaType === 'image' || mediaType === 'audio';
+  useEffect(() => {
+    if (autoLoad) void load();
+  }, [autoLoad, load]);
+
+  if (src) {
+    if (mediaType === 'audio') return <WaAudioPlayer src={src} />;
+    if (mediaType === 'video') return <video controls src={src} className="max-w-full rounded-md" style={{ maxHeight: 240 }} />;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={src} alt="" className="max-w-full rounded-md" style={{ maxHeight: mediaType === 'sticker' ? 120 : 240 }} />;
+  }
+  if (autoLoad && !error) {
+    return <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Carregando mídia...</p>;
+  }
+  return (
+    <div>
+      <button
+        onClick={() => void load()}
+        disabled={loading}
+        className="text-xs underline underline-offset-2 disabled:opacity-60"
+        style={{ color: 'var(--accent)' }}
+      >
+        {loading ? 'Carregando...' : mediaType === 'document' && msg.fileName ? `📎 ${msg.fileName}` : MEDIA_BUTTON_LABEL[mediaType]}
+      </button>
+      {error && <p className="text-[10px] mt-0.5" style={{ color: 'var(--badge-error-text)' }}>Mídia indisponível (pode ter expirado).</p>}
+    </div>
+  );
+}
+
 function WaConversation({ clientId, variant = 'inline' }: { clientId: string; variant?: 'inline' | 'panel' }) {
   // 'panel' = coluna lateral do drawer (desktop): sempre aberta, ocupa a altura
   // toda e rola pro fim como um chat. 'inline' = seção colapsável (mobile).
@@ -1490,7 +1887,10 @@ function WaConversation({ clientId, variant = 'inline' }: { clientId: string; va
                       ? { backgroundColor: 'var(--accent-dim)', border: '1px solid var(--border)' }
                       : { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
                   >
-                    <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
+                    {m.mediaType && <WaMediaBubble clientId={clientId} msg={m} />}
+                    {(!m.mediaType || !isMediaPlaceholder(m.text)) && (
+                      <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
+                    )}
                     <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{fmtTs(m.timestamp)}</p>
                   </div>
                 </div>
@@ -1746,25 +2146,129 @@ function WinModal({ sale, onClose, onConfirm }: {
 
 function LoseModal({ onClose, onConfirm }: {
   onClose: () => void;
-  onConfirm: (reason: CrmLostReason) => void;
+  onConfirm: (reason: string) => void;
 }) {
-  const [reason, setReason] = useState<CrmLostReason>('INATIVIDADE');
+  // Motivos são da org (configuráveis) — busca ao abrir, sempre atualizados
+  const [options, setOptions] = useState<CrmLostReasonOption[] | null>(null);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    apiService.getCrmLostReasons()
+      .then((res) => {
+        setOptions(res.data);
+        setReason(res.data[0]?.label ?? '');
+      })
+      .catch(() => setOptions([]));
+  }, []);
+
   return (
     <ModalShell title="Marcar como perdida" onClose={onClose}>
       <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
         O motivo vira dado — alimenta o relatório de causas de perda.
       </p>
       <label className="text-xs block mb-1" style={label}>Motivo *</label>
-      <select className="w-full rounded-lg px-3 py-2 text-sm mb-3" style={input} value={reason} onChange={(e) => setReason(e.target.value as CrmLostReason)}>
-        {LOST_REASON_OPTIONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-      </select>
+      {options === null ? (
+        <p className="text-xs py-2 mb-3" style={{ color: 'var(--text-muted)' }}>Carregando motivos...</p>
+      ) : options.length === 0 ? (
+        <p className="text-xs py-2 mb-3" style={{ color: 'var(--badge-error-text)' }}>
+          Não foi possível carregar os motivos. Feche e tente novamente.
+        </p>
+      ) : (
+        <select className="w-full rounded-lg px-3 py-2 text-sm mb-3" style={input} value={reason} onChange={(e) => setReason(e.target.value)}>
+          {options.map((r) => <option key={r.id} value={r.label}>{r.label}</option>)}
+        </select>
+      )}
       <button
         onClick={() => onConfirm(reason)}
-        className="w-full py-2.5 rounded-lg text-sm font-medium"
+        disabled={!reason}
+        className="w-full py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
         style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--border-md)' }}
       >
         Confirmar perda
       </button>
+    </ModalShell>
+  );
+}
+
+function LostReasonsEditorModal({ onClose, onSaved, onError }: {
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getCrmLostReasons()
+      .then((res) => setDraft(res.data.map((o) => ({ id: o.id, label: o.label }))))
+      .catch(() => onError('Erro ao carregar os motivos de perda.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    const valid = draft.filter((s) => s.label.trim());
+    if (valid.length === 0) { onError('Informe ao menos 1 motivo de perda.'); return; }
+    setSaving(true);
+    try {
+      const res = await apiService.saveCrmLostReasons(valid);
+      onSaved(res.message);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar os motivos.'));
+      setSaving(false);
+    }
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const n = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[i], n[j]] = [n[j]!, n[i]!];
+      return n;
+    });
+  };
+
+  return (
+    <ModalShell title="Motivos de perda" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Motivos oferecidos ao marcar uma venda como perdida, na ordem. Remover um
+        motivo não altera as vendas antigas — elas guardam o texto da época.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {draft.map((s, i) => (
+              <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+                <input
+                  className="flex-1 rounded-lg px-3 py-2 text-sm"
+                  style={input}
+                  value={s.label}
+                  maxLength={60}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                />
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Subir">↑</button>
+                <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Descer">↓</button>
+                <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { label: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar motivo
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar motivos'}
+          </button>
+        </>
+      )}
     </ModalShell>
   );
 }

@@ -657,7 +657,13 @@ export interface SellersRanking {
 // ===== CRM PRÓPRIO (CRM CORTEX) =====
 export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'ORGANICO' | 'OUTRO';
 export type CrmSaleStatus = 'OPEN' | 'WON' | 'LOST';
-export type CrmLostReason = 'INATIVIDADE' | 'PRECO' | 'CONCORRENCIA' | 'SEM_RESPOSTA' | 'DESISTENCIA' | 'OUTRO';
+
+// Motivo de perda configurável por org — a venda guarda o rótulo como texto
+export interface CrmLostReasonOption {
+  id: string;
+  label: string;
+  order: number;
+}
 
 export interface CrmStage {
   id: string;
@@ -680,7 +686,7 @@ export interface CrmSale {
   status: CrmSaleStatus;
   stageId: string | null;
   stage?: CrmStage | null;
-  lostReason: CrmLostReason | null;
+  lostReason: string | null;
   origin: CrmOrigin;
   closedAt: string | null;
   createdAt: string;
@@ -695,9 +701,12 @@ export interface CrmClientSummary {
   notes: string | null;
   company: string | null;
   clientType: string | null;
+  email: string | null;
   tags: string[];
   lastInboundAt: string | null;
   lastReadAt: string | null;
+  nextFollowUpAt: string | null;
+  waAvatarUrl: string | null;
   responsibleId: string | null;
   responsible?: { id: string; name: string } | null;
   sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt' | 'createdAt'>[];
@@ -730,7 +739,7 @@ export interface CrmStatus {
 export interface CrmSummary {
   funnel: { id: string; name: string; count: number; value: number }[];
   pipeline: { count: number; value: number };
-  lostReasons: { reason: CrmLostReason | null; count: number }[];
+  lostReasons: { reason: string | null; count: number }[];
 }
 
 // CRM — WhatsApp do vendedor (Evolution API)
@@ -741,11 +750,16 @@ export interface CrmWaStatus {
   stale?: boolean; // Evolution fora do ar — último estado conhecido
 }
 
+export type CrmWaMediaType = 'image' | 'video' | 'audio' | 'document' | 'sticker';
+
 export interface CrmWaMessage {
   id: string;
   fromMe: boolean;
   text: string;
   timestamp: number; // Unix segundos
+  mediaType?: CrmWaMediaType;
+  mimetype?: string;
+  fileName?: string; // só documentos
 }
 
 export interface CreativeBriefing {

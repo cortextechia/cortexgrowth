@@ -812,8 +812,18 @@ class ApiService {
     return response.data;
   }
 
-  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; tags?: string[] }): Promise<{ success: boolean; message: string }> {
+  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; tags?: string[] }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${id}`, data);
+    return response.data;
+  }
+
+  async getCrmLostReasons(): Promise<{ success: boolean; data: import('@/types').CrmLostReasonOption[] }> {
+    const response = await this.client.get('/crm/lost-reasons');
+    return response.data;
+  }
+
+  async saveCrmLostReasons(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmLostReasonOption[] }> {
+    const response = await this.client.put('/crm/lost-reasons', { options });
     return response.data;
   }
 
@@ -871,6 +881,16 @@ class ApiService {
 
   async getCrmWhatsappMessages(clientId: string): Promise<{ success: boolean; data: { available: boolean; messages: import('@/types').CrmWaMessage[] } }> {
     const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/messages`);
+    return response.data;
+  }
+
+  async getCrmWaMedia(clientId: string, messageId: string): Promise<{ success: boolean; data: { base64: string; mimetype: string } }> {
+    const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/media/${encodeURIComponent(messageId)}`);
+    return response.data;
+  }
+
+  async getCrmClientAvatar(clientId: string): Promise<{ success: boolean; data: { avatarUrl: string | null } }> {
+    const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/avatar`);
     return response.data;
   }
 
