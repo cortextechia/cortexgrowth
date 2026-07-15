@@ -681,6 +681,16 @@ const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fie
       { key: 'budgetPctThreshold', label: '% orçamento diário Google',  unit: '%',  min: 50,  max: 99,    step: 5  },
     ],
   },
+  CRM_UNANSWERED: {
+    label: 'CRM: WhatsApp sem resposta',
+    description: 'Cliente do CRM Cortex com mensagem de WhatsApp aguardando resposta há muitas horas',
+    fields: [{ key: 'hoursUnanswered', label: 'Horas sem resposta', unit: 'horas', min: 1, max: 168, step: 1 }],
+  },
+  CRM_FOLLOWUP_DIGEST: {
+    label: 'CRM: digest de follow-ups',
+    description: 'Resumo diário às 08h com os follow-ups vencidos e os agendados para hoje',
+    fields: [],
+  },
 };
 
 const ALL_RULES = Object.keys(RULE_META) as AnomalyRuleId[];
@@ -693,6 +703,8 @@ const RULE_DEFAULTS: Record<AnomalyRuleId, Record<string, number>> = {
   CTR_DROP:       { dropPct: 40, minImpressions: 100 },
   LEAD_SILENCE:   { hoursWindow: 48, minSpend7d: 50 },
   BUDGET_LOW:     { budgetMinBalance: 200, budgetPctThreshold: 80 },
+  CRM_UNANSWERED: { hoursUnanswered: 12 },
+  CRM_FOLLOWUP_DIGEST: {},
 };
 
 function AlertConfigSection() {

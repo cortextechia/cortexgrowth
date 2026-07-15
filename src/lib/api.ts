@@ -817,6 +817,21 @@ class ApiService {
     return response.data;
   }
 
+  async importCrmClients(rows: { name: string; phone: string; email?: string; company?: string; clientType?: string; tags?: string[]; origin?: string }[]): Promise<{ success: boolean; message: string; data: { created: number; duplicates: number; invalid: number; capSkipped: number } }> {
+    const response = await this.client.post('/crm/clients/import', { rows });
+    return response.data;
+  }
+
+  async getCrmQuickReplies(): Promise<{ success: boolean; data: import('@/types').CrmQuickReply[] }> {
+    const response = await this.client.get('/crm/quick-replies');
+    return response.data;
+  }
+
+  async saveCrmQuickReplies(replies: { id?: string; title: string; text: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmQuickReply[] }> {
+    const response = await this.client.put('/crm/quick-replies', { replies });
+    return response.data;
+  }
+
   async getCrmLostReasons(): Promise<{ success: boolean; data: import('@/types').CrmLostReasonOption[] }> {
     const response = await this.client.get('/crm/lost-reasons');
     return response.data;
@@ -891,6 +906,11 @@ class ApiService {
 
   async getCrmClientAvatar(clientId: string): Promise<{ success: boolean; data: { avatarUrl: string | null } }> {
     const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/avatar`);
+    return response.data;
+  }
+
+  async sendCrmWhatsappMedia(clientId: string, data: { mediatype: 'image' | 'video' | 'document'; mimetype: string; base64: string; fileName?: string; caption?: string }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send-media`, data);
     return response.data;
   }
 

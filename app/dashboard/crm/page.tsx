@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReasonOption, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -154,6 +154,151 @@ function OriginPill({ origin }: { origin: CrmOrigin }) {
   );
 }
 
+// ─── Dropdown do design system (substitui <select> nativo) ────────────────────
+// variant "pill" = filtros do topo · "field" = campos de formulário/drawer
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      className={`h-3 w-3 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+      style={{ color: 'var(--text-muted)' }}
+      aria-hidden
+    >
+      <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Fecha ao clicar fora ou apertar Escape. */
+function usePopover(): { open: boolean; setOpen: (v: boolean) => void; ref: React.RefObject<HTMLDivElement | null> } {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
+const popoverPanel = {
+  backgroundColor: 'var(--bg-surface)',
+  border: '1px solid var(--border-md)',
+  boxShadow: '0 10px 28px rgba(2, 12, 27, 0.22)',
+} as const;
+
+function Dropdown({ label, value, options, onChange, onOpen, variant = 'field', className = '' }: {
+  label?: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (v: string) => void;
+  onOpen?: () => void;
+  variant?: 'pill' | 'field';
+  className?: string;
+}) {
+  const { open, setOpen, ref } = usePopover();
+  const selected = options.find((o) => o.value === value);
+  const isPill = variant === 'pill';
+
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => { const next = !open; setOpen(next); if (next) onOpen?.(); }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={isPill
+          ? 'text-xs rounded-full pl-3 pr-2 py-1.5 inline-flex items-center gap-1.5 max-w-full'
+          : 'text-sm rounded-md pl-2.5 pr-2 py-1.5 inline-flex items-center justify-between gap-1.5 w-full text-left'}
+        style={{
+          backgroundColor: isPill ? 'var(--bg-surface)' : 'var(--bg-elevated)',
+          border: `1px solid ${open ? 'var(--accent)' : 'var(--border-md)'}`,
+          color: 'var(--text-primary)',
+        }}
+      >
+        <span className="truncate">
+          {label && <span style={{ color: 'var(--text-muted)' }}>{label}: </span>}
+          {selected?.label ?? '—'}
+        </span>
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute z-30 mt-1 min-w-full w-max max-w-[280px] max-h-64 overflow-y-auto rounded-lg py-1"
+          style={popoverPanel}
+        >
+          {options.map((o) => {
+            const sel = o.value === value;
+            return (
+              <button
+                key={o.value || '_empty'}
+                type="button"
+                role="option"
+                aria-selected={sel}
+                onClick={() => { setOpen(false); if (o.value !== value) onChange(o.value); }}
+                className="w-full text-left text-xs px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--bg-elevated)]"
+                style={{ color: sel ? 'var(--accent)' : 'var(--text-primary)', backgroundColor: sel ? 'var(--accent-dim)' : undefined }}
+              >
+                <span className="truncate">{o.label}</span>
+                {sel && <span aria-hidden>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Menu de ações (header) — itens executam, não selecionam. */
+function ActionsMenu({ label, items }: {
+  label: string;
+  items: { label: string; onClick: () => void }[];
+}) {
+  const { open, setOpen, ref } = usePopover();
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          border: `1px solid ${open ? 'var(--accent)' : 'var(--border)'}`,
+          color: 'var(--text-secondary)',
+        }}
+      >
+        {label}
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-max min-w-[180px] rounded-lg py-1" style={popoverPanel}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              role="menuitem"
+              onClick={() => { setOpen(false); item.onClick(); }}
+              className="w-full text-left text-xs px-3 py-2 hover:bg-[var(--bg-elevated)]"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function apiErrorMsg(err: unknown, fallback: string): string {
   const anyErr = err as { response?: { data?: { message?: string } } };
   return anyErr?.response?.data?.message ?? fallback;
@@ -198,6 +343,12 @@ export default function CrmPage() {
   const [search, setSearch] = useState('');
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
+  // Filtros client-side (os dados já vêm na lista)
+  const [filterUnread, setFilterUnread] = useState(false);
+  const [filterResponsible, setFilterResponsible] = useState('');
+  const [filterTag, setFilterTag] = useState('');
+  const [filterOrigin, setFilterOrigin] = useState('');
+
   // Drawer + modais
   const [detail, setDetail] = useState<CrmClientDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -208,6 +359,7 @@ export default function CrmPage() {
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
@@ -265,6 +417,13 @@ export default function CrmPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
+  // Deep-link: /dashboard/crm?client=<id> abre o drawer direto (link compartilhável)
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('client');
+    if (id) void openClient(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Polling leve: cards criados via WhatsApp aparecem sem F5 (e ao voltar o foco)
   useEffect(() => {
     const tick = () => loadAll(searchRef.current.trim() || undefined);
@@ -286,12 +445,20 @@ export default function CrmPage() {
     setDetailLoading(true);
     try {
       const res = await apiService.getCrmClient(clientId);
-      if (res.success) setDetail(res.data);
+      if (res.success) {
+        setDetail(res.data);
+        window.history.replaceState(null, '', `?client=${clientId}`);
+      }
     } catch (err) {
       showToast('error', apiErrorMsg(err, 'Erro ao abrir o cliente.'));
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  const closeClient = () => {
+    setDetail(null);
+    window.history.replaceState(null, '', window.location.pathname);
   };
 
   const refreshDetail = async () => {
@@ -424,8 +591,23 @@ export default function CrmPage() {
 
   // ─── CRM ativo: board ────────────────────────────────────────────────
 
+  // Filtros client-side sobre a lista carregada
+  const filtered = clients.filter((c) =>
+    (!filterUnread || hasUnread(c)) &&
+    (!filterResponsible || c.responsibleId === filterResponsible ||
+      (filterResponsible === '_none' && !c.responsibleId)) &&
+    (!filterTag || c.tags.includes(filterTag)) &&
+    (!filterOrigin || c.origin === filterOrigin)
+  );
+  const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin;
+  const unreadCount = clients.filter(hasUnread).length;
+  const responsibleOptions = [...new Map(
+    clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name])
+  ).entries()];
+  const tagOptions = [...new Set(clients.flatMap((c) => c.tags))].sort((a, b) => a.localeCompare(b));
+
   const openSalesByStage = new Map<string, { sale: CrmClientSummary['sales'][number]; client: CrmClientSummary }[]>();
-  for (const c of clients) {
+  for (const c of filtered) {
     for (const s of c.sales) {
       if (s.status !== 'OPEN') continue;
       const key = s.stageId ?? '_none';
@@ -456,22 +638,14 @@ export default function CrmPage() {
         />
         <WhatsappConnectButton showToast={showToast} />
         {isAdmin && (
-          <>
-            <button
-              onClick={() => setShowStagesEditor(true)}
-              className="px-3 py-2 rounded-lg text-sm"
-              style={{ ...card, color: 'var(--text-secondary)' }}
-            >
-              Editar funil
-            </button>
-            <button
-              onClick={() => setShowLostReasonsEditor(true)}
-              className="px-3 py-2 rounded-lg text-sm"
-              style={{ ...card, color: 'var(--text-secondary)' }}
-            >
-              Motivos de perda
-            </button>
-          </>
+          <ActionsMenu
+            label="⚙ Configurar"
+            items={[
+              { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
+              { label: 'Motivos de perda', onClick: () => setShowLostReasonsEditor(true) },
+              { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
+            ]}
+          />
         )}
         <button
           onClick={() => setShowNewClient(true)}
@@ -480,6 +654,57 @@ export default function CrmPage() {
         >
           + Novo cliente
         </button>
+      </div>
+
+      {/* Filtros — aplicam no kanban e na tabela */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <button
+          onClick={() => setFilterUnread((v) => !v)}
+          className="text-xs px-3 py-1.5 rounded-full font-medium"
+          style={filterUnread
+            ? { backgroundColor: '#22c55e', color: '#ffffff' }
+            : { ...card, color: 'var(--text-secondary)' }}
+        >
+          💬 Não respondidos{unreadCount > 0 ? ` (${unreadCount})` : ''}
+        </button>
+        {isAdmin && (
+          <Dropdown
+            variant="pill"
+            label="Responsável"
+            value={filterResponsible}
+            onChange={setFilterResponsible}
+            options={[
+              { value: '', label: 'todos' },
+              ...responsibleOptions.map(([id, name]) => ({ value: id, label: name })),
+              { value: '_none', label: 'Não atribuído' },
+            ]}
+          />
+        )}
+        {tagOptions.length > 0 && (
+          <Dropdown
+            variant="pill"
+            label="Tag"
+            value={filterTag}
+            onChange={setFilterTag}
+            options={[{ value: '', label: 'todas' }, ...tagOptions.map((t) => ({ value: t, label: t }))]}
+          />
+        )}
+        <Dropdown
+          variant="pill"
+          label="Origem"
+          value={filterOrigin}
+          onChange={setFilterOrigin}
+          options={[{ value: '', label: 'todas' }, ...ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]}
+        />
+        {hasActiveFilter && (
+          <button
+            onClick={() => { setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); }}
+            className="text-xs px-2 py-1.5"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            ✕ limpar ({filtered.length} de {clients.length})
+          </button>
+        )}
       </div>
 
       {/* Kanban do funil */}
@@ -619,9 +844,9 @@ export default function CrmPage() {
       {/* Lista de clientes (inclui quem não tem venda aberta) */}
       <div className="mt-6 rounded-xl p-4" style={card}>
         <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Todos os clientes</h2>
-        {clients.length === 0 ? (
+        {filtered.length === 0 ? (
           <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
-            Nenhum cliente ainda. Crie o primeiro com o botão acima.
+            {hasActiveFilter ? 'Nenhum cliente com esses filtros.' : 'Nenhum cliente ainda. Crie o primeiro com o botão acima.'}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -638,7 +863,7 @@ export default function CrmPage() {
                 </tr>
               </thead>
               <tbody>
-                {clients.map((c) => (
+                {filtered.map((c) => (
                   <tr
                     key={c.id}
                     onClick={() => openClient(c.id)}
@@ -679,7 +904,7 @@ export default function CrmPage() {
           isAdmin={isAdmin}
           orgUsers={orgUsers}
           onLoadUsers={loadUsersOnce}
-          onClose={() => setDetail(null)}
+          onClose={closeClient}
           onNewSale={() => detail && setSaleModalClient(detail)}
           onWin={(s) => setWinSaleTarget(s)}
           onLose={(s) => setLoseSaleTarget(s)}
@@ -797,6 +1022,17 @@ export default function CrmPage() {
             showToast('success', msg);
           }}
           onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {showImport && (
+        <ImportClientsModal
+          onClose={() => setShowImport(false)}
+          onDone={async (msg) => {
+            setShowImport(false);
+            showToast('success', msg);
+            await loadAll(search.trim() || undefined);
+          }}
         />
       )}
 
@@ -969,7 +1205,6 @@ function ClientDrawer(props: {
   const { detail, loading, stages, isAdmin, orgUsers } = props;
   const isDesktop = useIsDesktop();
   const [showEvents, setShowEvents] = useState(true);
-  const [transferring, setTransferring] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [addingTag, setAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
@@ -1138,28 +1373,20 @@ function ClientDrawer(props: {
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Responsável</span>
                 {isAdmin ? (
-                  transferring ? (
-                    <select
-                      autoFocus
-                      className="rounded-md px-2 py-1 text-sm"
-                      style={input}
-                      defaultValue={detail.responsibleId ?? ''}
-                      onBlur={() => setTransferring(false)}
-                      onChange={(e) => { setTransferring(false); props.onTransfer(e.target.value || null); }}
-                    >
-                      <option value="">Não atribuído</option>
-                      {orgUsers.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                    </select>
-                  ) : (
-                    <button
-                      onClick={() => { props.onLoadUsers(); setTransferring(true); }}
-                      className="text-sm text-left"
-                      style={{ color: 'var(--text-primary)' }}
-                      title="Transferir responsável"
-                    >
-                      {detail.responsible?.name ?? 'Não atribuído'} <span style={{ color: 'var(--text-muted)' }}>✎</span>
-                    </button>
-                  )
+                  <Dropdown
+                    className="w-fit min-w-[180px]"
+                    value={detail.responsibleId ?? ''}
+                    onOpen={props.onLoadUsers}
+                    onChange={(v) => props.onTransfer(v || null)}
+                    options={[
+                      // Antes da lista carregar, mostra ao menos o atual
+                      ...(orgUsers.length === 0 && detail.responsible
+                        ? [{ value: detail.responsible.id, label: detail.responsible.name }]
+                        : []),
+                      { value: '', label: 'Não atribuído' },
+                      ...orgUsers.map((u) => ({ value: u.id, label: u.name })),
+                    ]}
+                  />
                 ) : (
                   <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{detail.responsible?.name ?? 'Não atribuído'}</span>
                 )}
@@ -1184,14 +1411,12 @@ function ClientDrawer(props: {
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Origem</span>
-                <select
-                  className="rounded-md px-2 py-1 text-sm w-fit"
-                  style={input}
+                <Dropdown
+                  className="w-fit min-w-[160px]"
                   value={detail.origin}
-                  onChange={(e) => void props.onUpdateClient({ origin: e.target.value as CrmOrigin })}
-                >
-                  {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-                </select>
+                  onChange={(v) => void props.onUpdateClient({ origin: v as CrmOrigin })}
+                  options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+                />
               </div>
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
@@ -1275,15 +1500,15 @@ function ClientDrawer(props: {
 
                     {s.status === 'OPEN' && (
                       <div className="flex items-center gap-2 mt-2.5">
-                        <select
-                          className="rounded-md px-2 py-1 text-xs flex-1"
-                          style={input}
+                        <Dropdown
+                          className="flex-1"
                           value={s.stageId ?? ''}
-                          onChange={(e) => e.target.value && props.onChangeStage(s.id, e.target.value)}
-                        >
-                          {!s.stageId && <option value="">Sem etapa</option>}
-                          {stages.map((st) => <option key={st.id} value={st.id}>{st.name}</option>)}
-                        </select>
+                          onChange={(v) => v && props.onChangeStage(s.id, v)}
+                          options={[
+                            ...(!s.stageId ? [{ value: '', label: 'Sem etapa' }] : []),
+                            ...stages.map((st) => ({ value: st.id, label: st.name })),
+                          ]}
+                        />
                         <button
                           onClick={() => props.onWin(s)}
                           className="text-xs px-2.5 py-1 rounded-md font-medium"
@@ -1380,7 +1605,7 @@ function ClientDrawer(props: {
             )}
 
             {/* Conversa WhatsApp no fluxo — só no mobile (desktop usa o painel lateral) */}
-            {!isDesktop && <WaConversation clientId={detail.id} />}
+            {!isDesktop && <WaConversation clientId={detail.id} clientName={detail.name} canEdit={isAdmin} />}
           </div>
           </div>
 
@@ -1390,7 +1615,7 @@ function ClientDrawer(props: {
               className="w-[380px] shrink-0 flex flex-col min-h-0"
               style={{ borderLeft: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
             >
-              <WaConversation clientId={detail.id} variant="panel" />
+              <WaConversation clientId={detail.id} clientName={detail.name} canEdit={isAdmin} variant="panel" />
             </div>
           )}
           </div>
@@ -1762,7 +1987,12 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   );
 }
 
-function WaConversation({ clientId, variant = 'inline' }: { clientId: string; variant?: 'inline' | 'panel' }) {
+function WaConversation({ clientId, clientName, canEdit, variant = 'inline' }: {
+  clientId: string;
+  clientName: string;
+  canEdit: boolean;
+  variant?: 'inline' | 'panel';
+}) {
   // 'panel' = coluna lateral do drawer (desktop): sempre aberta, ocupa a altura
   // toda e rola pro fim como um chat. 'inline' = seção colapsável (mobile).
   const isPanel = variant === 'panel';
@@ -1774,6 +2004,12 @@ function WaConversation({ clientId, variant = 'inline' }: { clientId: string; va
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [sendingFile, setSendingFile] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
+  const [replies, setReplies] = useState<CrmQuickReply[] | null>(null);
+  const [showRepliesEditor, setShowRepliesEditor] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -1824,6 +2060,90 @@ function WaConversation({ clientId, variant = 'inline' }: { clientId: string; va
       setSendError(apiErrorMsg(err, 'Erro ao enviar a mensagem.'));
     } finally {
       setSending(false);
+    }
+  };
+
+  const toggleReplies = async () => {
+    const next = !showReplies;
+    setShowReplies(next);
+    if (next && replies === null) {
+      try {
+        const res = await apiService.getCrmQuickReplies();
+        setReplies(res.data);
+      } catch {
+        setReplies([]);
+      }
+    }
+  };
+
+  const insertReply = (text: string) => {
+    // {nome} = primeiro nome do cliente
+    const firstName = clientName.trim().split(/\s+/)[0] ?? '';
+    setDraft(text.replace(/\{nome\}/gi, firstName));
+    setShowReplies(false);
+  };
+
+  // Atalho "/" — digitar /saudacao filtra as respostas rápidas pelo título;
+  // ↑/↓ navega, Enter/Tab aplica, Esc limpa. Sem match, Enter envia normal.
+  const slashQuery = draft.startsWith('/') ? draft.slice(1) : null;
+  useEffect(() => {
+    if (slashQuery !== null && replies === null) {
+      apiService.getCrmQuickReplies().then((res) => setReplies(res.data)).catch(() => setReplies([]));
+    }
+  }, [slashQuery, replies]);
+  const slashMatches = slashQuery !== null && replies
+    ? replies.filter((r) => norm(r.title).includes(norm(slashQuery)))
+    : null;
+  useEffect(() => { setHighlightIdx(0); }, [slashQuery]);
+
+  const composerKeyDown = (e: React.KeyboardEvent) => {
+    if (!slashMatches || slashMatches.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIdx((i) => Math.min(i + 1, slashMatches.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      insertReply(slashMatches[Math.min(highlightIdx, slashMatches.length - 1)]!.text);
+    } else if (e.key === 'Escape') {
+      setDraft('');
+    }
+  };
+
+  // Painel aberto pelo ⚡ ou pelo atalho "/" (com match)
+  const slashActive = slashMatches !== null && slashMatches.length > 0;
+  const panelList = slashActive ? slashMatches : replies;
+  const panelOpen = showReplies || slashActive;
+
+  const sendFile = async (file: File) => {
+    if (file.size > 8 * 1024 * 1024) {
+      setSendError('Arquivo acima de 8MB — envie um menor.');
+      return;
+    }
+    setSendingFile(true);
+    setSendError(null);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+        r.onerror = () => reject(r.error);
+        r.readAsDataURL(file);
+      });
+      const mediatype = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document';
+      await apiService.sendCrmWhatsappMedia(clientId, {
+        mediatype,
+        mimetype: file.type || 'application/octet-stream',
+        base64,
+        fileName: file.name,
+      });
+      await load();
+    } catch (err) {
+      setSendError(apiErrorMsg(err, 'Erro ao enviar o anexo.'));
+    } finally {
+      setSendingFile(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -1897,16 +2217,94 @@ function WaConversation({ clientId, variant = 'inline' }: { clientId: string; va
               ))}
             </div>
           )}
+          {/* Painel de respostas rápidas — aberto pelo ⚡ ou digitando "/" */}
+          {available && panelOpen && (
+            <div className="mt-2 rounded-lg p-1.5 max-h-44 overflow-y-auto" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              {panelList === null && <p className="text-xs p-2" style={{ color: 'var(--text-muted)' }}>Carregando...</p>}
+              {panelList?.length === 0 && (
+                <p className="text-xs p-2" style={{ color: 'var(--text-muted)' }}>
+                  Nenhuma resposta rápida ainda.{canEdit ? ' Crie a primeira em "Editar".' : ' Peça a um administrador para criar.'}
+                </p>
+              )}
+              {panelList?.map((r, i) => (
+                <button
+                  key={r.id}
+                  onClick={() => insertReply(r.text)}
+                  className="w-full text-left rounded-md px-2 py-1.5 hover:opacity-80"
+                  style={slashActive && i === highlightIdx ? { backgroundColor: 'var(--accent-dim)' } : undefined}
+                  title={r.text}
+                >
+                  <span className="text-xs font-semibold block" style={{ color: 'var(--text-primary)' }}>{r.title}</span>
+                  <span className="text-[10px] block truncate" style={{ color: 'var(--text-muted)' }}>{r.text}</span>
+                </button>
+              ))}
+              {slashActive ? (
+                <p className="text-[10px] px-2 py-1" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                  ↑↓ navegar · Enter aplicar · Esc limpar
+                </p>
+              ) : (
+                <>
+                  {(replies?.length ?? 0) > 0 && (
+                    <p className="text-[10px] px-2 py-1" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+                      Dica: digite <strong>/</strong> na mensagem para buscar pelo título
+                    </p>
+                  )}
+                  {canEdit && (
+                    <button
+                      onClick={() => { setShowReplies(false); setShowRepliesEditor(true); }}
+                      className="w-full text-left text-[11px] px-2 py-1.5 mt-0.5"
+                      style={{ color: 'var(--accent)', borderTop: '1px solid var(--border)' }}
+                    >
+                      ⚙ Editar respostas rápidas
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {available && (
             <form
               className="mt-2 flex items-center gap-2"
               onSubmit={(e) => { e.preventDefault(); void send(); }}
             >
               <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void sendFile(f); }}
+              />
+              <button
+                type="button"
+                onClick={() => void toggleReplies()}
+                aria-label="Respostas rápidas"
+                title="Respostas rápidas"
+                className="text-sm px-2 py-2 rounded-lg shrink-0"
+                style={{
+                  backgroundColor: showReplies ? 'var(--accent-dim)' : 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                ⚡
+              </button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={sendingFile}
+                aria-label="Enviar anexo"
+                title="Enviar anexo (imagem, vídeo ou documento)"
+                className="text-sm px-2 py-2 rounded-lg shrink-0 disabled:opacity-50"
+                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              >
+                {sendingFile ? '⏳' : '📎'}
+              </button>
+              <input
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="Responder no WhatsApp..."
+                onKeyDown={composerKeyDown}
+                placeholder="Responder no WhatsApp... ( / = respostas rápidas)"
                 maxLength={4096}
                 disabled={sending}
                 className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none"
@@ -1927,7 +2325,266 @@ function WaConversation({ clientId, variant = 'inline' }: { clientId: string; va
           )}
         </div>
       )}
+      {showRepliesEditor && (
+        <QuickRepliesEditorModal
+          onClose={() => setShowRepliesEditor(false)}
+          onSaved={() => { setShowRepliesEditor(false); setReplies(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function QuickRepliesEditorModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [draft, setDraft] = useState<{ id?: string; title: string; text: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiService.getCrmQuickReplies()
+      .then((res) => setDraft(res.data.map((r) => ({ id: r.id, title: r.title, text: r.text }))))
+      .catch(() => setError('Erro ao carregar as respostas rápidas.'));
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    const valid = draft.filter((r) => r.title.trim() && r.text.trim());
+    setSaving(true);
+    setError(null);
+    try {
+      await apiService.saveCrmQuickReplies(valid);
+      onSaved();
+    } catch (err) {
+      setError(apiErrorMsg(err, 'Erro ao salvar as respostas.'));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Respostas rápidas" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Templates que a equipe usa no composer da conversa. Use <code>{'{nome}'}</code> para
+        inserir o primeiro nome do cliente automaticamente.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>{error ?? 'Carregando...'}</p>
+      ) : (
+        <>
+          <div className="space-y-3 mb-3">
+            {draft.map((r, i) => (
+              <div key={r.id ?? `new-${i}`} className="rounded-lg p-2 space-y-1.5" style={{ border: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    className="flex-1 rounded-lg px-2.5 py-1.5 text-sm font-medium"
+                    style={input}
+                    placeholder="Título (ex: Saudação)"
+                    value={r.title}
+                    maxLength={40}
+                    onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, title: e.target.value } : x))}
+                  />
+                  <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+                </div>
+                <textarea
+                  className="w-full rounded-lg px-2.5 py-1.5 text-xs resize-none"
+                  style={input}
+                  rows={2}
+                  maxLength={1000}
+                  placeholder="Texto da mensagem... (ex: Olá {nome}, tudo bem?)"
+                  value={r.text}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, text: e.target.value } : x))}
+                />
+              </div>
+            ))}
+            {draft.length === 0 && (
+              <p className="text-xs py-2 text-center" style={{ color: 'var(--text-muted)' }}>Nenhuma resposta ainda — adicione a primeira.</p>
+            )}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { title: '', text: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar resposta
+          </button>
+          {error && <p className="text-xs mb-2" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar respostas'}
+          </button>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// ─── Import CSV ───────────────────────────────────────────────────────────────
+
+// Parser CSV mínimo com suporte a aspas (campo com delimitador/quebra dentro).
+// Delimitador autodetectado: Excel BR exporta com ";".
+function parseCsv(text: string): string[][] {
+  const firstLine = text.slice(0, text.indexOf('\n') >= 0 ? text.indexOf('\n') : text.length);
+  const delim = (firstLine.match(/;/g)?.length ?? 0) >= (firstLine.match(/,/g)?.length ?? 0) ? ';' : ',';
+
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else field += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === delim) {
+      row.push(field); field = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some((c) => c.trim())) rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  row.push(field);
+  if (row.some((c) => c.trim())) rows.push(row);
+  return rows;
+}
+
+const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+// Cabeçalho → campo do cliente (aceita variações comuns de planilha BR)
+const CSV_FIELD_BY_HEADER: Record<string, string> = {
+  nome: 'name', name: 'name', cliente: 'name', contato: 'name',
+  telefone: 'phone', phone: 'phone', celular: 'phone', whatsapp: 'phone', fone: 'phone',
+  email: 'email', 'e-mail': 'email',
+  empresa: 'company', company: 'company',
+  tipo: 'clientType', 'tipo de cliente': 'clientType', cargo: 'clientType',
+  tags: 'tags', etiquetas: 'tags',
+  origem: 'origin', origin: 'origin', fonte: 'origin',
+};
+
+const ORIGIN_BY_TEXT: Record<string, CrmOrigin> = {
+  meta: 'META', facebook: 'META', instagram: 'META', 'meta ads': 'META',
+  google: 'GOOGLE', 'google ads': 'GOOGLE',
+  whatsapp: 'WHATSAPP', indicacao: 'INDICACAO', fachada: 'FACHADA',
+  organico: 'ORGANICO', outro: 'OUTRO',
+};
+
+interface CsvRow { name: string; phone: string; email?: string; company?: string; clientType?: string; tags?: string[]; origin?: CrmOrigin }
+
+function csvToRows(text: string): { rows: CsvRow[]; skipped: number; headersFound: string[] } {
+  const table = parseCsv(text);
+  if (table.length < 2) return { rows: [], skipped: 0, headersFound: [] };
+
+  const headers = table[0]!.map((h) => CSV_FIELD_BY_HEADER[norm(h)] ?? '');
+  const headersFound = headers.filter(Boolean);
+  const rows: CsvRow[] = [];
+  let skipped = 0;
+
+  for (const line of table.slice(1)) {
+    const rec: Record<string, string> = {};
+    headers.forEach((field, i) => { if (field && line[i]?.trim()) rec[field] = line[i]!.trim(); });
+    if (!rec.name || !rec.phone) { skipped++; continue; }
+    rows.push({
+      name: rec.name.slice(0, 120),
+      phone: rec.phone.slice(0, 25),
+      ...(rec.email ? { email: rec.email.slice(0, 160) } : {}),
+      ...(rec.company ? { company: rec.company.slice(0, 120) } : {}),
+      ...(rec.clientType ? { clientType: rec.clientType.slice(0, 60) } : {}),
+      ...(rec.tags ? { tags: rec.tags.split(/[,|]/).map((t) => t.trim().slice(0, 30)).filter(Boolean).slice(0, 10) } : {}),
+      ...(rec.origin && ORIGIN_BY_TEXT[norm(rec.origin)] ? { origin: ORIGIN_BY_TEXT[norm(rec.origin)] } : {}),
+    });
+  }
+  return { rows: rows.slice(0, 2000), skipped, headersFound };
+}
+
+function ImportClientsModal({ onClose, onDone }: {
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [parsed, setParsed] = useState<{ rows: CsvRow[]; skipped: number; headersFound: string[] } | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onFile = async (f: File) => {
+    setError(null);
+    setFileName(f.name);
+    try {
+      const text = await f.text();
+      const result = csvToRows(text);
+      if (result.rows.length === 0) {
+        setParsed(null);
+        setError('Nenhuma linha válida — o CSV precisa de colunas "nome" e "telefone" no cabeçalho.');
+        return;
+      }
+      setParsed(result);
+    } catch {
+      setError('Não foi possível ler o arquivo.');
+    }
+  };
+
+  const doImport = async () => {
+    if (!parsed) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const res = await apiService.importCrmClients(parsed.rows);
+      onDone(res.message);
+    } catch (err) {
+      setError(apiErrorMsg(err, 'Erro ao importar os clientes.'));
+      setImporting(false);
+    }
+  };
+
+  return (
+    <ModalShell title="Importar clientes (CSV)" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Planilha CSV com cabeçalho. Colunas reconhecidas: <strong>nome</strong> e <strong>telefone</strong> (obrigatórias),
+        email, empresa, tipo, tags (separadas por vírgula) e origem. Números repetidos não criam card duplicado.
+      </p>
+      <label
+        className="block rounded-lg p-4 text-center text-sm cursor-pointer mb-3"
+        style={{ border: '1px dashed var(--border-md)', color: 'var(--text-secondary)' }}
+      >
+        {fileName || 'Escolher arquivo .csv'}
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFile(f); }}
+        />
+      </label>
+
+      {parsed && (
+        <div className="mb-3">
+          <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+            <strong>{parsed.rows.length}</strong> cliente(s) prontos para importar
+            {parsed.skipped > 0 ? ` · ${parsed.skipped} linha(s) sem nome/telefone ignoradas` : ''} ·
+            colunas: {parsed.headersFound.join(', ')}
+          </p>
+          <div className="rounded-lg p-2 max-h-36 overflow-y-auto text-[11px] space-y-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+            {parsed.rows.slice(0, 6).map((r, i) => (
+              <p key={i} style={{ color: 'var(--text-muted)' }} className="truncate">
+                {r.name} · {r.phone}{r.email ? ` · ${r.email}` : ''}{r.company ? ` · ${r.company}` : ''}
+              </p>
+            ))}
+            {parsed.rows.length > 6 && <p style={{ color: 'var(--text-muted)' }}>… e mais {parsed.rows.length - 6}</p>}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-xs mb-2" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
+      <button
+        onClick={() => void doImport()}
+        disabled={!parsed || importing}
+        className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+        style={{ backgroundColor: 'var(--accent)' }}
+      >
+        {importing ? 'Importando...' : `Importar${parsed ? ` ${parsed.rows.length} cliente(s)` : ''}`}
+      </button>
+    </ModalShell>
   );
 }
 
@@ -1994,9 +2651,11 @@ function NewClientModal({ onClose, onSaved }: {
         </div>
         <div>
           <label className="text-xs block mb-1" style={label}>Origem</label>
-          <select className="w-full rounded-lg px-3 py-2 text-sm" style={input} value={origin} onChange={(e) => setOrigin(e.target.value as CrmOrigin)}>
-            {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </select>
+          <Dropdown
+            value={origin}
+            onChange={(v) => setOrigin(v as CrmOrigin)}
+            options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          />
         </div>
         <div>
           <label className="text-xs block mb-1" style={label}>Observações</label>
@@ -2069,16 +2728,20 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
           </div>
           <div>
             <label className="text-xs block mb-1" style={label}>Etapa</label>
-            <select className="w-full rounded-lg px-3 py-2 text-sm" style={input} value={stageId} onChange={(e) => setStageId(e.target.value)}>
-              {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <Dropdown
+              value={stageId}
+              onChange={setStageId}
+              options={stages.map((s) => ({ value: s.id, label: s.name }))}
+            />
           </div>
         </div>
         <div>
           <label className="text-xs block mb-1" style={label}>Origem desta venda</label>
-          <select className="w-full rounded-lg px-3 py-2 text-sm" style={input} value={origin} onChange={(e) => setOrigin(e.target.value as CrmOrigin)}>
-            {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </select>
+          <Dropdown
+            value={origin}
+            onChange={(v) => setOrigin(v as CrmOrigin)}
+            options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+          />
         </div>
 
         {/* Segmentos */}
@@ -2174,9 +2837,13 @@ function LoseModal({ onClose, onConfirm }: {
           Não foi possível carregar os motivos. Feche e tente novamente.
         </p>
       ) : (
-        <select className="w-full rounded-lg px-3 py-2 text-sm mb-3" style={input} value={reason} onChange={(e) => setReason(e.target.value)}>
-          {options.map((r) => <option key={r.id} value={r.label}>{r.label}</option>)}
-        </select>
+        <div className="mb-3">
+          <Dropdown
+            value={reason}
+            onChange={setReason}
+            options={options.map((r) => ({ value: r.label, label: r.label }))}
+          />
+        </div>
       )}
       <button
         onClick={() => onConfirm(reason)}

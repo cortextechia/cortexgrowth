@@ -394,7 +394,7 @@ export interface GoogleBudgetStatus {
 
 // ===== ALERTAS DE ANOMALIA =====
 
-export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE' | 'BUDGET_LOW';
+export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE' | 'BUDGET_LOW' | 'CRM_UNANSWERED' | 'CRM_FOLLOWUP_DIGEST';
 
 export interface AlertThresholds {
   SPEND_NO_LEADS: { minSpend: number };
@@ -403,6 +403,8 @@ export interface AlertThresholds {
   CTR_DROP:       { dropPct: number; minImpressions: number };
   LEAD_SILENCE:   { hoursWindow: number; minSpend7d: number };
   BUDGET_LOW:     { budgetMinBalance: number; budgetPctThreshold: number };
+  CRM_UNANSWERED: { hoursUnanswered: number };
+  CRM_FOLLOWUP_DIGEST: Record<string, never>;
 }
 
 export interface AlertConfig {
@@ -662,6 +664,14 @@ export type CrmSaleStatus = 'OPEN' | 'WON' | 'LOST';
 export interface CrmLostReasonOption {
   id: string;
   label: string;
+  order: number;
+}
+
+// Resposta rápida — template de mensagem da org ({nome} = primeiro nome do cliente)
+export interface CrmQuickReply {
+  id: string;
+  title: string;
+  text: string;
   order: number;
 }
 
