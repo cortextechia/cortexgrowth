@@ -877,6 +877,40 @@ class ApiService {
     return response.data;
   }
 
+  // ─── CRM — Tarefas ──────────────────────────────────────────────────────────
+
+  async getCrmTasks(view?: 'open' | 'done'): Promise<{ success: boolean; data: import('@/types').CrmTask[] }> {
+    const response = await this.client.get('/crm/tasks', { params: view ? { view } : {} });
+    return response.data;
+  }
+
+  async createCrmTask(clientId: string, data: { title: string; type?: string; dueAt: string; responsibleId?: string | null }): Promise<{ success: boolean; message: string; data: import('@/types').CrmTask }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/tasks`, data);
+    return response.data;
+  }
+
+  async updateCrmTask(taskId: string, data: { title?: string; type?: string; dueAt?: string; done?: boolean }): Promise<{ success: boolean; message: string; data: import('@/types').CrmTask }> {
+    const response = await this.client.put(`/crm/tasks/${taskId}`, data);
+    return response.data;
+  }
+
+  async deleteCrmTask(taskId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/tasks/${taskId}`);
+    return response.data;
+  }
+
+  // ─── CRM — Relatório e export ───────────────────────────────────────────────
+
+  async getCrmReport(months?: number): Promise<{ success: boolean; data: import('@/types').CrmReport }> {
+    const response = await this.client.get('/crm/report', { params: months ? { months } : {} });
+    return response.data;
+  }
+
+  async exportCrmClients(): Promise<Blob> {
+    const response = await this.client.get('/crm/clients/export', { responseType: 'blob' });
+    return response.data;
+  }
+
   // ─── CRM — WhatsApp do vendedor (Evolution API) ─────────────────────────────
 
   async connectCrmWhatsapp(): Promise<{ success: boolean; message: string; data: { connected: boolean; qrcode: string | null } }> {

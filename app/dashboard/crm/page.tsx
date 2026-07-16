@@ -11,6 +11,7 @@ import { apiService } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
+  CrmTask, CrmTaskType, CrmReport,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -58,7 +59,19 @@ const EVENT_LABELS: Record<string, string> = {
   NOTE: 'Nota',
   FOLLOWUP_SET: 'Follow-up agendado',
   FOLLOWUP_CLEARED: 'Follow-up removido',
+  TASK_CREATED: 'Tarefa criada',
+  TASK_DONE: 'Tarefa concluída',
 };
+
+const TASK_TYPE_OPTIONS: { key: CrmTaskType; label: string; icon: string }[] = [
+  { key: 'LIGAR',    label: 'Ligar',    icon: '📞' },
+  { key: 'WHATSAPP', label: 'WhatsApp', icon: '💬' },
+  { key: 'REUNIAO',  label: 'Reunião',  icon: '📅' },
+  { key: 'EMAIL',    label: 'E-mail',   icon: '✉️' },
+  { key: 'OUTRO',    label: 'Outro',    icon: '📌' },
+];
+
+const taskIcon = (t: CrmTaskType) => TASK_TYPE_OPTIONS.find((o) => o.key === t)?.icon ?? '📌';
 
 function fmtMoney(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -360,7 +373,9 @@ export default function CrmPage() {
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
+  const [tasks, setTasks] = useState<CrmTask[]>([]);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -383,13 +398,15 @@ export default function CrmPage() {
       setStatus(st.data);
       if (!st.data.enabled) { setLoading(false); return; }
 
-      const [sum, cl] = await Promise.all([
+      const [sum, cl, tk] = await Promise.all([
         apiService.getCrmSummary(),
         apiService.getCrmClients({ take: 100, ...(searchTerm ? { search: searchTerm } : {}) }),
+        apiService.getCrmTasks('open'),
       ]);
       if (seq !== reqSeqRef.current) return; // resposta velha — chegou outra depois
       if (movingRef.current > 0 && !opts?.force) return; // drag em andamento — preserva o otimista
       if (sum.success) setSummary(sum.data);
+      if (tk.success) setTasks(tk.data);
       if (cl.success) {
         setClients(cl.data.clients);
         setTotalClients(cl.data.total);
@@ -486,6 +503,65 @@ export default function CrmPage() {
       const res = await apiService.getUsers();
       if (res.success) setOrgUsers(res.users);
     } catch { /* transferência fica indisponível, sem quebrar o drawer */ }
+  };
+
+  // ─── Tarefas ─────────────────────────────────────────────────────────
+
+  const reloadTasks = async () => {
+    try {
+      const res = await apiService.getCrmTasks('open');
+      if (res.success) setTasks(res.data);
+    } catch { /* painel mantém o estado anterior */ }
+  };
+
+  const handleAddTask = async (clientId: string, data: { title: string; type: string; dueAt: string }) => {
+    try {
+      await apiService.createCrmTask(clientId, data);
+      await reloadTasks();
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao criar a tarefa.'));
+    }
+  };
+
+  const handleToggleTask = async (task: CrmTask, done: boolean) => {
+    // Otimista: concluir some da lista de abertas na hora
+    setTasks((prev) => (done ? prev.filter((t) => t.id !== task.id) : prev));
+    try {
+      await apiService.updateCrmTask(task.id, { done });
+      await reloadTasks();
+      if (done && detail && task.clientId === detail.id) await openClient(detail.id); // timeline ganha TASK_DONE
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao atualizar a tarefa.'));
+      await reloadTasks();
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    try {
+      await apiService.deleteCrmTask(taskId);
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao remover a tarefa.'));
+      await reloadTasks();
+    }
+  };
+
+  // ─── Export CSV ──────────────────────────────────────────────────────
+
+  const handleExport = async () => {
+    try {
+      const blob = await apiService.exportCrmClients();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clientes-crm-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao exportar os clientes.'));
+    }
   };
 
   // ─── Drag and drop no kanban ──────────────────────────────────────────
@@ -637,6 +713,13 @@ export default function CrmPage() {
           style={input}
         />
         <WhatsappConnectButton showToast={showToast} />
+        <button
+          onClick={() => setShowReport(true)}
+          className="px-3 py-2 rounded-lg text-sm font-medium"
+          style={{ ...card, color: 'var(--text-secondary)' }}
+        >
+          📊 Relatório
+        </button>
         {isAdmin && (
           <ActionsMenu
             label="⚙ Configurar"
@@ -644,6 +727,7 @@ export default function CrmPage() {
               { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
               { label: 'Motivos de perda', onClick: () => setShowLostReasonsEditor(true) },
               { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
+              { label: 'Exportar clientes (CSV)', onClick: () => void handleExport() },
             ]}
           />
         )}
@@ -654,6 +738,18 @@ export default function CrmPage() {
         >
           + Novo cliente
         </button>
+        {/* Manual do CRM — guia de uso completo (serve de /public, vai junto no deploy) */}
+        <a
+          href="/manual-crm.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Manual do CRM — dúvidas e como usar"
+          aria-label="Abrir o manual do CRM"
+          className="w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center shrink-0"
+          style={{ ...card, color: 'var(--text-muted)' }}
+        >
+          ?
+        </a>
       </div>
 
       {/* Filtros — aplicam no kanban e na tabela */}
@@ -706,6 +802,13 @@ export default function CrmPage() {
           </button>
         )}
       </div>
+
+      {/* Tarefas do dia — a rotina do vendedor (vencidas + hoje em destaque) */}
+      <TasksPanel
+        tasks={tasks}
+        onToggle={handleToggleTask}
+        onOpenClient={openClient}
+      />
 
       {/* Kanban do funil */}
       <div className="flex gap-3 overflow-x-auto pb-3">
@@ -903,6 +1006,10 @@ export default function CrmPage() {
           stages={status.stages}
           isAdmin={isAdmin}
           orgUsers={orgUsers}
+          tasks={detail ? tasks.filter((t) => t.clientId === detail.id) : []}
+          onAddTask={handleAddTask}
+          onToggleTask={handleToggleTask}
+          onDeleteTask={handleDeleteTask}
           onLoadUsers={loadUsersOnce}
           onClose={closeClient}
           onNewSale={() => detail && setSaleModalClient(detail)}
@@ -1036,6 +1143,8 @@ export default function CrmPage() {
         />
       )}
 
+      {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+
       {toast && <Toast toast={toast} />}
     </div>
   );
@@ -1065,6 +1174,389 @@ function Toast({ toast }: { toast: { type: 'success' | 'error'; msg: string } })
 // Por isso as cores de texto/chips daqui são hardcoded de propósito — a regra
 // "sem hex no JSX" vale para superfícies que trocam com o tema; aqui o contraste
 // é garantido porque o fundo nunca muda (mesma exceção do Chart.js).
+// ─── Tarefas ──────────────────────────────────────────────────────────────────
+
+// Vencida / hoje / futura — mesma régua de urgência do follow-up
+function taskTone(dueAt: string): 'overdue' | 'today' | 'future' {
+  const day = new Date(dueAt); day.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return day < today ? 'overdue' : day.getTime() === today.getTime() ? 'today' : 'future';
+}
+
+function TaskRow({ task, showClient, onToggle, onOpenClient, onDelete }: {
+  task: CrmTask;
+  showClient: boolean;
+  onToggle: (task: CrmTask, done: boolean) => void;
+  onOpenClient?: (clientId: string) => void;
+  onDelete?: (taskId: string) => void;
+}) {
+  const tone = FOLLOWUP_TONE[taskTone(task.dueAt)];
+  return (
+    <div className="flex items-center gap-2 py-1.5" style={{ borderTop: '1px solid var(--border)' }}>
+      <button
+        onClick={() => onToggle(task, true)}
+        className="w-4 h-4 rounded-full shrink-0 transition-colors"
+        style={{ border: '2px solid var(--text-muted)' }}
+        title="Concluir tarefa"
+        aria-label={`Concluir tarefa ${task.title}`}
+      />
+      <span className="text-sm shrink-0">{taskIcon(task.type)}</span>
+      <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{task.title}</span>
+      {showClient && task.client && (
+        <button
+          onClick={() => onOpenClient?.(task.client!.id)}
+          className="text-xs truncate shrink-0 max-w-[160px] underline-offset-2 hover:underline"
+          style={{ color: 'var(--accent)' }}
+        >
+          {task.client.name}
+        </button>
+      )}
+      <span className="flex-1" />
+      {task.responsible && (
+        <span className="text-[11px] shrink-0 hidden sm:inline" style={{ color: 'var(--text-muted)' }}>{task.responsible.name}</span>
+      )}
+      <span
+        className="text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 tabular-nums"
+        style={{ color: tone.color, backgroundColor: tone.bg }}
+      >
+        {new Date(task.dueAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+      </span>
+      {onDelete && (
+        <button
+          onClick={() => onDelete(task.id)}
+          className="text-xs shrink-0 px-1"
+          style={{ color: 'var(--text-muted)' }}
+          title="Remover tarefa"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Painel "Tarefas" no topo do CRM — vencidas + de hoje em destaque (rotina do vendedor)
+function TasksPanel({ tasks, onToggle, onOpenClient }: {
+  tasks: CrmTask[];
+  onToggle: (task: CrmTask, done: boolean) => void;
+  onOpenClient: (clientId: string) => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  if (tasks.length === 0) return null;
+
+  const overdue = tasks.filter((t) => taskTone(t.dueAt) === 'overdue');
+  const today = tasks.filter((t) => taskTone(t.dueAt) === 'today');
+  const future = tasks.filter((t) => taskTone(t.dueAt) === 'future');
+  const visible = showAll ? tasks : [...overdue, ...today];
+
+  return (
+    <div className="rounded-xl p-4 mb-4" style={card}>
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Tarefas</h2>
+        {overdue.length > 0 && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color: 'var(--badge-error-text)', backgroundColor: 'var(--badge-error-bg)' }}>
+            {overdue.length} vencida{overdue.length === 1 ? '' : 's'}
+          </span>
+        )}
+        {today.length > 0 && (
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ color: 'var(--badge-warn-text)', backgroundColor: 'var(--badge-warn-bg)' }}>
+            {today.length} hoje
+          </span>
+        )}
+        <span className="flex-1" />
+        {future.length > 0 && (
+          <button onClick={() => setShowAll((v) => !v)} className="text-xs" style={{ color: 'var(--accent)' }}>
+            {showAll ? 'só vencidas e de hoje' : `ver todas (${tasks.length})`}
+          </button>
+        )}
+      </div>
+      {visible.length === 0 ? (
+        <p className="text-xs py-2" style={{ color: 'var(--text-muted)' }}>
+          Nada vencido nem para hoje. {future.length} tarefa{future.length === 1 ? '' : 's'} futura{future.length === 1 ? '' : 's'}.
+        </p>
+      ) : (
+        <div>
+          {visible.map((t) => (
+            <TaskRow key={t.id} task={t} showClient onToggle={onToggle} onOpenClient={onOpenClient} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Seção "Tarefas" do drawer — lista pendentes do card + criação inline
+function DrawerTasks({ clientId, tasks, onAdd, onToggle, onDelete }: {
+  clientId: string;
+  tasks: CrmTask[];
+  onAdd: (clientId: string, data: { title: string; type: string; dueAt: string }) => Promise<void>;
+  onToggle: (task: CrmTask, done: boolean) => void;
+  onDelete: (taskId: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState('');
+  const [type, setType] = useState<CrmTaskType>('LIGAR');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const t = title.trim();
+    if (!t || !date) return;
+    setSaving(true);
+    try {
+      // Fim do dia local — mesma semântica do follow-up (data sem hora = até o fim do dia)
+      await onAdd(clientId, { title: t, type, dueAt: new Date(`${date}T23:59:00`).toISOString() });
+      setTitle('');
+      setAdding(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Tarefas ({tasks.length})
+        </h3>
+        <button
+          onClick={() => setAdding((v) => !v)}
+          className="text-xs px-2.5 py-1.5 rounded-md font-medium"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+        >
+          {adding ? 'Cancelar' : '+ Nova tarefa'}
+        </button>
+      </div>
+
+      {adding && (
+        <div className="rounded-lg p-2.5 mb-2 space-y-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+          <input
+            autoFocus
+            className="rounded-md px-2.5 py-1.5 text-sm w-full"
+            style={input}
+            maxLength={160}
+            placeholder="ex: Ligar para confirmar o orçamento"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void submit(); }}
+          />
+          <div className="flex items-center gap-2">
+            <Dropdown
+              className="w-fit min-w-[130px]"
+              value={type}
+              onChange={(v) => setType(v as CrmTaskType)}
+              options={TASK_TYPE_OPTIONS.map((o) => ({ value: o.key, label: `${o.icon} ${o.label}` }))}
+            />
+            <input
+              type="date"
+              className="rounded-md px-2 py-1.5 text-sm"
+              style={input}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <span className="flex-1" />
+            <button
+              onClick={() => void submit()}
+              disabled={saving || !title.trim() || !date}
+              className="text-xs px-3 py-1.5 rounded-md font-medium text-white disabled:opacity-60"
+              style={{ backgroundColor: 'var(--accent)' }}
+            >
+              {saving ? '...' : 'Salvar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tasks.length === 0 && !adding ? (
+        <p className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>Nenhuma tarefa pendente.</p>
+      ) : (
+        <div>
+          {tasks.map((t) => (
+            <TaskRow key={t.id} task={t} showClient={false} onToggle={onToggle} onDelete={onDelete} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Relatório de vendas ──────────────────────────────────────────────────────
+
+const REPORT_PERIODS = [
+  { value: '1', label: 'Este mês' },
+  { value: '3', label: 'Últimos 3 meses' },
+  { value: '6', label: 'Últimos 6 meses' },
+  { value: '12', label: 'Últimos 12 meses' },
+];
+
+function ReportBar({ pct }: { pct: number }) {
+  return (
+    <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+      <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: 'var(--accent)' }} />
+    </div>
+  );
+}
+
+function ReportKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+      <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-lg font-bold mt-0.5" style={{ color: accent ?? 'var(--text-primary)' }}>{value}</p>
+    </div>
+  );
+}
+
+function ReportModal({ onClose }: { onClose: () => void }) {
+  const [months, setMonths] = useState('3');
+  const [report, setReport] = useState<CrmReport | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    apiService.getCrmReport(Number(months))
+      .then((res) => { if (alive && res.success) setReport(res.data); })
+      .catch(() => { /* mantém o último resultado */ })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [months]);
+
+  const t = report?.totals;
+  const maxReached = Math.max(1, ...(report?.stageFlow.map((s) => s.reached) ?? [1]));
+  const maxLost = Math.max(1, ...(report?.lostReasons.map((r) => r.count) ?? [1]));
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/50 overflow-y-auto" onClick={onClose}>
+      <div
+        className="rounded-xl p-5 w-full max-w-3xl"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <h2 className="text-base font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>📊 Relatório de vendas</h2>
+          <Dropdown
+            className="w-fit min-w-[170px]"
+            value={months}
+            onChange={setMonths}
+            options={REPORT_PERIODS}
+          />
+          <button onClick={onClose} className="p-1.5 rounded-md" style={{ color: 'var(--text-muted)' }} aria-label="Fechar">✕</button>
+        </div>
+
+        {loading && !report ? (
+          <p className="text-sm py-10 text-center" style={{ color: 'var(--text-muted)' }}>Calculando...</p>
+        ) : !report ? (
+          <p className="text-sm py-10 text-center" style={{ color: 'var(--text-muted)' }}>Não foi possível carregar o relatório.</p>
+        ) : (
+          <div className="space-y-6" style={{ opacity: loading ? 0.6 : 1 }}>
+            {/* KPIs do período */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <ReportKpi label="Vendas ganhas" value={String(t!.wonCount)} accent="var(--badge-success-text)" />
+              <ReportKpi label="Receita fechada" value={fmtMoney(t!.wonValue)} accent="var(--badge-success-text)" />
+              <ReportKpi label="Perdidas" value={String(t!.lostCount)} accent={t!.lostCount > 0 ? 'var(--badge-error-text)' : undefined} />
+              <ReportKpi label="Win rate" value={t!.winRate !== null ? `${t!.winRate}%` : '—'} />
+              <ReportKpi label="Ticket médio" value={t!.wonCount > 0 ? fmtMoney(t!.avgTicket) : '—'} />
+              <ReportKpi label="Ciclo médio" value={t!.avgCycleDays !== null ? `${t!.avgCycleDays} dias` : '—'} />
+            </div>
+
+            {/* Conversão por etapa (coorte: vendas criadas no período) */}
+            <div>
+              <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Conversão por etapa</h3>
+              <p className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+                {t!.createdCount} venda{t!.createdCount === 1 ? '' : 's'} criada{t!.createdCount === 1 ? '' : 's'} no período · quantas passaram por cada etapa
+              </p>
+              <div className="space-y-1.5">
+                {report.stageFlow.map((s) => (
+                  <div key={s.id} className="flex items-center gap-2 text-xs">
+                    <span className="w-36 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{s.name}</span>
+                    <ReportBar pct={(s.reached / maxReached) * 100} />
+                    <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{s.reached}</span>
+                    <span className="w-12 text-right tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
+                      {s.conversionFromPrev !== null ? `${s.conversionFromPrev}%` : '—'}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-2 text-xs pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+                  <span className="w-36 truncate shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>Ganhas (da coorte)</span>
+                  <ReportBar pct={(t!.cohortWon / maxReached) * 100} />
+                  <span className="w-8 text-right tabular-nums shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>{t!.cohortWon}</span>
+                  <span className="w-12 shrink-0" />
+                </div>
+              </div>
+            </div>
+
+            {/* Tempo médio por etapa */}
+            <div>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Tempo médio em cada etapa</h3>
+              <div className="flex flex-wrap gap-2">
+                {report.stageDurations.map((s) => (
+                  <span
+                    key={s.id}
+                    className="text-xs px-2.5 py-1.5 rounded-lg"
+                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    title={s.samples > 0 ? `${s.samples} passagem(ns) pela etapa` : 'Sem passagens no período'}
+                  >
+                    {s.name}: <strong style={{ color: 'var(--text-primary)' }}>{s.avgDays !== null ? `${s.avgDays}d` : '—'}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Motivos de perda */}
+            {report.lostReasons.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Motivos de perda</h3>
+                <div className="space-y-1.5">
+                  {report.lostReasons.map((r) => (
+                    <div key={r.reason} className="flex items-center gap-2 text-xs">
+                      <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
+                      <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${(r.count / maxLost) * 100}%`, backgroundColor: 'var(--badge-error-text)' }} />
+                      </div>
+                      <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Por vendedor */}
+            {report.sellers.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Por vendedor</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ color: 'var(--text-muted)' }}>
+                        <th className="text-left font-medium py-1.5 pr-3">Vendedor</th>
+                        <th className="text-right font-medium py-1.5 pr-3">Ganhas</th>
+                        <th className="text-right font-medium py-1.5 pr-3">Receita</th>
+                        <th className="text-right font-medium py-1.5 pr-3">Ticket médio</th>
+                        <th className="text-right font-medium py-1.5">Win rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.sellers.map((s) => (
+                        <tr key={s.id ?? '_none'} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td className="py-1.5 pr-3 font-medium" style={{ color: 'var(--text-primary)' }}>{s.name}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.wonCount}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums font-semibold" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(s.wonValue)}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.wonCount > 0 ? fmtMoney(s.avgTicket) : '—'}</td>
+                          <td className="py-1.5 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.winRate !== null ? `${s.winRate}%` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const CARD_HEADER_BG = 'linear-gradient(135deg, #0e2f4b 0%, #14536e 100%)';
 
 const TAG_COLORS = [
@@ -1191,6 +1683,10 @@ function ClientDrawer(props: {
   stages: CrmStage[];
   isAdmin: boolean;
   orgUsers: User[];
+  tasks: CrmTask[];
+  onAddTask: (clientId: string, data: { title: string; type: string; dueAt: string }) => Promise<void>;
+  onToggleTask: (task: CrmTask, done: boolean) => void;
+  onDeleteTask: (taskId: string) => void;
   onLoadUsers: () => void;
   onClose: () => void;
   onNewSale: () => void;
@@ -1202,7 +1698,7 @@ function ClientDrawer(props: {
   onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
 }) {
-  const { detail, loading, stages, isAdmin, orgUsers } = props;
+  const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
   const [showEvents, setShowEvents] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -1452,6 +1948,15 @@ function ClientDrawer(props: {
                 />
               </div>
             </div>
+
+            {/* Tarefas do card */}
+            <DrawerTasks
+              clientId={detail.id}
+              tasks={tasks}
+              onAdd={props.onAddTask}
+              onToggle={props.onToggleTask}
+              onDelete={props.onDeleteTask}
+            />
 
             {/* Vendas */}
             <div className="flex items-center justify-between mt-6 mb-2">

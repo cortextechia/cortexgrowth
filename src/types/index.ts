@@ -752,6 +752,39 @@ export interface CrmSummary {
   lostReasons: { reason: string | null; count: number }[];
 }
 
+export type CrmTaskType = 'LIGAR' | 'WHATSAPP' | 'REUNIAO' | 'EMAIL' | 'OUTRO';
+
+export interface CrmTask {
+  id: string;
+  clientId: string;
+  client?: { id: string; name: string };
+  title: string;
+  type: CrmTaskType;
+  dueAt: string;
+  completedAt: string | null;
+  responsibleId: string | null;
+  responsible?: { id: string; name: string } | null;
+  createdAt: string;
+}
+
+export interface CrmReport {
+  period: { months: number; since: string };
+  totals: {
+    createdCount: number;
+    wonCount: number;
+    wonValue: number;
+    lostCount: number;
+    winRate: number | null;
+    avgTicket: number;
+    avgCycleDays: number | null;
+    cohortWon: number;
+  };
+  stageFlow: { id: string; name: string; reached: number; conversionFromPrev: number | null }[];
+  stageDurations: { id: string; name: string; avgDays: number | null; samples: number }[];
+  lostReasons: { reason: string; count: number }[];
+  sellers: { id: string | null; name: string; wonCount: number; wonValue: number; lostCount: number; winRate: number | null; avgTicket: number }[];
+}
+
 // CRM — WhatsApp do vendedor (Evolution API)
 export interface CrmWaStatus {
   configured: boolean;

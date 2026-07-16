@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual do CRM Cortex</title>
+<style>
+  :root {
+    --petroleo-900: #0e2f4b;
+    --petroleo-700: #14536e;
+    --petroleo-100: #dcebf2;
+    --paper: #f5f8fa;
+    --card: #ffffff;
+    --ink: #10222f;
+    --ink-soft: #46606f;
+    --ink-mute: #7d93a0;
+    --line: #dde7ec;
+    --accent: #3b82f6;
+    --accent-dim: #e3edfd;
+    --ok: #16a34a;      --ok-bg: #e4f5ea;
+    --warn: #ca8a04;    --warn-bg: #faf3dc;
+    --err: #dc2626;     --err-bg: #fbe7e7;
+    --mono: 'Cascadia Code', Consolas, 'Courier New', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+  body {
+    font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  /* ── Hero: o produto em miniatura ─────────────────────────────── */
+  .hero {
+    background: linear-gradient(135deg, var(--petroleo-900) 0%, var(--petroleo-700) 100%);
+    color: #fff;
+    padding: 56px 24px 72px;
+  }
+  .hero-inner { max-width: 1060px; margin: 0 auto; }
+  .hero .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: #7dd3fc; margin-bottom: 10px;
+  }
+  .hero h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+  .hero p.sub { max-width: 560px; margin-top: 14px; color: rgba(255,255,255,0.82); font-size: 16px; }
+
+  /* mini-kanban do hero */
+  .mini-kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 36px; }
+  .mini-col { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; padding: 10px; }
+  .mini-col h4 { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.85); display: flex; justify-content: space-between; }
+  .mini-col h4 span { color: rgba(255,255,255,0.45); font-weight: 400; }
+  .mini-card { background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 8px 9px; margin-top: 8px; }
+  .mini-card .nome { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .mini-card .linha2 { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 10px; }
+  .avatar { width: 18px; height: 18px; border-radius: 50%; background: rgba(125,211,252,0.25); color: #7dd3fc; font-size: 8px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .dot-msg { width: 12px; height: 12px; border-radius: 50%; background: #22c55e; display: inline-block; }
+  .chip { border-radius: 99px; padding: 1px 7px; font-weight: 700; font-size: 10px; }
+  .chip.warn { background: var(--warn-bg); color: var(--warn); }
+  .chip.err  { background: var(--err-bg);  color: var(--err); }
+  .chip.ghost{ background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.7); }
+  .valor { color: rgba(255,255,255,0.9); font-weight: 700; font-size: 11px; }
+  @media (max-width: 640px) { .mini-kanban { grid-template-columns: 1fr; } }
+
+  /* ── Estrutura: TOC + conteúdo ─────────────────────────────────── */
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 40px 24px 80px; display: grid; grid-template-columns: 220px 1fr; gap: 48px; }
+  @media (max-width: 860px) { .wrap { grid-template-columns: 1fr; } .toc { position: static !important; } }
+
+  .toc { position: sticky; top: 24px; align-self: start; font-size: 13px; }
+  .toc .t { font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 10px; }
+  .toc a { display: block; color: var(--ink-soft); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); }
+  .toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-dim); }
+
+  /* seções = etapas do fluxo de trabalho */
+  section { margin-bottom: 56px; }
+  .etapa {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--petroleo-700); display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+  }
+  .funil-bar { display: flex; gap: 3px; width: 90px; }
+  .funil-bar i { height: 4px; flex: 1; border-radius: 99px; background: var(--line); }
+  .funil-bar i.on { background: var(--accent); }
+  h2 { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 14px; }
+  h3 { font-size: 16px; font-weight: 700; margin: 22px 0 8px; }
+  p + p { margin-top: 10px; }
+  p, li { color: var(--ink-soft); }
+  strong { color: var(--ink); }
+  ul { padding-left: 20px; margin: 8px 0; }
+  li { margin: 4px 0; }
+
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; margin: 14px 0; }
+  .box.dica { border-left: 3px solid var(--accent); }
+  .box.atencao { border-left: 3px solid var(--warn); }
+  .box .rotulo { font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 6px; }
+  .box.dica .rotulo { color: var(--accent); }
+  .box.atencao .rotulo { color: var(--warn); }
+
+  kbd {
+    font-family: var(--mono); font-size: 12px; background: var(--card);
+    border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; padding: 1px 7px; color: var(--ink);
+    white-space: nowrap;
+  }
+  code { font-family: var(--mono); font-size: 13px; background: var(--petroleo-100); color: var(--petroleo-900); border-radius: 5px; padding: 1px 6px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); font-size: 14px; }
+  th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-mute); font-weight: 600; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--paper); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-soft); }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .table-scroll { overflow-x: auto; }
+
+  .badge { display: inline-block; border-radius: 99px; padding: 2px 10px; font-size: 11px; font-weight: 700; }
+  .badge.ok   { background: var(--ok-bg);   color: var(--ok); }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); }
+  .badge.err  { background: var(--err-bg);  color: var(--err); }
+  .badge.info { background: var(--accent-dim); color: var(--accent); }
+  .badge.adm  { background: var(--petroleo-100); color: var(--petroleo-900); }
+
+  footer { text-align: center; padding: 28px; color: var(--ink-mute); font-size: 12px; border-top: 1px solid var(--line); }
+  footer code { background: transparent; color: var(--ink-mute); }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="eyebrow">Cortex Growth · Guia de uso</div>
+    <h1>Manual do CRM Cortex</h1>
+    <p class="sub">O CRM nativo da plataforma: cada card é um cliente permanente, cada compra é uma venda própria, e tudo alimenta o dashboard e a IA automaticamente.</p>
+
+    <div class="mini-kanban" aria-hidden="true">
+      <div class="mini-col">
+        <h4>Novo Lead <span>2</span></h4>
+        <div class="mini-card">
+          <div class="nome"><span class="avatar">MR</span> Maria Ribeiro <span class="dot-msg"></span></div>
+          <div class="linha2"><span class="chip ghost">WhatsApp</span> <span class="valor">R$ 3.500,00</span></div>
+        </div>
+        <div class="mini-card">
+          <div class="nome"><span class="avatar">JP</span> João Prado</div>
+          <div class="linha2"><span class="chip warn">📅 hoje</span> <span class="valor">R$ 1.200,00</span></div>
+        </div>
+      </div>
+      <div class="mini-col">
+        <h4>Orçamento Enviado <span>1</span></h4>
+        <div class="mini-card">
+          <div class="nome"><span class="avatar">CA</span> Construtora Alfa</div>
+          <div class="linha2"><span class="chip err">📅 vencido</span> <span class="valor">R$ 15.444,00</span></div>
+        </div>
+      </div>
+      <div class="mini-col">
+        <h4>Negociando <span>1</span></h4>
+        <div class="mini-card">
+          <div class="nome"><span class="avatar">RE</span> Rafael Engenharia</div>
+          <div class="linha2"><span class="chip ghost">Google Ads</span> <span class="valor">R$ 8.900,00</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav class="toc">
+    <div class="t">Neste manual</div>
+    <a href="#conceitos">1 · Como o CRM pensa</a>
+    <a href="#configurar">2 · Configurar a operação</a>
+    <a href="#kanban">3 · O kanban do dia a dia</a>
+    <a href="#card">4 · O card do cliente</a>
+    <a href="#tarefas">5 · Tarefas: a rotina do dia</a>
+    <a href="#vendas">6 · Vendas: abrir, ganhar, perder</a>
+    <a href="#whatsapp">7 · WhatsApp integrado</a>
+    <a href="#followup">8 · Follow-up e alertas</a>
+    <a href="#relatorio">9 · Relatório de vendas</a>
+    <a href="#importar">10 · Importar e exportar</a>
+    <a href="#papeis">11 · Quem pode o quê</a>
+    <a href="#atalhos">12 · Atalhos e truques</a>
+  </nav>
+
+  <main>
+    <section id="conceitos">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i></i><i></i><i></i></span> Etapa 1 · Fundamentos</div>
+      <h2>Como o CRM pensa</h2>
+      <p>Três conceitos explicam tudo o que você vai ver na tela:</p>
+      <ul>
+        <li><strong>O card é o cliente, não o negócio.</strong> Cada pessoa é identificada pelo telefone e existe uma única vez — se o mesmo número voltar, o CRM abre o card que já existe em vez de criar outro.</li>
+        <li><strong>Cada compra é uma venda própria.</strong> A recompra nunca sobrescreve a anterior: o histórico completo fica no card, e o <strong>LTV</strong> (valor total do cliente) é somado sozinho a partir das vendas ganhas.</li>
+        <li><strong>Tudo alimenta o dashboard.</strong> Vendas ganhas entram na Meta do Mês, na Receita, nos relatórios e nos alertas de IA — sem nenhum passo extra.</li>
+      </ul>
+      <div class="box dica">
+        <div class="rotulo">Bom saber</div>
+        A organização usa <strong>Kommo ou CRM Cortex</strong>, nunca os dois — senão as vendas contariam em dobro no dashboard. O item "CRM" só aparece no menu quando não há Kommo conectado.
+      </div>
+    </section>
+
+    <section id="configurar">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i></i><i></i></span> Etapa 2 · Preparação <span class="badge adm">gestor</span></div>
+      <h2>Configurar a operação</h2>
+      <p>Tudo de configuração vive no menu <strong>⚙ Configurar</strong>, no topo da página do CRM:</p>
+      <div class="table-scroll"><table>
+        <tr><th>Item</th><th>O que faz</th></tr>
+        <tr><td>Editar funil</td><td>Define as etapas intermediárias do kanban (ex.: Novo Lead → Em Contato → Orçamento → Negociando). Ganho e perda não são etapas — são o desfecho de cada venda. Remover uma etapa solta as vendas abertas dela.</td></tr>
+        <tr><td>Motivos de perda</td><td>A lista oferecida ao marcar uma venda como perdida (ex.: "Não atendemos a Região", "Preço"). Cada motivo vira dado no relatório de causas. Vendas antigas guardam o texto da época mesmo se o motivo for removido.</td></tr>
+        <tr><td>Importar clientes (CSV)</td><td>Sobe a carteira de uma vez a partir de uma planilha — detalhes na <a href="#importar">seção 10</a>.</td></tr>
+        <tr><td>Exportar clientes (CSV)</td><td>Baixa a carteira completa em planilha (pronta para o Excel) — nome, contato, tags, responsável, LTV e follow-up de cada cliente.</td></tr>
+      </table></div>
+      <p>Fora do menu, o botão <strong>Conectar WhatsApp</strong> pareia o número de cada vendedor (<a href="#whatsapp">seção 7</a>), o botão <strong>📊 Relatório</strong> abre os números da operação (<a href="#relatorio">seção 9</a>), e as <strong>respostas rápidas</strong> são editadas dentro da própria conversa, no botão <kbd>⚡</kbd>.</p>
+    </section>
+
+    <section id="kanban">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span> Etapa 3 · Operação diária</div>
+      <h2>O kanban do dia a dia</h2>
+      <p>Cada coluna é uma etapa do funil; cada card mostra uma <strong>venda aberta</strong> com o cliente dela. Clique no card para abrir o cliente completo.</p>
+      <h3>Mover, ganhar e perder arrastando</h3>
+      <ul>
+        <li><strong>Arraste o card</strong> para outra coluna para mudar a etapa da venda.</li>
+        <li>Durante o arrasto aparecem duas zonas no rodapé: <span class="badge ok">✓ GANHAR</span> e <span class="badge err">✗ PERDER</span>. Soltar nelas abre o registro do desfecho (valor final ou motivo).</li>
+      </ul>
+      <h3>O que os sinais do card significam</h3>
+      <div class="table-scroll"><table>
+        <tr><th>Sinal</th><th>Significado</th></tr>
+        <tr><td>Foto / iniciais</td><td>Foto de perfil do WhatsApp do cliente (quando disponível); senão, as iniciais.</td></tr>
+        <tr><td><span class="dot-msg" style="vertical-align:middle"></span> Balão verde</td><td>Mensagem de WhatsApp <strong>aguardando resposta</strong>. Some quando alguém abre a conversa.</td></tr>
+        <tr><td><span class="badge err">📅 13/07</span></td><td>Follow-up <strong>vencido</strong> — o dia agendado passou.</td></tr>
+        <tr><td><span class="badge warn">📅 hoje</span></td><td>Follow-up agendado para hoje.</td></tr>
+        <tr><td><span class="badge warn">32d</span></td><td>Venda aberta há 30+ dias — atenção, o negócio esfriou.</td></tr>
+        <tr><td>R$ valor</td><td>Valor estimado da venda naquela etapa.</td></tr>
+      </table></div>
+      <h3>Filtros e busca</h3>
+      <p>Acima do kanban: <strong>💬 Não respondidos</strong> (um clique mostra só quem espera resposta), e os seletores de <strong>Responsável</strong> (gestor), <strong>Tag</strong> e <strong>Origem</strong>. Os filtros valem para o kanban e para a tabela ao mesmo tempo — "✕ limpar" desfaz tudo. A busca aceita nome ou telefone.</p>
+    </section>
+
+    <section id="card">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span> Etapa 3 · Operação diária</div>
+      <h2>O card do cliente</h2>
+      <p>O painel que abre à direita é a ficha completa: dados, vendas, follow-up, notas, histórico e a conversa de WhatsApp lado a lado (no desktop).</p>
+      <h3>Editar dados</h3>
+      <p>Tipo de cliente, empresa e e-mail são editados <strong>clicando direto no valor</strong>: digite e pressione <kbd>Enter</kbd> para salvar ou <kbd>Esc</kbd> para cancelar. Origem e responsável são seletores. Transferir o responsável fica registrado no histórico e é ação de gestor.</p>
+      <h3>Tags</h3>
+      <p>Chips coloridos no topo do card — <strong>+ tag</strong> adiciona, o <strong>×</strong> remove. A tag <code>Carteira</code> tem efeito especial: marca o cliente como recorrente no dashboard.</p>
+      <h3>Follow-up</h3>
+      <p>O campo "Follow-up" agenda o próximo contato com atalhos <strong>Hoje · Amanhã · +3 dias</strong> ou data livre. O compromisso só "vence" quando o dia termina, e aparece colorido no kanban e na tabela. Regra de ouro: <strong>nenhum card fica sem próximo passo</strong>.</p>
+      <h3>Notas e histórico</h3>
+      <p>O composer "Escrever nota..." registra observações na linha do tempo. Abaixo dele, o histórico é automático e permanente: criação, mudanças de etapa, trocas de responsável, follow-ups, desfechos — quem fez e quando.</p>
+    </section>
+
+    <section id="tarefas">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span> Etapa 3 · Operação diária</div>
+      <h2>Tarefas: a rotina do dia</h2>
+      <p>Toda venda avança com um próximo passo concreto: <em>ligar amanhã às 14h</em>, <em>enviar o orçamento na sexta</em>, <em>reunião na obra</em>. As tarefas transformam esses compromissos em uma lista viva — e o CRM cobra você por elas.</p>
+      <h3>O painel "Tarefas" no topo</h3>
+      <ul>
+        <li>Aparece acima do kanban sempre que existe tarefa pendente, com as <span class="badge err">vencidas</span> e as de <span class="badge warn">hoje</span> em destaque. As futuras ficam atrás de <strong>"ver todas"</strong>.</li>
+        <li><strong>Marcar o círculo conclui a tarefa na hora</strong> — ela some da lista e vira registro no histórico do card.</li>
+        <li>O nome do cliente na linha é um link: clique e o card abre direto.</li>
+        <li>Sem nada pendente, o painel some — tela limpa é tarefa em dia.</li>
+      </ul>
+      <h3>Criar uma tarefa</h3>
+      <p>No card do cliente, seção <strong>Tarefas → + Nova tarefa</strong>: descreva o que fazer, escolha o tipo (📞 Ligar · 💬 WhatsApp · 📅 Reunião · ✉️ E-mail · 📌 Outro) e a data. A tarefa nasce atribuída ao responsável do card.</p>
+      <div class="box dica">
+        <div class="rotulo">Tarefa × follow-up</div>
+        O <strong>follow-up</strong> é o marcador único de "próximo contato" do cliente — é ele que aparece como chip 📅 no kanban e entra no digest do Telegram. As <strong>tarefas</strong> são a lista de afazeres: pode haver várias por cliente, cada uma com tipo e prazo próprios. Use os dois juntos: o follow-up diz <em>quando voltar a falar</em>, as tarefas dizem <em>o que precisa ser feito</em>.
+      </div>
+    </section>
+
+    <section id="vendas">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span> Etapa 3 · Operação diária</div>
+      <h2>Vendas: abrir, ganhar, perder</h2>
+      <ul>
+        <li><strong>+ Nova venda</strong> abre um negócio no card — com título, valor, etapa inicial, origem e, se quiser, <strong>segmentos</strong> (divisão do valor por linha de negócio; a soma precisa bater).</li>
+        <li><strong>Ganhar</strong> exige confirmar o valor final (maior que zero) — é ele que entra no dashboard, na Meta do Mês e no LTV.</li>
+        <li><strong>Perder</strong> exige escolher um motivo da lista da empresa — vira o relatório de causas de perda.</li>
+        <li><strong>Remover</strong> uma venda é ação de gestor e apaga também a projeção no dashboard.</li>
+      </ul>
+      <div class="box dica">
+        <div class="rotulo">Recompra</div>
+        Cliente voltou a comprar? Abra outra venda no mesmo card. O LTV soma tudo automaticamente e o histórico mostra a jornada inteira.
+      </div>
+    </section>
+
+    <section id="whatsapp">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span> Etapa 3 · Operação diária</div>
+      <h2>WhatsApp integrado</h2>
+      <h3>Conectar o seu número</h3>
+      <p><strong>Conectar WhatsApp</strong> (topo da página) → escaneie o QR no celular em <em>Dispositivos conectados → Conectar dispositivo</em>. Cada vendedor conecta o próprio número, uma vez.</p>
+      <h3>Leads que chegam sozinhos</h3>
+      <p>Mensagem recebida de um número novo <strong>cria o card automaticamente</strong> — com nome, foto de perfil e você como responsável. Cliente que já tem card ganha o balão verde de "aguardando resposta".</p>
+      <h3>A conversa dentro do card</h3>
+      <ul>
+        <li>Figurinhas, fotos e áudios <strong>aparecem sozinhos</strong>; vídeo e documento carregam com um clique (o documento baixa com o nome original).</li>
+        <li>O <strong>player de áudio</strong> funciona como o do WhatsApp: play, clique na onda para pular de trecho, e <kbd>1x</kbd> → <kbd>1.5x</kbd> → <kbd>2x</kbd> de velocidade.</li>
+        <li><kbd>📎</kbd> envia anexo (imagem, vídeo ou documento, até 8 MB). <kbd>⚡</kbd> abre as <strong>respostas rápidas</strong>.</li>
+        <li><strong>Atalho:</strong> digite <code>/</code> na mensagem para buscar a resposta pelo título — ex.: <code>/saudacao</code>. Use <kbd>↑</kbd><kbd>↓</kbd> para navegar e <kbd>Enter</kbd> para aplicar; o texto entra no campo pronto para revisar e enviar.</li>
+        <li>Nas respostas rápidas, escreva <code>{nome}</code> no template — vira o primeiro nome do cliente na hora de usar. O gestor edita os templates em "⚙ Editar respostas rápidas" dentro do próprio painel.</li>
+        <li><strong>Abrir a conversa marca como respondida</strong> (o balão verde some). A resposta sai pelo WhatsApp de quem é o responsável do card.</li>
+      </ul>
+    </section>
+
+    <section id="followup">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> Etapa 4 · Acompanhamento</div>
+      <h2>Follow-up e alertas automáticos</h2>
+      <p>Dois avisos automáticos trabalham por você — ambos se ativam em <strong>Relatórios Auto. → Alertas de Anomalia</strong> <span class="badge adm">gestor</span> e chegam pelo Telegram da empresa:</p>
+      <div class="table-scroll"><table>
+        <tr><th>Alerta</th><th>Quando dispara</th></tr>
+        <tr><td>CRM: digest de follow-ups</td><td>Todo dia às <strong>08h</strong>: lista os follow-ups vencidos 🔴 e os de hoje 🟡, cada nome com link direto para o card.</td></tr>
+        <tr><td>CRM: WhatsApp sem resposta</td><td>Cliente esperando resposta há mais de <strong>12 horas</strong> (ajustável). Verificado a cada 4 horas.</td></tr>
+      </table></div>
+      <div class="box atencao">
+        <div class="rotulo">Pré-requisito</div>
+        Os alertas usam os canais de <strong>Relatórios Automatizados</strong> da empresa — é preciso ter ao menos um destino de Telegram configurado lá.
+      </div>
+    </section>
+
+    <section id="relatorio">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> Etapa 4 · Gestão</div>
+      <h2>Relatório de vendas</h2>
+      <p>O botão <strong>📊 Relatório</strong> no topo da página abre os números da operação, com período selecionável (<em>Este mês · 3 · 6 · 12 meses</em>). O vendedor vê os próprios resultados; o gestor vê a operação inteira.</p>
+      <h3>O que ele mostra</h3>
+      <div class="table-scroll"><table>
+        <tr><th>Bloco</th><th>O que responde</th></tr>
+        <tr><td>Resumo do período</td><td>Vendas ganhas, receita fechada, perdidas, <strong>win rate</strong> (% de ganho entre as decididas), ticket médio e <strong>ciclo médio</strong> (dias da abertura ao ganho).</td></tr>
+        <tr><td>Conversão por etapa</td><td>Das vendas criadas no período, quantas passaram por cada etapa do funil e o % em relação à etapa anterior — mostra <strong>onde os negócios se perdem</strong>.</td></tr>
+        <tr><td>Tempo médio em cada etapa</td><td>Quantos dias uma venda costuma ficar parada em cada coluna — mostra <strong>onde os negócios travam</strong>.</td></tr>
+        <tr><td>Motivos de perda</td><td>Ranking dos motivos escolhidos ao perder — é para isso que a lista de motivos existe.</td></tr>
+        <tr><td>Por vendedor</td><td>Ganhas, receita, ticket médio e win rate de cada vendedor no período.</td></tr>
+      </table></div>
+      <div class="box dica">
+        <div class="rotulo">Como ler</div>
+        Conversão baixa entre duas etapas específicas + tempo alto na primeira delas = é ali que a operação precisa de atenção. Ex.: muitos "Orçamento Enviado" que não viram "Negociando" e ficam dias parados → o problema está no pós-orçamento, não na prospecção.
+      </div>
+    </section>
+
+    <section id="importar">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i></i><i></i></span> Etapa 2 · Preparação <span class="badge adm">gestor</span></div>
+      <h2>Importar e exportar clientes (CSV)</h2>
+      <p><strong>⚙ Configurar → Importar clientes (CSV)</strong>. Exporte a planilha como CSV com cabeçalho — o CRM entende os nomes de coluna em português:</p>
+      <div class="table-scroll"><table>
+        <tr><th>Coluna</th><th>Observação</th></tr>
+        <tr><td>nome</td><td><span class="badge err">obrigatória</span> — também aceita "cliente" ou "contato"</td></tr>
+        <tr><td>telefone</td><td><span class="badge err">obrigatória</span> — com ou sem DDI/formatação; também "celular" ou "whatsapp"</td></tr>
+        <tr><td>email · empresa · tipo</td><td>opcionais</td></tr>
+        <tr><td>tags</td><td>opcional — separadas por vírgula (ex.: <code>Carteira, VIP</code>)</td></tr>
+        <tr><td>origem</td><td>opcional — meta, google, whatsapp, indicação, fachada, orgânico</td></tr>
+      </table></div>
+      <p>Antes de confirmar, você vê a prévia com o total reconhecido. <strong>Números repetidos não criam card duplicado</strong> (nem os que já existem no CRM, nem duplicatas dentro do próprio arquivo). Limite de 2.000 linhas por importação, respeitando o teto de clientes do plano.</p>
+      <h3>Exportar</h3>
+      <p><strong>⚙ Configurar → Exportar clientes (CSV)</strong> baixa a carteira completa em uma planilha pronta para o Excel (acentos e valores em formato brasileiro): nome, telefone, e-mail, empresa, tipo, origem, tags, responsável, LTV, vendas em aberto, follow-up e data de cadastro. Seus dados nunca ficam presos na plataforma.</p>
+    </section>
+
+    <section id="papeis">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> Etapa 4 · Gestão</div>
+      <h2>Quem pode o quê</h2>
+      <div class="table-scroll"><table>
+        <tr><th>Ação</th><th>Vendedor</th><th>Gestor</th></tr>
+        <tr><td>Ver clientes</td><td>Só os próprios</td><td>Todos</td></tr>
+        <tr><td>Criar cliente e venda, mover etapa, ganhar/perder</td><td>✓ (nos próprios)</td><td>✓</td></tr>
+        <tr><td>Follow-up, tags, notas, e-mail, conversa e anexos</td><td>✓ (nos próprios)</td><td>✓</td></tr>
+        <tr><td>Criar e concluir tarefas</td><td>✓ (nos próprios cards)</td><td>✓</td></tr>
+        <tr><td>Relatório de vendas 📊</td><td>✓ (só os próprios números)</td><td>✓ (operação inteira + por vendedor)</td></tr>
+        <tr><td>Transferir responsável · remover venda</td><td>—</td><td>✓</td></tr>
+        <tr><td>Editar funil, motivos de perda e respostas rápidas</td><td>—</td><td>✓</td></tr>
+        <tr><td>Importar e exportar CSV · configurar alertas</td><td>—</td><td>✓</td></tr>
+      </table></div>
+    </section>
+
+    <section id="atalhos">
+      <div class="etapa"><span class="funil-bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> Referência rápida</div>
+      <h2>Atalhos e truques</h2>
+      <div class="table-scroll"><table>
+        <tr><th>Onde</th><th>Atalho</th><th>Efeito</th></tr>
+        <tr><td>Campos do card</td><td><kbd>Enter</kbd> / <kbd>Esc</kbd></td><td>Salva / cancela a edição inline (empresa, e-mail, tipo, tag)</td></tr>
+        <tr><td>Conversa</td><td><kbd>Enter</kbd></td><td>Envia a mensagem digitada</td></tr>
+        <tr><td>Conversa</td><td><code>/título</code> + <kbd>Enter</kbd></td><td>Busca a resposta rápida pelo título e aplica no campo (ex.: <code>/saudacao</code>)</td></tr>
+        <tr><td>Conversa</td><td><kbd>⚡</kbd> + <code>{nome}</code></td><td>Resposta rápida com o primeiro nome do cliente preenchido</td></tr>
+        <tr><td>Player de áudio</td><td>clique na onda · <kbd>2x</kbd></td><td>Pula para o trecho · acelera a reprodução</td></tr>
+        <tr><td>Kanban</td><td>arrastar e soltar</td><td>Muda etapa; soltar em GANHAR/PERDER fecha a venda</td></tr>
+        <tr><td>Painel Tarefas</td><td>clique no círculo</td><td>Conclui a tarefa na hora; o nome do cliente ao lado abre o card</td></tr>
+        <tr><td>Qualquer lugar</td><td><code>?client=…</code> na URL</td><td>Link direto para um card — copie a URL com o card aberto e compartilhe com a equipe</td></tr>
+        <tr><td>Menus e seletores</td><td><kbd>Esc</kbd></td><td>Fecha o menu aberto</td></tr>
+      </table></div>
+      <div class="box dica">
+        <div class="rotulo">Rotina que funciona</div>
+        De manhã: abra o CRM e resolva o painel <strong>Tarefas</strong> (🔴 vencidas primeiro, depois as de hoje) → responda os balões verdes do filtro <strong>💬 Não respondidos</strong> → ataque os follow-ups 🔴 vencidos e 🟡 de hoje → antes de fechar cada conversa, <strong>agende o próximo follow-up ou crie a próxima tarefa</strong>. Card sem próximo passo é venda esfriando.
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer>
+  Manual do CRM Cortex · Cortex Growth · atualizado em 16/07/2026 · dúvidas: <code>cortextech.adm@gmail.com</code>
+</footer>
+
+</body>
+</html>
