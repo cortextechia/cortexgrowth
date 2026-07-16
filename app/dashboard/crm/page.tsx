@@ -1005,6 +1005,7 @@ export default function CrmPage() {
           loading={detailLoading}
           stages={status.stages}
           isAdmin={isAdmin}
+          currentUserId={user?.id ?? null}
           orgUsers={orgUsers}
           tasks={detail ? tasks.filter((t) => t.clientId === detail.id) : []}
           onAddTask={handleAddTask}
@@ -1682,6 +1683,7 @@ function ClientDrawer(props: {
   loading: boolean;
   stages: CrmStage[];
   isAdmin: boolean;
+  currentUserId: string | null;
   orgUsers: User[];
   tasks: CrmTask[];
   onAddTask: (clientId: string, data: { title: string; type: string; dueAt: string }) => Promise<void>;
@@ -2110,7 +2112,15 @@ function ClientDrawer(props: {
             )}
 
             {/* Conversa WhatsApp no fluxo — só no mobile (desktop usa o painel lateral) */}
-            {!isDesktop && <WaConversation clientId={detail.id} clientName={detail.name} canEdit={isAdmin} />}
+            {!isDesktop && (
+              <WaConversation
+                clientId={detail.id}
+                clientName={detail.name}
+                canEdit={isAdmin}
+                canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
+                responsibleName={detail.responsible?.name ?? null}
+              />
+            )}
           </div>
           </div>
 
@@ -2120,7 +2130,14 @@ function ClientDrawer(props: {
               className="w-[380px] shrink-0 flex flex-col min-h-0"
               style={{ borderLeft: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
             >
-              <WaConversation clientId={detail.id} clientName={detail.name} canEdit={isAdmin} variant="panel" />
+              <WaConversation
+                clientId={detail.id}
+                clientName={detail.name}
+                canEdit={isAdmin}
+                canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
+                responsibleName={detail.responsible?.name ?? null}
+                variant="panel"
+              />
             </div>
           )}
           </div>
@@ -2492,10 +2509,12 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   );
 }
 
-function WaConversation({ clientId, clientName, canEdit, variant = 'inline' }: {
+function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, variant = 'inline' }: {
   clientId: string;
   clientName: string;
   canEdit: boolean;
+  canSend: boolean;      // só o responsável do card responde (regra 16/07)
+  responsibleName: string | null;
   variant?: 'inline' | 'panel';
 }) {
   // 'panel' = coluna lateral do drawer (desktop): sempre aberta, ocupa a altura
@@ -2767,7 +2786,13 @@ function WaConversation({ clientId, clientName, canEdit, variant = 'inline' }: {
               )}
             </div>
           )}
-          {available && (
+          {available && !canSend && (
+            <p className="text-xs mt-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              Só o responsável pelo card responde esta conversa
+              {responsibleName ? ` (${responsibleName})` : ''}. Para assumir, transfira o responsável para você.
+            </p>
+          )}
+          {available && canSend && (
             <form
               className="mt-2 flex items-center gap-2"
               onSubmit={(e) => { e.preventDefault(); void send(); }}
