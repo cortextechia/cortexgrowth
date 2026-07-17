@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { apiService } from '@/lib/api';
+import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
@@ -441,13 +441,81 @@ export default function CrmPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Polling leve: cards criados via WhatsApp aparecem sem F5 (e ao voltar o foco)
+  // Polling leve: cards criados via WhatsApp aparecem sem F5 (e ao voltar o foco).
+  // Continua existindo como FALLBACK do stream SSE abaixo (stream fora do ar =
+  // comportamento antigo) e é o que mantém o access token renovando via axios.
   useEffect(() => {
     const tick = () => loadAll(searchRef.current.trim() || undefined);
     const interval = setInterval(tick, 15000);
     window.addEventListener('focus', tick);
     return () => { clearInterval(interval); window.removeEventListener('focus', tick); };
   }, [loadAll]);
+
+  // ─── Tempo real (SSE) ────────────────────────────────────────────────
+  // A Evolution avisa o backend via webhook a cada mensagem; o backend
+  // retransmite { clientId } em /crm/whatsapp/stream. O sinal elimina o delay
+  // do polling: lista/kanban recarregam na hora e a conversa aberta refaz o
+  // fetch. fetch manual (não EventSource) p/ mandar o Authorization no header.
+  const [waSignal, setWaSignal] = useState<{ clientId: string; seq: number } | null>(null);
+
+  useEffect(() => {
+    if (!status?.enabled) return;
+    let stopped = false;
+    let listTimer: ReturnType<typeof setTimeout> | null = null;
+    const ctrl = new AbortController();
+
+    const handleEvent = (data: string) => {
+      try {
+        const ev = JSON.parse(data) as { type?: string; clientId?: string };
+        if (ev.type !== 'wa_message' || !ev.clientId) return;
+        const clientId = ev.clientId;
+        setWaSignal((prev) => ({ clientId, seq: (prev?.seq ?? 0) + 1 }));
+        // Coalesce: rajada de mensagens gera UM reload da lista
+        if (listTimer) clearTimeout(listTimer);
+        listTimer = setTimeout(() => { void loadAll(searchRef.current.trim() || undefined); }, 300);
+      } catch { /* linha não-JSON (comentário/heartbeat) — ignora */ }
+    };
+
+    const connect = async () => {
+      let retryMs = 2000;
+      while (!stopped) {
+        try {
+          const token = localStorage.getItem('auth_token');
+          if (!token) throw new Error('sem token');
+          const res = await fetch(`${API_BASE_URL}/crm/whatsapp/stream`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: ctrl.signal,
+          });
+          if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
+          retryMs = 2000; // conectou — zera o backoff
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() ?? ''; // última linha pode estar incompleta
+            for (const line of lines) {
+              if (line.startsWith('data: ')) handleEvent(line.slice(6));
+            }
+          }
+        } catch {
+          if (stopped) return;
+        }
+        // Conexão caiu (proxy, deploy, token vencido) — reconecta com backoff
+        await new Promise((r) => setTimeout(r, retryMs));
+        retryMs = Math.min(retryMs * 2, 30000);
+      }
+    };
+    void connect();
+    return () => {
+      stopped = true;
+      ctrl.abort();
+      if (listTimer) clearTimeout(listTimer);
+    };
+  }, [status?.enabled, loadAll]);
 
   // Busca com debounce
   useEffect(() => {
@@ -602,6 +670,69 @@ export default function CrmPage() {
       // Reconcilia só quando o último movimento em voo terminar (drags rápidos em sequência)
       if (movingRef.current === 0) await loadAll(searchRef.current.trim() || undefined, { force: true });
     }
+  };
+
+  // ─── Navegação horizontal do kanban ──────────────────────────────────
+  // Funil com muitas etapas passa da largura da tela e nada indicava que havia
+  // mais colunas: setas nas bordas, arrastar o fundo pra rolar e auto-scroll
+  // quando um card é arrastado até a borda.
+
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const boardPanRef = useRef<{ startX: number; startScroll: number } | null>(null);
+  const [boardNav, setBoardNav] = useState({ left: false, right: false });
+
+  const updateBoardNav = useCallback(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const left = el.scrollLeft > 4;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 4;
+    setBoardNav((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
+  }, []);
+
+  // Sem deps de propósito: colunas/cards mudam a largura do board a cada load
+  // e o guard do setState evita re-render quando nada mudou.
+  useEffect(() => {
+    updateBoardNav();
+    window.addEventListener('resize', updateBoardNav);
+    return () => window.removeEventListener('resize', updateBoardNav);
+  });
+
+  // Coluna w-64 (256px) + gap-3 (12px) — as setas pulam duas colunas
+  const scrollBoard = (dir: -1 | 1) => {
+    boardRef.current?.scrollBy({ left: dir * 536, behavior: 'smooth' });
+  };
+
+  // Arrastar o fundo do board (não os cards) rola o funil
+  const onBoardMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = boardRef.current;
+    if (!el || e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button')) return; // card: mantém drag&drop e clique
+    // Clique na barra de rolagem nativa (abaixo do clientHeight): deixa o browser cuidar
+    if (e.clientY - el.getBoundingClientRect().top > el.clientHeight) return;
+    boardPanRef.current = { startX: e.clientX, startScroll: el.scrollLeft };
+    const onMove = (ev: MouseEvent) => {
+      const pan = boardPanRef.current;
+      if (!pan) return;
+      el.scrollLeft = pan.startScroll - (ev.clientX - pan.startX);
+    };
+    const onUp = () => {
+      boardPanRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    e.preventDefault(); // sem seleção de texto durante o pan
+  };
+
+  // Card arrastado até a borda rola o funil — o auto-scroll nativo do HTML5
+  // drag&drop não é confiável entre navegadores
+  const onBoardDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const el = boardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (e.clientX < rect.left + 80) el.scrollLeft -= 24;
+    else if (e.clientX > rect.right - 80) el.scrollLeft += 24;
   };
 
   // ─── Estados de página ───────────────────────────────────────────────
@@ -811,7 +942,14 @@ export default function CrmPage() {
       />
 
       {/* Kanban do funil */}
-      <div className="flex gap-3 overflow-x-auto pb-3">
+      <div className="relative">
+      <div
+        ref={boardRef}
+        className="flex gap-3 overflow-x-auto pb-3 cursor-grab active:cursor-grabbing"
+        onScroll={updateBoardNav}
+        onMouseDown={onBoardMouseDown}
+        onDragOver={onBoardDragOver}
+      >
         {status.stages.map((stage) => {
           const items = openSalesByStage.get(stage.id) ?? [];
           const total = items.reduce((acc, i) => acc + i.sale.value, 0);
@@ -902,6 +1040,29 @@ export default function CrmPage() {
             </div>
           );
         })}
+      </div>
+      {/* Setas de navegação — só quando há funil fora da tela; escondidas durante
+          o arrasto de card (a borda já rola sozinha) */}
+      {!draggingSaleId && boardNav.left && (
+        <button
+          onClick={() => scrollBoard(-1)}
+          aria-label="Rolar funil para a esquerda"
+          className="absolute left-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-md"
+          style={{ ...card, color: 'var(--text-primary)' }}
+        >
+          ‹
+        </button>
+      )}
+      {!draggingSaleId && boardNav.right && (
+        <button
+          onClick={() => scrollBoard(1)}
+          aria-label="Rolar funil para a direita"
+          className="absolute right-1 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center text-lg shadow-md"
+          style={{ ...card, color: 'var(--text-primary)' }}
+        >
+          ›
+        </button>
+      )}
       </div>
 
       {/* Zonas de desfecho — etapa é caminho, ganho/perda é destino. Só existem durante o arrasto. */}
@@ -1006,6 +1167,7 @@ export default function CrmPage() {
           stages={status.stages}
           isAdmin={isAdmin}
           currentUserId={user?.id ?? null}
+          liveSignal={waSignal}
           orgUsers={orgUsers}
           tasks={detail ? tasks.filter((t) => t.clientId === detail.id) : []}
           onAddTask={handleAddTask}
@@ -1684,6 +1846,7 @@ function ClientDrawer(props: {
   stages: CrmStage[];
   isAdmin: boolean;
   currentUserId: string | null;
+  liveSignal: { clientId: string; seq: number } | null;
   orgUsers: User[];
   tasks: CrmTask[];
   onAddTask: (clientId: string, data: { title: string; type: string; dueAt: string }) => Promise<void>;
@@ -1702,6 +1865,9 @@ function ClientDrawer(props: {
 }) {
   const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
+  // Sinal do stream só interessa se for do cliente aberto neste drawer
+  const waRefresh =
+    props.liveSignal && detail && props.liveSignal.clientId === detail.id ? props.liveSignal.seq : 0;
   const [showEvents, setShowEvents] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [addingTag, setAddingTag] = useState(false);
@@ -2119,6 +2285,7 @@ function ClientDrawer(props: {
                 canEdit={isAdmin}
                 canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
+                refreshSignal={waRefresh}
               />
             )}
           </div>
@@ -2136,6 +2303,7 @@ function ClientDrawer(props: {
                 canEdit={isAdmin}
                 canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
+                refreshSignal={waRefresh}
                 variant="panel"
               />
             </div>
@@ -2509,12 +2677,13 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   );
 }
 
-function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, variant = 'inline' }: {
+function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, refreshSignal = 0, variant = 'inline' }: {
   clientId: string;
   clientName: string;
   canEdit: boolean;
   canSend: boolean;      // só o responsável do card responde (regra 16/07)
   responsibleName: string | null;
+  refreshSignal?: number; // incrementa quando o stream SSE avisa mensagem deste cliente
   variant?: 'inline' | 'panel';
 }) {
   // 'panel' = coluna lateral do drawer (desktop): sempre aberta, ocupa a altura
@@ -2557,6 +2726,8 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
   }, [isPanel, load]);
 
   // Conversa ao vivo: refresh silencioso enquanto a seção está aberta
+  // (fallback do stream SSE — quando o stream está de pé a atualização
+  // instantânea vem pelo refreshSignal abaixo)
   useEffect(() => {
     if (!open || !available) return;
     const id = setInterval(() => {
@@ -2564,6 +2735,12 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
     }, 5000);
     return () => clearInterval(id);
   }, [open, available, load]);
+
+  // Sinal do stream: mensagem nova deste cliente → refetch imediato
+  useEffect(() => {
+    if (refreshSignal > 0 && open) void load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
 
   // Comportamento de chat: rola pro fim quando a conversa muda
   useEffect(() => {

@@ -294,9 +294,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       ) : link;
     });
 
+  // min-w-0: sem ele o <main> (flex item) estica até a largura do conteúdo e a
+  // PÁGINA inteira ganha scroll horizontal — o kanban do CRM depende de o
+  // overflow-x-auto interno agir (o default de flex item é min-width:auto)
   const mainClass = sidebarOpen
-    ? 'flex-1 transition-all duration-200 min-h-screen md:ml-56'
-    : 'flex-1 transition-all duration-200 min-h-screen md:ml-16';
+    ? 'flex-1 min-w-0 transition-all duration-200 min-h-screen md:ml-56'
+    : 'flex-1 min-w-0 transition-all duration-200 min-h-screen md:ml-16';
 
   return (
     <ProtectedRoute>
