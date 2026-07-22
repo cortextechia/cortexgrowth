@@ -675,10 +675,14 @@ export interface CrmQuickReply {
   order: number;
 }
 
+export type CrmTriageStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
+
 export interface CrmStage {
   id: string;
   name: string;
   order: number;
+  /** Marco "daqui pra frente exige valor": esta etapa e as seguintes pedem venda com valor. */
+  requiresValue: boolean;
 }
 
 export interface CrmSaleSegment {
@@ -717,6 +721,8 @@ export interface CrmClientSummary {
   lastReadAt: string | null;
   nextFollowUpAt: string | null;
   waAvatarUrl: string | null;
+  /** PENDING = na coluna "Novos contatos" aguardando Aceitar/Rejeitar. */
+  triageStatus: CrmTriageStatus;
   responsibleId: string | null;
   responsible?: { id: string; name: string } | null;
   sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt' | 'createdAt'>[];

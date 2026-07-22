@@ -793,7 +793,7 @@ class ApiService {
     return response.data;
   }
 
-  async saveCrmStages(stages: { id?: string; name: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
+  async saveCrmStages(stages: { id?: string; name: string; requiresValue?: boolean }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
     const response = await this.client.put('/crm/stages', { stages });
     return response.data;
   }
@@ -860,6 +860,17 @@ class ApiService {
 
   async changeCrmSaleStage(saleId: string, stageId: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/sales/${saleId}/stage`, { stageId });
+    return response.data;
+  }
+
+  // Triagem do contato novo — aceitar põe no funil, rejeitar arquiva sem apagar
+  async acceptCrmClient(clientId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/accept`);
+    return response.data;
+  }
+
+  async rejectCrmClient(clientId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/reject`);
     return response.data;
   }
 

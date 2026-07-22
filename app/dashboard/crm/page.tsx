@@ -655,6 +655,16 @@ export default function CrmPage() {
     setDraggingSaleId(null);
     setDropStageId(null);
     if (!saleId || stageId === fromStageId) return;
+
+    // Trava de valor: barra aqui para o card não "pular e voltar" na tela.
+    // O backend valida de novo — este check é só o aviso imediato.
+    const target = status?.stages.find((st) => st.id === stageId);
+    const dragged = clients.flatMap((c) => c.sales).find((s) => s.id === saleId);
+    if (target && dragged && dragged.value <= 0 && stageLocksValue(target)) {
+      showToast('error', `"${target.name}" exige o valor da venda. Abra o card e informe o valor primeiro.`);
+      return;
+    }
+
     // Otimista: move na UI antes da API responder
     setClients((prev) => prev.map((c) => ({
       ...c,
@@ -669,6 +679,24 @@ export default function CrmPage() {
       movingRef.current--;
       // Reconcilia só quando o último movimento em voo terminar (drags rápidos em sequência)
       if (movingRef.current === 0) await loadAll(searchRef.current.trim() || undefined, { force: true });
+    }
+  };
+
+  // Triagem: aceitar põe o contato no funil (venda sem valor na 1ª etapa),
+  // rejeitar arquiva. Otimista nos dois casos — o card sai da coluna na hora.
+  const [triaging, setTriaging] = useState<Set<string>>(new Set());
+
+  const handleTriage = async (clientId: string, action: 'accept' | 'reject') => {
+    setTriaging((prev) => new Set(prev).add(clientId));
+    try {
+      if (action === 'accept') await apiService.acceptCrmClient(clientId);
+      else await apiService.rejectCrmClient(clientId);
+      showToast('success', action === 'accept' ? 'Contato aceito no funil.' : 'Contato arquivado.');
+      await loadAll(searchRef.current.trim() || undefined, { force: true });
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao processar o contato.'));
+    } finally {
+      setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
     }
   };
 
@@ -813,8 +841,13 @@ export default function CrmPage() {
   ).entries()];
   const tagOptions = [...new Set(clients.flatMap((c) => c.tags))].sort((a, b) => a.localeCompare(b));
 
+  // Triagem: contato novo do WhatsApp espera Aceitar/Rejeitar antes de entrar
+  // no funil. Rejeitado sai do board (o card e a conversa continuam existindo).
+  const pendingClients = filtered.filter((c) => c.triageStatus === 'PENDING');
+
   const openSalesByStage = new Map<string, { sale: CrmClientSummary['sales'][number]; client: CrmClientSummary }[]>();
   for (const c of filtered) {
+    if (c.triageStatus !== 'ACCEPTED') continue;
     for (const s of c.sales) {
       if (s.status !== 'OPEN') continue;
       const key = s.stageId ?? '_none';
@@ -823,6 +856,13 @@ export default function CrmPage() {
     }
   }
   const noStage = openSalesByStage.get('_none') ?? [];
+
+  // Marco "daqui pra frente exige valor" — o menor order marcado no funil.
+  // Espelha stageValueThreshold() do backend; aqui é só para avisar antes.
+  const markedOrders = (status?.stages ?? []).filter((s) => s.requiresValue).map((s) => s.order);
+  const valueThreshold = markedOrders.length > 0 ? Math.min(...markedOrders) : null;
+  const stageLocksValue = (stage: { order: number }) =>
+    valueThreshold !== null && stage.order >= valueThreshold;
 
   return (
     <div>
@@ -950,6 +990,68 @@ export default function CrmPage() {
         onMouseDown={onBoardMouseDown}
         onDragOver={onBoardDragOver}
       >
+        {/* Triagem — só aparece quando há contato esperando decisão */}
+        {pendingClients.length > 0 && (
+          <div
+            className="w-64 shrink-0 rounded-xl p-3"
+            style={{ ...card, border: '1px dashed var(--accent)' }}
+          >
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Novos contatos
+              </span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{pendingClients.length}</span>
+            </div>
+            <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+              Aceite para entrar no funil
+            </div>
+            <div className="space-y-2">
+              {pendingClients.map((client) => (
+                <div
+                  key={client.id}
+                  className="rounded-lg p-2.5"
+                  style={{ backgroundColor: 'var(--bg-elevated)' }}
+                >
+                  <button
+                    onClick={() => openClient(client.id)}
+                    className="w-full text-left"
+                    title="Abrir a conversa antes de decidir"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
+                      <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                        <span className="truncate">{client.name}</span>
+                        {hasUnread(client) && <UnreadDot />}
+                      </div>
+                    </div>
+                    <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                      {fmtPhone(client.phone)}
+                    </div>
+                  </button>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleTriage(client.id, 'accept')}
+                      disabled={triaging.has(client.id)}
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                    >
+                      Aceitar
+                    </button>
+                    <button
+                      onClick={() => handleTriage(client.id, 'reject')}
+                      disabled={triaging.has(client.id)}
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                    >
+                      Rejeitar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {status.stages.map((stage) => {
           const items = openSalesByStage.get(stage.id) ?? [];
           const total = items.reduce((acc, i) => acc + i.sale.value, 0);
@@ -974,7 +1076,18 @@ export default function CrmPage() {
               }}
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{stage.name}</span>
+                <span className="text-sm font-semibold flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                  {stage.name}
+                  {stageLocksValue(stage) && (
+                    <span
+                      className="text-xs"
+                      style={{ color: 'var(--text-muted)' }}
+                      title="Desta etapa em diante a venda precisa ter valor"
+                    >
+                      🔒
+                    </span>
+                  )}
+                </span>
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{items.length}</span>
               </div>
               <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{fmtMoney(total)}</div>
@@ -3653,10 +3766,17 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const [draft, setDraft] = useState<{ id?: string; name: string }[]>(
-    stages.map((s) => ({ id: s.id, name: s.name }))
+  const [draft, setDraft] = useState<{ id?: string; name: string; requiresValue?: boolean }[]>(
+    stages.map((s) => ({ id: s.id, name: s.name, requiresValue: s.requiresValue }))
   );
   const [saving, setSaving] = useState(false);
+
+  // Marco único: marcar uma etapa desmarca as outras — daquela em diante o
+  // valor passa a ser obrigatório. Clicar na marcada de novo remove a trava.
+  const markValueFrom = (i: number) => {
+    setDraft((p) => p.map((x, j) => ({ ...x, requiresValue: j === i ? !p[i]!.requiresValue : false })));
+  };
+  const markedIndex = draft.findIndex((s) => s.requiresValue);
 
   const save = async () => {
     const valid = draft.filter((s) => s.name.trim());
@@ -3687,6 +3807,13 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
         Etapas do meio do funil, na ordem. Ganho e perda não são etapas — são o desfecho de cada venda.
         Remover uma etapa solta as vendas abertas dela (ficam &quot;sem etapa&quot;).
       </p>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        🔒 marca a partir de onde a venda <strong>precisa ter valor</strong> — normalmente a etapa de
+        orçamento. As etapas antes dela ficam livres para qualificar o contato sem saber o valor ainda.
+        {markedIndex !== -1 && draft[markedIndex]?.name.trim() && (
+          <> Hoje: <strong style={{ color: 'var(--accent)' }}>{draft[markedIndex]!.name}</strong> em diante.</>
+        )}
+      </p>
       <div className="space-y-2 mb-3">
         {draft.map((s, i) => (
           <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
@@ -3696,6 +3823,22 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
               value={s.name}
               onChange={(e) => setDraft((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
             />
+            <button
+              onClick={() => markValueFrom(i)}
+              className="px-1.5"
+              style={{
+                color: markedIndex !== -1 && i >= markedIndex ? 'var(--accent)' : 'var(--text-muted)',
+                opacity: markedIndex !== -1 && i >= markedIndex ? 1 : 0.4,
+              }}
+              title={
+                s.requiresValue
+                  ? 'Marco do orçamento — clique para remover a trava'
+                  : 'Exigir valor da venda a partir desta etapa'
+              }
+              aria-label="Exigir valor a partir desta etapa"
+            >
+              🔒
+            </button>
             <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Subir">↑</button>
             <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Descer">↓</button>
             <button onClick={() => setDraft((p) => p.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
