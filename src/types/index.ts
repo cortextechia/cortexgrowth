@@ -811,6 +811,8 @@ export interface CrmWaMessage {
   mediaType?: CrmWaMediaType;
   mimetype?: string;
   fileName?: string; // só documentos
+  /** Preenchido quando esta mensagem é resposta a outra */
+  quoted?: { id: string; text: string; fromMe: boolean };
 }
 
 export interface CreativeBriefing {

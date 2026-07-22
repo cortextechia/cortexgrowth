@@ -2978,6 +2978,14 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
   const [replies, setReplies] = useState<CrmQuickReply[] | null>(null);
   const [showRepliesEditor, setShowRepliesEditor] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(0);
+  // Mensagem sendo respondida (citação estilo WhatsApp)
+  const [replyTo, setReplyTo] = useState<CrmWaMessage | null>(null);
+  const draftRef = useRef<HTMLInputElement | null>(null);
+
+  // Escolher "responder" leva o foco pro composer, como no WhatsApp
+  useEffect(() => {
+    if (replyTo) draftRef.current?.focus();
+  }, [replyTo]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -3029,8 +3037,9 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
     setSending(true);
     setSendError(null);
     try {
-      await apiService.sendCrmWhatsappMessage(clientId, text);
+      await apiService.sendCrmWhatsappMessage(clientId, text, replyTo?.id);
       setDraft('');
+      setReplyTo(null);
       await load();
     } catch (err) {
       setSendError(apiErrorMsg(err, 'Erro ao enviar a mensagem.'));
@@ -3073,6 +3082,12 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
   useEffect(() => { setHighlightIdx(0); }, [slashQuery]);
 
   const composerKeyDown = (e: React.KeyboardEvent) => {
+    // Esc cancela a citação antes de mexer no texto (comportamento do WhatsApp).
+    // Só quando o painel de respostas rápidas não está capturando o Esc.
+    if (e.key === 'Escape' && replyTo && !slashMatches?.length) {
+      setReplyTo(null);
+      return;
+    }
     if (!slashMatches || slashMatches.length === 0) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -3176,19 +3191,42 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
               {/* Conversa curta fica junto do composer (chat cresce de baixo pra cima) */}
               {isPanel && <div className="flex-1" />}
               {messages.map((m) => (
-                <div key={m.id} className={`flex ${m.fromMe ? 'justify-end' : 'justify-start'}`}>
+                <div key={m.id} id={`wa-msg-${m.id}`} className={`group flex items-center gap-1 ${m.fromMe ? 'justify-end' : 'justify-start'}`}>
+                  {/* Botão responder: à esquerda nas minhas, à direita nas dela —
+                      sempre do lado de fora da bolha, como no WhatsApp */}
+                  {canSend && m.fromMe && <WaReplyButton onClick={() => setReplyTo(m)} />}
                   <div
                     className="max-w-[85%] rounded-lg px-2.5 py-1.5"
                     style={m.fromMe
                       ? { backgroundColor: 'var(--accent-dim)', border: '1px solid var(--border)' }
                       : { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
                   >
+                    {m.quoted && (
+                      <button
+                        onClick={() => {
+                          const alvo = document.getElementById(`wa-msg-${m.quoted!.id}`);
+                          alvo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          alvo?.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 700 });
+                        }}
+                        className="w-full text-left rounded px-2 py-1 mb-1"
+                        style={{ backgroundColor: 'var(--bg-elevated)', borderLeft: '3px solid var(--accent)' }}
+                        title="Ir para a mensagem citada"
+                      >
+                        <span className="text-[10px] font-semibold block" style={{ color: 'var(--accent)' }}>
+                          {m.quoted.fromMe ? 'Você' : clientName}
+                        </span>
+                        <span className="text-[10px] block truncate" style={{ color: 'var(--text-muted)' }}>
+                          {m.quoted.text}
+                        </span>
+                      </button>
+                    )}
                     {m.mediaType && <WaMediaBubble clientId={clientId} msg={m} />}
                     {(!m.mediaType || !isMediaPlaceholder(m.text)) && (
                       <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
                     )}
                     <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{fmtTs(m.timestamp)}</p>
                   </div>
+                  {canSend && !m.fromMe && <WaReplyButton onClick={() => setReplyTo(m)} />}
                 </div>
               ))}
             </div>
@@ -3244,6 +3282,32 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
               {responsibleName ? ` (${responsibleName})` : ''}. Para assumir, transfira o responsável para você.
             </p>
           )}
+          {/* Barra de citação — aparece acima do composer, como no WhatsApp */}
+          {available && canSend && replyTo && (
+            <div
+              className="mt-2 flex items-start gap-2 rounded-lg px-2.5 py-1.5"
+              style={{ backgroundColor: 'var(--bg-surface)', borderLeft: '3px solid var(--accent)' }}
+            >
+              <div className="flex-1 min-w-0">
+                <span className="text-[10px] font-semibold block" style={{ color: 'var(--accent)' }}>
+                  Respondendo {replyTo.fromMe ? 'você mesmo' : clientName}
+                </span>
+                <span className="text-[11px] block truncate" style={{ color: 'var(--text-muted)' }}>
+                  {replyTo.text}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyTo(null)}
+                className="shrink-0 text-xs px-1"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Cancelar resposta"
+                title="Cancelar resposta (Esc)"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {available && canSend && (
             <form
               className="mt-2 flex items-center gap-2"
@@ -3282,11 +3346,12 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
                 {sendingFile ? '⏳' : '📎'}
               </button>
               <input
+                ref={draftRef}
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={composerKeyDown}
-                placeholder="Responder no WhatsApp... ( / = respostas rápidas)"
+                placeholder={replyTo ? 'Escreva a resposta...' : 'Responder no WhatsApp... ( / = respostas rápidas)'}
                 maxLength={4096}
                 disabled={sending}
                 className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none"
@@ -3314,6 +3379,24 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
         />
       )}
     </div>
+  );
+}
+
+// Seta de responder ao lado da bolha — só aparece no hover, como no WhatsApp Web
+function WaReplyButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded p-1"
+      style={{ color: 'var(--text-muted)' }}
+      aria-label="Responder esta mensagem"
+      title="Responder esta mensagem"
+    >
+      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a5 5 0 015 5v3m-15-8l4-4m-4 4l4 4" />
+      </svg>
+    </button>
   );
 }
 

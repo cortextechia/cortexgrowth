@@ -965,8 +965,13 @@ class ApiService {
     return response.data;
   }
 
-  async sendCrmWhatsappMessage(clientId: string, text: string): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send`, { text });
+  // quotedId cita uma mensagem da conversa (resposta estilo WhatsApp) — o texto
+  // da citação é resolvido no backend, não vai daqui
+  async sendCrmWhatsappMessage(clientId: string, text: string, quotedId?: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send`, {
+      text,
+      ...(quotedId ? { quotedId } : {}),
+    });
     return response.data;
   }
 
