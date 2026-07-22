@@ -736,6 +736,8 @@ export interface CrmEvent {
   type: string;
   payload: Record<string, unknown>;
   actor?: { id: string; name: string } | null;
+  /** Nota fixada no topo da timeline — só eventos NOTE podem ser fixados. */
+  pinnedAt: string | null;
   createdAt: string;
 }
 

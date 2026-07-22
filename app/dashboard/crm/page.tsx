@@ -104,6 +104,24 @@ function daysSince(iso: string): number {
 // Mesmo threshold da regra de cards parados do CRM_HYGIENE (30d)
 const STALE_SALE_DAYS = 30;
 
+// Larguras do drawer ajustadas pelo mouse — preferência de quem usa, fica local
+const DRAWER_W_KEY = 'crm_drawer_width';
+const WA_PANEL_W_KEY = 'crm_wa_panel_width';
+// Largura mínima da coluna do card (grid 130px + dropdown 160px + respiro)
+const CARD_COL_MIN = 440;
+
+const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
+
+const readStoredWidth = (key: string, fallback: number): number => {
+  if (typeof window === 'undefined') return fallback; // SSR
+  const raw = Number(window.localStorage.getItem(key));
+  return Number.isFinite(raw) && raw > 0 ? raw : fallback;
+};
+
+const writeStoredWidth = (key: string, value: number) => {
+  try { window.localStorage.setItem(key, String(value)); } catch { /* quota/privado — ignora */ }
+};
+
 // Follow-up agendado: vencido (dia passou), hoje, ou futuro — cor por urgência
 function followUpInfo(iso: string | null): { label: string; tone: 'overdue' | 'today' | 'future' } | null {
   if (!iso) return null;
@@ -1115,9 +1133,13 @@ export default function CrmPage() {
                       opacity: draggingSaleId === sale.id ? 0.4 : 1,
                     }}
                   >
+                    {/* Linha 1: quem é. Linha 2: o valor, sozinho e legível.
+                        Linha 3: os chips, que podem quebrar sem empurrar nada.
+                        Antes as 3 coisas dividiam ~180px na mesma linha (com um
+                        pl-8 que só roubava espaço) e se sobrepunham. */}
                     <div className="flex items-center gap-2">
-                      <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
-                      <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                      <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px] shrink-0" />
+                      <div className="text-sm font-medium truncate flex-1 min-w-0 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
                         {hasUnread(client) && <UnreadDot />}
                       </div>
@@ -1135,12 +1157,16 @@ export default function CrmPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-1.5 mt-1.5 pl-8">
-                      <span className="inline-flex items-center gap-1.5 min-w-0">
-                        <OriginPill origin={client.origin} />
-                        <FollowUpChip iso={client.nextFollowUpAt} />
-                      </span>
-                      <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(sale.value)}</span>
+
+                    {sale.value > 0 && (
+                      <div className="mt-1.5 text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+                        {fmtMoney(sale.value)}
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <OriginPill origin={client.origin} />
+                      <FollowUpChip iso={client.nextFollowUpAt} />
                     </div>
                   </button>
                 ))}
@@ -1325,6 +1351,12 @@ export default function CrmPage() {
               await apiService.addCrmNote(detail.id, text);
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao adicionar a nota.')); }
+          }}
+          onPinNote={async (eventId, pinned) => {
+            try {
+              await apiService.pinCrmNote(eventId, pinned);
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao fixar a nota.')); }
           }}
         />
       )}
@@ -1975,6 +2007,7 @@ function ClientDrawer(props: {
   onDeleteSale: (saleId: string) => void;
   onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
+  onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
 }) {
   const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
@@ -1987,6 +2020,57 @@ function ClientDrawer(props: {
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  // Nome do card: vem do pushName do WhatsApp (o que a pessoa pôs no perfil),
+  // então precisa ser corrigível. Editado no banner, que tem cor fixa — o
+  // InlineField usa vars de tema e sumiria no fundo escuro.
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+
+  // Larguras ajustáveis pelo mouse (pedido da chefe: definir o tamanho da aba).
+  // Duas alças: a borda esquerda do drawer (área total) e a divisória entre o
+  // card e a conversa. Ficam no localStorage — do jeito que ela deixou.
+  const [drawerWidth, setDrawerWidth] = useState(() => readStoredWidth(DRAWER_W_KEY, 896));
+  const [waWidth, setWaWidth] = useState(() => readStoredWidth(WA_PANEL_W_KEY, 380));
+  const [dragging, setDragging] = useState<null | 'drawer' | 'wa'>(null);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      if (dragging === 'drawer') {
+        // Drawer é ancorado à direita: largura = quanto sobra do cursor até a borda
+        const w = clamp(window.innerWidth - e.clientX, 560, Math.max(560, window.innerWidth - 80));
+        setDrawerWidth(w);
+        // Estreitar o drawer não pode deixar a conversa comendo a coluna do card
+        setWaWidth((prev) => clamp(prev, 300, Math.max(300, w - CARD_COL_MIN)));
+      } else {
+        // A coluna do card não comprime abaixo de 440px: o grid é label 130px +
+        // dropdown 160px + padding, então em 320px o conteúdo cortava na borda.
+        // Para uma conversa maior que isso, arrasta-se a borda do drawer também.
+        const w = clamp(window.innerWidth - e.clientX, 300, Math.max(300, drawerWidth - CARD_COL_MIN));
+        setWaWidth(w);
+      }
+    };
+    const onUp = () => setDragging(null);
+    // Sem isso o arrasto seleciona texto da página inteira
+    const prevSelect = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      document.body.style.userSelect = prevSelect;
+      document.body.style.cursor = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragging, drawerWidth]);
+
+  // Persiste só ao soltar — gravar a cada pixel do arrasto é desperdício
+  useEffect(() => {
+    if (dragging) return;
+    writeStoredWidth(DRAWER_W_KEY, drawerWidth);
+    writeStoredWidth(WA_PANEL_W_KEY, waWidth);
+  }, [dragging, drawerWidth, waWidth]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(detail?.waAvatarUrl ?? null);
 
   // Foto de perfil do WhatsApp: usa o cache do card e pede refresh ao backend
@@ -2043,9 +2127,23 @@ function ClientDrawer(props: {
     <>
       <div className="fixed inset-0 z-40 bg-black/50" onClick={props.onClose} />
       <aside
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg lg:max-w-4xl flex flex-col overflow-hidden"
-        style={{ backgroundColor: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-lg lg:max-w-none flex flex-col overflow-hidden"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderLeft: '1px solid var(--border)',
+          ...(isDesktop ? { width: drawerWidth } : {}),
+        }}
       >
+        {/* Alça: arrastar a borda esquerda define a largura total do drawer */}
+        {isDesktop && (
+          <div
+            onMouseDown={(e) => { e.preventDefault(); setDragging('drawer'); }}
+            onDoubleClick={() => setDrawerWidth(896)}
+            className="absolute inset-y-0 left-0 w-1.5 z-10 cursor-col-resize"
+            style={{ backgroundColor: dragging === 'drawer' ? 'var(--accent)' : 'transparent' }}
+            title="Arraste para redimensionar · duplo clique volta ao padrão"
+          />
+        )}
         {loading || !detail ? (
           <div className="flex-1 flex items-center justify-center">
             <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span>
@@ -2064,7 +2162,44 @@ function ClientDrawer(props: {
                     <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7dd3fc' }}>
                       Card permanente · Cliente
                     </span>
-                    <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                    {editingName ? (
+                      <input
+                        autoFocus
+                        className="text-xl font-semibold mt-0.5 w-full rounded px-1.5 py-0.5 outline-none"
+                        style={{
+                          color: '#ffffff',
+                          backgroundColor: 'rgba(255,255,255,0.14)',
+                          border: '1px solid rgba(255,255,255,0.35)',
+                        }}
+                        value={nameDraft}
+                        maxLength={120}
+                        onChange={(e) => setNameDraft(e.target.value)}
+                        onBlur={() => setEditingName(false)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') { setEditingName(false); return; }
+                          if (e.key !== 'Enter') return;
+                          const novo = nameDraft.trim();
+                          setEditingName(false);
+                          if (!novo || novo === detail.name) return;
+                          void props.onUpdateClient({ name: novo });
+                        }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => { setNameDraft(detail.name); setEditingName(true); }}
+                        className="group flex items-center gap-1.5 max-w-full text-left"
+                        title="Clique para renomear o contato"
+                      >
+                        <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                        <span
+                          className="text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                          style={{ color: 'rgba(255,255,255,0.7)' }}
+                          aria-hidden
+                        >
+                          ✎
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
                 <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }} aria-label="Fechar">
@@ -2371,11 +2506,28 @@ function ClientDrawer(props: {
                   e.type === 'NOTE' ? (
                     <div
                       key={e.id}
-                      className="rounded-lg p-2.5 text-xs"
-                      style={{ backgroundColor: 'var(--bg-elevated)', borderLeft: '2px solid var(--accent)' }}
+                      className="group rounded-lg p-2.5 text-xs"
+                      style={{
+                        backgroundColor: e.pinnedAt ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                        borderLeft: '2px solid var(--accent)',
+                      }}
                     >
-                      <p className="whitespace-pre-wrap" style={{ color: 'var(--text-primary)' }}>{String(e.payload?.text ?? '')}</p>
+                      <div className="flex items-start gap-2">
+                        <p className="whitespace-pre-wrap flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
+                          {String(e.payload?.text ?? '')}
+                        </p>
+                        <button
+                          onClick={() => void props.onPinNote(e.id, !e.pinnedAt)}
+                          className={`shrink-0 transition-opacity ${e.pinnedAt ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                          style={{ color: e.pinnedAt ? 'var(--accent)' : 'var(--text-muted)' }}
+                          title={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
+                          aria-label={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
+                        >
+                          📌
+                        </button>
+                      </div>
                       <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {e.pinnedAt && <span style={{ color: 'var(--accent)' }}>Fixada · </span>}
                         {e.actor?.name ?? 'Nota'} · {fmtDate(e.createdAt)}
                       </p>
                     </div>
@@ -2406,9 +2558,18 @@ function ClientDrawer(props: {
 
           {/* Painel lateral da conversa (desktop) — como no Kommo */}
           {isDesktop && (
+            <>
+            {/* Divisória card ↔ conversa */}
             <div
-              className="w-[380px] shrink-0 flex flex-col min-h-0"
-              style={{ borderLeft: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}
+              onMouseDown={(e) => { e.preventDefault(); setDragging('wa'); }}
+              onDoubleClick={() => setWaWidth(380)}
+              className="w-1.5 shrink-0 cursor-col-resize transition-colors"
+              style={{ backgroundColor: dragging === 'wa' ? 'var(--accent)' : 'var(--border)' }}
+              title="Arraste para dar mais espaço à conversa · duplo clique volta ao padrão"
+            />
+            <div
+              className="shrink-0 flex flex-col min-h-0"
+              style={{ width: waWidth, backgroundColor: 'var(--bg-elevated)' }}
             >
               <WaConversation
                 clientId={detail.id}
@@ -2420,6 +2581,7 @@ function ClientDrawer(props: {
                 variant="panel"
               />
             </div>
+            </>
           )}
           </div>
         )}

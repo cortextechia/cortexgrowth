@@ -848,6 +848,11 @@ class ApiService {
     return response.data;
   }
 
+  async pinCrmNote(eventId: string, pinned: boolean): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/events/${eventId}/pin`, { pinned });
+    return response.data;
+  }
+
   async transferCrmResponsible(clientId: string, responsibleId: string | null): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${clientId}/responsible`, { responsibleId });
     return response.data;
