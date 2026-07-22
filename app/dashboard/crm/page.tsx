@@ -2892,11 +2892,82 @@ function WaAudioPlayer({ src }: { src: string }) {
 // Mídia sob demanda: o clique baixa o base64 da Evolution (via backend) e
 // renderiza imagem/áudio/vídeo inline; documento dispara download. O estado
 // sobrevive ao polling de 5s porque o React reconcilia por key={m.id}.
+// Imagem em tela cheia com download. O drawer é z-50, então o overlay precisa
+// vir acima; o Esc para aqui (stopPropagation) senão fecharia o card junto.
+function WaImageLightbox({ src, raw, fileName, onClose }: {
+  src: string;
+  raw: { base64: string; mimetype: string };
+  fileName?: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onClose();
+    };
+    // capture: chega antes do handler do drawer
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  const baixar = () => {
+    const blobUrl = URL.createObjectURL(base64ToBlob(raw.base64, raw.mimetype));
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    // Imagem do WhatsApp não traz fileName (só documento traz) — sem isso o
+    // arquivo salvo sairia como "documento.jpg"
+    a.download = downloadFileName(fileName ?? 'imagem-whatsapp', raw.mimetype);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex flex-col"
+      style={{ backgroundColor: 'rgba(0,0,0,0.9)' }}
+      onClick={onClose}
+    >
+      <div className="flex justify-end gap-2 p-3 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          onClick={baixar}
+          className="text-sm font-medium rounded-lg px-3 py-2"
+          style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
+        >
+          ⬇ Baixar
+        </button>
+        <button
+          onClick={onClose}
+          className="text-sm font-medium rounded-lg px-3 py-2"
+          style={{ backgroundColor: 'rgba(255,255,255,0.15)', color: '#ffffff' }}
+          aria-label="Fechar"
+        >
+          ✕
+        </button>
+      </div>
+      {/* Clicar na imagem não fecha — só no fundo, como no WhatsApp Web */}
+      <div className="flex-1 min-h-0 flex items-center justify-center p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Imagem em tamanho real"
+          className="max-w-full max-h-full object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+    </div>
+  );
+}
+
 function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage }) {
   const [src, setSrc] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const mediaType = msg.mediaType!;
+  // Guarda o base64 cru: o download usa Blob (data URI grande baixa corrompido
+  // no Chrome — mesmo motivo do documento) e a lupa reusa a mídia já baixada.
+  const [raw, setRaw] = useState<{ base64: string; mimetype: string } | null>(null);
+  const [zoom, setZoom] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2913,6 +2984,7 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
       } else {
         setSrc(`data:${res.data.mimetype};base64,${res.data.base64}`);
+        setRaw({ base64: res.data.base64, mimetype: res.data.mimetype });
       }
     } catch {
       setError(true);
@@ -2931,8 +3003,32 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   if (src) {
     if (mediaType === 'audio') return <WaAudioPlayer src={src} />;
     if (mediaType === 'video') return <video controls src={src} className="max-w-full rounded-md" style={{ maxHeight: 240 }} />;
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt="" className="max-w-full rounded-md" style={{ maxHeight: mediaType === 'sticker' ? 120 : 240 }} />;
+    // Figurinha não precisa de lupa; imagem sim — comprovante/orçamento chega
+    // por foto e no tamanho da bolha é ilegível.
+    if (mediaType === 'sticker') {
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={src} alt="" className="max-w-full rounded-md" style={{ maxHeight: 120 }} />;
+    }
+    return (
+      <>
+        <button
+          onClick={() => setZoom(true)}
+          className="block w-full cursor-zoom-in"
+          title="Clique para ampliar"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="Imagem recebida no WhatsApp" className="max-w-full rounded-md" style={{ maxHeight: 240 }} />
+        </button>
+        {zoom && raw && (
+          <WaImageLightbox
+            src={src}
+            raw={raw}
+            fileName={msg.fileName}
+            onClose={() => setZoom(false)}
+          />
+        )}
+      </>
+    );
   }
   if (autoLoad && !error) {
     return <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Carregando mídia...</p>;
