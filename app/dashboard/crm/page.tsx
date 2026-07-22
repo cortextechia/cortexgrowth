@@ -1358,6 +1358,12 @@ export default function CrmPage() {
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao fixar a nota.')); }
           }}
+          onEditNote={async (eventId, text) => {
+            try {
+              await apiService.editCrmNote(eventId, text);
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao editar a nota.')); }
+          }}
         />
       )}
 
@@ -2008,6 +2014,7 @@ function ClientDrawer(props: {
   onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
+  onEditNote: (eventId: string, text: string) => Promise<void>;
 }) {
   const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
@@ -2020,6 +2027,7 @@ function ClientDrawer(props: {
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
   // Nome do card: vem do pushName do WhatsApp (o que a pessoa pôs no perfil),
   // então precisa ser corrigível. Editado no banner, que tem cor fixa — o
   // InlineField usa vars de tema e sumiria no fundo escuro.
@@ -2512,23 +2520,44 @@ function ClientDrawer(props: {
                         borderLeft: '2px solid var(--accent)',
                       }}
                     >
-                      <div className="flex items-start gap-2">
-                        <p className="whitespace-pre-wrap flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
-                          {String(e.payload?.text ?? '')}
-                        </p>
-                        <button
-                          onClick={() => void props.onPinNote(e.id, !e.pinnedAt)}
-                          className={`shrink-0 transition-opacity ${e.pinnedAt ? '' : 'opacity-0 group-hover:opacity-100'}`}
-                          style={{ color: e.pinnedAt ? 'var(--accent)' : 'var(--text-muted)' }}
-                          title={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
-                          aria-label={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
-                        >
-                          📌
-                        </button>
-                      </div>
+                      {editingNote === e.id ? (
+                        <NoteEditor
+                          initial={String(e.payload?.text ?? '')}
+                          onCancel={() => setEditingNote(null)}
+                          onSave={async (texto) => {
+                            await props.onEditNote(e.id, texto);
+                            setEditingNote(null);
+                          }}
+                        />
+                      ) : (
+                        <div className="flex items-start gap-2">
+                          <p className="whitespace-pre-wrap flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>
+                            {String(e.payload?.text ?? '')}
+                          </p>
+                          <button
+                            onClick={() => setEditingNote(e.id)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{ color: 'var(--text-muted)' }}
+                            title="Editar nota"
+                            aria-label="Editar nota"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            onClick={() => void props.onPinNote(e.id, !e.pinnedAt)}
+                            className={`shrink-0 transition-opacity ${e.pinnedAt ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                            style={{ color: e.pinnedAt ? 'var(--accent)' : 'var(--text-muted)' }}
+                            title={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
+                            aria-label={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
+                          >
+                            📌
+                          </button>
+                        </div>
+                      )}
                       <p className="mt-1" style={{ color: 'var(--text-muted)' }}>
                         {e.pinnedAt && <span style={{ color: 'var(--accent)' }}>Fixada · </span>}
                         {e.actor?.name ?? 'Nota'} · {fmtDate(e.createdAt)}
+                        {e.payload?.editedAt ? ' · editada' : ''}
                       </p>
                     </div>
                   ) : (
@@ -2766,6 +2795,25 @@ function base64ToBlob(base64: string, mimetype: string): Blob {
   return new Blob([bytes], { type: mimetype });
 }
 
+/**
+ * Baixa um Blob com o nome escolhido.
+ * ⚠️ O <a> PRECISA estar no documento: fora dele o Firefox/Edge ignoram o
+ * atributo `download` e o arquivo é salvo com o UUID do blob, sem extensão
+ * (reportado pelo Benny em 22/07 ao baixar uma imagem). O export CSV já fazia
+ * certo; os downloads de mídia não — este helper unifica os três.
+ */
+function baixarBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 // Player de áudio estilo WhatsApp: play redondo + forma de onda real (o áudio
 // é decodificado e amostrado em 32 barras) + velocidade 1x/1.5x/2x.
 // O <audio controls> nativo destoa do design system.
@@ -2912,14 +2960,12 @@ function WaImageLightbox({ src, raw, fileName, onClose }: {
   }, [onClose]);
 
   const baixar = () => {
-    const blobUrl = URL.createObjectURL(base64ToBlob(raw.base64, raw.mimetype));
-    const a = document.createElement('a');
-    a.href = blobUrl;
     // Imagem do WhatsApp não traz fileName (só documento traz) — sem isso o
     // arquivo salvo sairia como "documento.jpg"
-    a.download = downloadFileName(fileName ?? 'imagem-whatsapp', raw.mimetype);
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+    baixarBlob(
+      base64ToBlob(raw.base64, raw.mimetype),
+      downloadFileName(fileName ?? 'imagem-whatsapp', raw.mimetype),
+    );
   };
 
   return (
@@ -2976,12 +3022,10 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
       const res = await apiService.getCrmWaMedia(clientId, msg.id);
       if (mediaType === 'document') {
         // Documento não tem preview — baixa via Blob (nome/extensão confiáveis)
-        const blobUrl = URL.createObjectURL(base64ToBlob(res.data.base64, res.data.mimetype));
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = downloadFileName(msg.fileName, res.data.mimetype);
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
+        baixarBlob(
+          base64ToBlob(res.data.base64, res.data.mimetype),
+          downloadFileName(msg.fileName, res.data.mimetype),
+        );
       } else {
         setSrc(`data:${res.data.mimetype};base64,${res.data.base64}`);
         setRaw({ base64: res.data.base64, mimetype: res.data.mimetype });
@@ -3474,6 +3518,59 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
           onSaved={() => { setShowRepliesEditor(false); setReplies(null); }}
         />
       )}
+    </div>
+  );
+}
+
+// Edição inline de nota da timeline. Ctrl+Enter salva, Esc cancela.
+function NoteEditor({ initial, onSave, onCancel }: {
+  initial: string;
+  onSave: (text: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [texto, setTexto] = useState(initial);
+  const [salvando, setSalvando] = useState(false);
+
+  const salvar = async () => {
+    const v = texto.trim();
+    if (!v || v === initial.trim()) { onCancel(); return; }
+    setSalvando(true);
+    try { await onSave(v); } finally { setSalvando(false); }
+  };
+
+  return (
+    <div>
+      <textarea
+        autoFocus
+        rows={3}
+        maxLength={2000}
+        aria-label="Editar texto da nota"
+        className="w-full rounded-md px-2 py-1.5 text-xs outline-none"
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent)', color: 'var(--text-primary)' }}
+        value={texto}
+        onChange={(ev) => setTexto(ev.target.value)}
+        onKeyDown={(ev) => {
+          if (ev.key === 'Escape') { ev.stopPropagation(); onCancel(); }
+          if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); void salvar(); }
+        }}
+      />
+      <div className="flex gap-1.5 mt-1">
+        <button
+          onClick={() => void salvar()}
+          disabled={salvando}
+          className="text-[10px] font-medium rounded px-2 py-1 text-white disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent)' }}
+        >
+          {salvando ? '...' : 'Salvar'}
+        </button>
+        <button
+          onClick={onCancel}
+          className="text-[10px] rounded px-2 py-1"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   );
 }
