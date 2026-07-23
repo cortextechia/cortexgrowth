@@ -77,6 +77,29 @@ function fmtMoney(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// Máscara de dinheiro ao digitar: reais com ponto de milhar ao vivo, vírgula
+// opcional para os centavos (máx 2 casas). Ex: "1980" → "1.980", "1980,5" → "1.980,5".
+function maskMoney(raw: string): string {
+  let s = raw.replace(/[^\d,]/g, '');
+  const firstComma = s.indexOf(',');
+  if (firstComma !== -1) {
+    // só a primeira vírgula conta — o resto é descartado
+    s = s.slice(0, firstComma + 1) + s.slice(firstComma + 1).replace(/,/g, '');
+  }
+  const hasComma = s.includes(',');
+  const [intRaw = '', decRaw = ''] = s.split(',');
+  const intDigits = intRaw.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  const intFmt = intDigits === '' ? '' : Number(intDigits).toLocaleString('pt-BR');
+  if (!hasComma) return intFmt;
+  return `${intFmt === '' ? '0' : intFmt},${decRaw.replace(/\D/g, '').slice(0, 2)}`;
+}
+
+// "1.980,50" → 1980.5 (desfaz a máscara para o número enviado ao backend)
+function parseMoney(masked: string): number {
+  const n = parseFloat(masked.replace(/\./g, '').replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
 function fmtPhone(p: string): string {
   // 5585999998888 → (85) 99999-8888
   const d = p.startsWith('55') ? p.slice(2) : p;
@@ -2199,8 +2222,8 @@ function ClientDrawer(props: {
   };
 
   const saveSaleValue = async (s: CrmSale) => {
-    const parsed = parseFloat(valueDraft.replace(',', '.'));
-    if (Number.isNaN(parsed) || parsed < 0) return;
+    const parsed = parseMoney(valueDraft);
+    if (parsed < 0) return;
     if (parsed === s.value) { setEditingValueSale(null); return; }
     setSavingValue(true);
     try {
@@ -2504,10 +2527,11 @@ function ClientDrawer(props: {
                           <input
                             className="w-24 rounded-md px-2 py-1 text-sm text-right"
                             style={input}
+                            inputMode="decimal"
                             placeholder="0,00"
                             value={valueDraft}
                             autoFocus
-                            onChange={(e) => setValueDraft(e.target.value)}
+                            onChange={(e) => setValueDraft(maskMoney(e.target.value))}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') void saveSaleValue(s);
                               if (e.key === 'Escape') setEditingValueSale(null);
@@ -2532,7 +2556,7 @@ function ClientDrawer(props: {
                           <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.value)}</span>
                           {s.status === 'OPEN' && (s.segments?.length ?? 0) === 0 && (
                             <button
-                              onClick={() => { setEditingValueSale(s.id); setValueDraft(s.value > 0 ? String(s.value).replace('.', ',') : ''); }}
+                              onClick={() => { setEditingValueSale(s.id); setValueDraft(s.value > 0 ? maskMoney(String(s.value).replace('.', ',')) : ''); }}
                               className="text-xs"
                               style={{ color: 'var(--text-muted)' }}
                               aria-label="Editar valor da venda"
@@ -4075,8 +4099,8 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
   const [segments, setSegments] = useState<{ name: string; value: string }[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const parsedValue = parseFloat(value.replace(',', '.')) || 0;
-  const segSum = segments.reduce((acc, s) => acc + (parseFloat(s.value.replace(',', '.')) || 0), 0);
+  const parsedValue = parseMoney(value);
+  const segSum = segments.reduce((acc, s) => acc + parseMoney(s.value), 0);
   const segMismatch = segments.length > 0 && Math.abs(segSum - parsedValue) > 0.01;
 
   const save = async () => {
@@ -4090,7 +4114,7 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
         ...(stageId ? { stageId } : {}),
         origin,
         ...(segments.length > 0
-          ? { segments: segments.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), value: parseFloat(s.value.replace(',', '.')) || 0 })) }
+          ? { segments: segments.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), value: parseMoney(s.value) })) }
           : {}),
       });
       onSaved();
@@ -4110,7 +4134,7 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs block mb-1" style={label}>Valor (R$) *</label>
-            <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} placeholder="0,00" value={value} onChange={(e) => setValue(e.target.value)} />
+            <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} />
           </div>
           <div>
             <label className="text-xs block mb-1" style={label}>Etapa</label>
@@ -4140,8 +4164,8 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
             <div key={i} className="flex gap-2 mb-1.5">
               <input className="flex-1 rounded-lg px-2.5 py-1.5 text-xs" style={input} placeholder="Ex: Laje" value={seg.name}
                 onChange={(e) => setSegments((p) => p.map((s, j) => j === i ? { ...s, name: e.target.value } : s))} />
-              <input className="w-24 rounded-lg px-2.5 py-1.5 text-xs" style={input} placeholder="0,00" value={seg.value}
-                onChange={(e) => setSegments((p) => p.map((s, j) => j === i ? { ...s, value: e.target.value } : s))} />
+              <input className="w-24 rounded-lg px-2.5 py-1.5 text-xs" style={input} inputMode="decimal" placeholder="0,00" value={seg.value}
+                onChange={(e) => setSegments((p) => p.map((s, j) => j === i ? { ...s, value: maskMoney(e.target.value) } : s))} />
               <button onClick={() => setSegments((p) => p.filter((_, j) => j !== i))} className="text-xs px-1" style={{ color: 'var(--text-muted)' }}>✕</button>
             </div>
           ))}
@@ -4170,8 +4194,8 @@ function WinModal({ sale, onClose, onConfirm }: {
   onClose: () => void;
   onConfirm: (value?: number) => void;
 }) {
-  const [value, setValue] = useState(sale.value > 0 ? String(sale.value).replace('.', ',') : '');
-  const parsed = parseFloat(value.replace(',', '.')) || 0;
+  const [value, setValue] = useState(sale.value > 0 ? maskMoney(String(sale.value).replace('.', ',')) : '');
+  const parsed = parseMoney(value);
 
   return (
     <ModalShell title="Marcar como ganha" onClose={onClose}>
@@ -4179,7 +4203,7 @@ function WinModal({ sale, onClose, onConfirm }: {
         Confirme o valor final da venda — ele entra no dashboard, na Meta do Mês e no LTV do cliente.
       </p>
       <label className="text-xs block mb-1" style={label}>Valor final (R$) *</label>
-      <input className="w-full rounded-lg px-3 py-2 text-sm mb-1" style={input} placeholder="0,00" value={value} onChange={(e) => setValue(e.target.value)} autoFocus />
+      <input className="w-full rounded-lg px-3 py-2 text-sm mb-1" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} autoFocus />
       {parsed <= 0 && <p className="text-[11px] mb-2" style={{ color: 'var(--badge-warn-text)' }}>Venda ganha precisa de valor maior que zero.</p>}
       <button
         onClick={() => onConfirm(parsed !== sale.value ? parsed : undefined)}
