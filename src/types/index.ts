@@ -667,6 +667,13 @@ export interface CrmLostReasonOption {
   order: number;
 }
 
+// Tipo de cliente configurável por org (ex: Pessoa Física, Engenheiro PJ)
+export interface CrmClientTypeOption {
+  id: string;
+  label: string;
+  order: number;
+}
+
 // Resposta rápida — template de mensagem da org ({nome} = primeiro nome do cliente)
 export interface CrmQuickReply {
   id: string;

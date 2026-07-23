@@ -843,6 +843,16 @@ class ApiService {
     return response.data;
   }
 
+  async getCrmClientTypes(): Promise<{ success: boolean; data: import('@/types').CrmClientTypeOption[] }> {
+    const response = await this.client.get('/crm/client-types');
+    return response.data;
+  }
+
+  async saveCrmClientTypes(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmClientTypeOption[] }> {
+    const response = await this.client.put('/crm/client-types', { options });
+    return response.data;
+  }
+
   async addCrmNote(clientId: string, text: string): Promise<{ success: boolean; message: string; data: import('@/types').CrmEvent }> {
     const response = await this.client.post(`/crm/clients/${clientId}/notes`, { text });
     return response.data;
@@ -870,6 +880,11 @@ class ApiService {
 
   async changeCrmSaleStage(saleId: string, stageId: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/sales/${saleId}/stage`, { stageId });
+    return response.data;
+  }
+
+  async updateCrmSale(saleId: string, data: { value?: number; title?: string }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
+    const response = await this.client.put(`/crm/sales/${saleId}`, data);
     return response.data;
   }
 

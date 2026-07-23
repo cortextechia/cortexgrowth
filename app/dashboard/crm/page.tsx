@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReasonOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, CrmClientTypeOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
   CrmTask, CrmTaskType, CrmReport,
 } from '@/types';
 
@@ -379,6 +379,8 @@ export default function CrmPage() {
   const [filterResponsible, setFilterResponsible] = useState('');
   const [filterTag, setFilterTag] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('');
+  const [filterClientType, setFilterClientType] = useState('');
+  const [filterSale, setFilterSale] = useState<'' | 'won' | 'lost'>('');
 
   // Drawer + modais
   const [detail, setDetail] = useState<CrmClientDetail | null>(null);
@@ -390,10 +392,13 @@ export default function CrmPage() {
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
+  const [showClientTypesEditor, setShowClientTypesEditor] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<CrmTask[]>([]);
+  // Tipos de cliente configuráveis da org — alimentam o seletor no card e o filtro
+  const [clientTypes, setClientTypes] = useState<CrmClientTypeOption[]>([]);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -451,6 +456,16 @@ export default function CrmPage() {
   }, []);
 
   useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Tipos de cliente da org: carrega quando o CRM está ativo e após editar a lista.
+  const loadClientTypes = useCallback(async () => {
+    try {
+      const res = await apiService.getCrmClientTypes();
+      if (res.success) setClientTypes(res.data);
+    } catch { /* seletor/filtro apenas degradam para vazio */ }
+  }, []);
+
+  useEffect(() => { if (status?.enabled) void loadClientTypes(); }, [status?.enabled, loadClientTypes]);
 
   // Deep-link: /dashboard/crm?client=<id> abre o drawer direto (link compartilhável)
   useEffect(() => {
@@ -850,9 +865,13 @@ export default function CrmPage() {
     (!filterResponsible || c.responsibleId === filterResponsible ||
       (filterResponsible === '_none' && !c.responsibleId)) &&
     (!filterTag || c.tags.includes(filterTag)) &&
-    (!filterOrigin || c.origin === filterOrigin)
+    (!filterOrigin || c.origin === filterOrigin) &&
+    (!filterClientType || c.clientType === filterClientType) &&
+    (!filterSale ||
+      (filterSale === 'won' && c.sales.some((s) => s.status === 'WON')) ||
+      (filterSale === 'lost' && c.sales.some((s) => s.status === 'LOST')))
   );
-  const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin;
+  const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin || !!filterClientType || !!filterSale;
   const unreadCount = clients.filter(hasUnread).length;
   const responsibleOptions = [...new Map(
     clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name])
@@ -915,6 +934,7 @@ export default function CrmPage() {
             items={[
               { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
               { label: 'Motivos de perda', onClick: () => setShowLostReasonsEditor(true) },
+              { label: 'Tipos de cliente', onClick: () => setShowClientTypesEditor(true) },
               { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
               { label: 'Exportar clientes (CSV)', onClick: () => void handleExport() },
             ]}
@@ -981,9 +1001,29 @@ export default function CrmPage() {
           onChange={setFilterOrigin}
           options={[{ value: '', label: 'todas' }, ...ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]}
         />
+        {clientTypes.length > 0 && (
+          <Dropdown
+            variant="pill"
+            label="Tipo de cliente"
+            value={filterClientType}
+            onChange={setFilterClientType}
+            options={[{ value: '', label: 'todos' }, ...clientTypes.map((t) => ({ value: t.label, label: t.label }))]}
+          />
+        )}
+        <Dropdown
+          variant="pill"
+          label="Venda"
+          value={filterSale}
+          onChange={(v) => setFilterSale(v as '' | 'won' | 'lost')}
+          options={[
+            { value: '', label: 'todas' },
+            { value: 'won', label: 'Ganha' },
+            { value: 'lost', label: 'Perdida' },
+          ]}
+        />
         {hasActiveFilter && (
           <button
-            onClick={() => { setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); }}
+            onClick={() => { setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); setFilterClientType(''); setFilterSale(''); }}
             className="text-xs px-2 py-1.5"
             style={{ color: 'var(--text-muted)' }}
           >
@@ -1304,6 +1344,7 @@ export default function CrmPage() {
           detail={detail}
           loading={detailLoading}
           stages={status.stages}
+          clientTypes={clientTypes}
           isAdmin={isAdmin}
           currentUserId={user?.id ?? null}
           liveSignal={waSignal}
@@ -1337,6 +1378,13 @@ export default function CrmPage() {
               showToast('success', 'Venda removida.');
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao remover venda.')); }
+          }}
+          onUpdateSaleValue={async (saleId, value) => {
+            try {
+              await apiService.updateCrmSale(saleId, { value });
+              showToast('success', 'Valor atualizado.');
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao atualizar o valor.')); }
           }}
           onUpdateClient={async (data) => {
             if (!detail) return;
@@ -1441,6 +1489,18 @@ export default function CrmPage() {
           onSaved={(msg) => {
             setShowLostReasonsEditor(false);
             showToast('success', msg);
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {showClientTypesEditor && (
+        <ClientTypesEditorModal
+          onClose={() => setShowClientTypesEditor(false)}
+          onSaved={async (msg) => {
+            setShowClientTypesEditor(false);
+            showToast('success', msg);
+            await loadClientTypes();
           }}
           onError={(msg) => showToast('error', msg)}
         />
@@ -1995,6 +2055,7 @@ function ClientDrawer(props: {
   detail: CrmClientDetail | null;
   loading: boolean;
   stages: CrmStage[];
+  clientTypes: CrmClientTypeOption[];
   isAdmin: boolean;
   currentUserId: string | null;
   liveSignal: { clientId: string; seq: number } | null;
@@ -2011,6 +2072,7 @@ function ClientDrawer(props: {
   onChangeStage: (saleId: string, stageId: string) => void;
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
+  onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
   onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
@@ -2023,6 +2085,11 @@ function ClientDrawer(props: {
     props.liveSignal && detail && props.liveSignal.clientId === detail.id ? props.liveSignal.seq : 0;
   const [showEvents, setShowEvents] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // Editar o valor de uma venda aberta sem recriar o card: contato novo entra na
+  // triagem com valor 0 e, ao cair numa etapa de orçamento, precisa informar o valor.
+  const [editingValueSale, setEditingValueSale] = useState<string | null>(null);
+  const [valueDraft, setValueDraft] = useState('');
+  const [savingValue, setSavingValue] = useState(false);
   const [addingTag, setAddingTag] = useState(false);
   const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
@@ -2129,6 +2196,19 @@ function ClientDrawer(props: {
     if (s.status === 'WON') return { label: 'Ganha', color: 'var(--badge-success-text)', bg: 'var(--badge-success-bg)' };
     if (s.status === 'LOST') return { label: 'Perdida', color: 'var(--badge-error-text)', bg: 'var(--badge-error-bg)' };
     return { label: s.stage?.name ?? 'Sem etapa', color: 'var(--accent)', bg: 'var(--accent-dim)' };
+  };
+
+  const saveSaleValue = async (s: CrmSale) => {
+    const parsed = parseFloat(valueDraft.replace(',', '.'));
+    if (Number.isNaN(parsed) || parsed < 0) return;
+    if (parsed === s.value) { setEditingValueSale(null); return; }
+    setSavingValue(true);
+    try {
+      await props.onUpdateSaleValue(s.id, parsed);
+      setEditingValueSale(null);
+    } finally {
+      setSavingValue(false);
+    }
   };
 
   return (
@@ -2321,11 +2401,18 @@ function ClientDrawer(props: {
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Tipo de cliente</span>
-                <InlineField
-                  value={detail.clientType}
-                  placeholder="ex: Engenheiro"
-                  maxLength={60}
-                  onSave={(v) => void props.onUpdateClient({ clientType: v })}
+                <Dropdown
+                  className="w-fit min-w-[160px]"
+                  value={detail.clientType ?? ''}
+                  onChange={(v) => void props.onUpdateClient({ clientType: v || null })}
+                  options={[
+                    { value: '', label: '—' },
+                    ...props.clientTypes.map((t) => ({ value: t.label, label: t.label })),
+                    // valor antigo (texto livre) que não está mais na lista: mantém visível
+                    ...(detail.clientType && !props.clientTypes.some((t) => t.label === detail.clientType)
+                      ? [{ value: detail.clientType, label: `${detail.clientType} (fora da lista)` }]
+                      : []),
+                  ]}
                 />
               </div>
 
@@ -2412,7 +2499,48 @@ function ClientDrawer(props: {
                         {s.title ?? `Venda #${s.seq}`} · {fmtDate(s.createdAt)}
                         {s.closedAt ? ` → ${fmtDate(s.closedAt)}` : ''}
                       </span>
-                      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.value)}</span>
+                      {editingValueSale === s.id ? (
+                        <span className="flex items-center gap-1">
+                          <input
+                            className="w-24 rounded-md px-2 py-1 text-sm text-right"
+                            style={input}
+                            placeholder="0,00"
+                            value={valueDraft}
+                            autoFocus
+                            onChange={(e) => setValueDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void saveSaleValue(s);
+                              if (e.key === 'Escape') setEditingValueSale(null);
+                            }}
+                          />
+                          <button
+                            disabled={savingValue}
+                            onClick={() => void saveSaleValue(s)}
+                            className="text-xs px-1.5 py-1 rounded-md font-bold"
+                            style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                            aria-label="Salvar valor"
+                          >✓</button>
+                          <button
+                            onClick={() => setEditingValueSale(null)}
+                            className="text-xs px-1.5 py-1"
+                            style={{ color: 'var(--text-muted)' }}
+                            aria-label="Cancelar edição do valor"
+                          >✕</button>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.value)}</span>
+                          {s.status === 'OPEN' && (s.segments?.length ?? 0) === 0 && (
+                            <button
+                              onClick={() => { setEditingValueSale(s.id); setValueDraft(s.value > 0 ? String(s.value).replace('.', ',') : ''); }}
+                              className="text-xs"
+                              style={{ color: 'var(--text-muted)' }}
+                              aria-label="Editar valor da venda"
+                              title="Editar valor"
+                            >✏️</button>
+                          )}
+                        </span>
+                      )}
                     </div>
 
                     {(s.segments?.length ?? 0) > 0 && (
@@ -4191,6 +4319,89 @@ function LostReasonsEditorModal({ onClose, onSaved, onError }: {
             style={{ backgroundColor: 'var(--accent)' }}
           >
             {saving ? 'Salvando...' : 'Salvar motivos'}
+          </button>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+function ClientTypesEditorModal({ onClose, onSaved, onError }: {
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getCrmClientTypes()
+      .then((res) => setDraft(res.data.map((o) => ({ id: o.id, label: o.label }))))
+      .catch(() => onError('Erro ao carregar os tipos de cliente.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    const valid = draft.filter((s) => s.label.trim());
+    if (valid.length === 0) { onError('Informe ao menos 1 tipo de cliente.'); return; }
+    setSaving(true);
+    try {
+      const res = await apiService.saveCrmClientTypes(valid);
+      onSaved(res.message);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar os tipos.'));
+      setSaving(false);
+    }
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const n = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[i], n[j]] = [n[j]!, n[i]!];
+      return n;
+    });
+  };
+
+  return (
+    <ModalShell title="Tipos de cliente" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Opções oferecidas no card e no filtro, na ordem. Remover um tipo não altera
+        os cards antigos — eles guardam o texto da época.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {draft.map((s, i) => (
+              <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+                <input
+                  className="flex-1 rounded-lg px-3 py-2 text-sm"
+                  style={input}
+                  value={s.label}
+                  maxLength={60}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                />
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Subir">↑</button>
+                <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Descer">↓</button>
+                <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { label: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar tipo
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar tipos'}
           </button>
         </>
       )}
