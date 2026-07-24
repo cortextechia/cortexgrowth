@@ -102,6 +102,12 @@ function parseMoney(masked: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// Card RESOLVIDO = tem venda(s) e todas estão fechadas (ganha/perdida). Sai do
+// funil ativo (kanban) e no drawer mostra o desfecho em vez da etapa.
+function salesResolved(sales: { status: string }[]): boolean {
+  return sales.length > 0 && !sales.some((s) => s.status === 'OPEN');
+}
+
 function fmtPhone(p: string): string {
   // 5585999998888 → (85) 99999-8888
   const d = p.startsWith('55') ? p.slice(2) : p;
@@ -925,9 +931,13 @@ export default function CrmPage() {
 
   // Kanban client-based: o card é o LEAD, agrupado por client.stageId. A venda
   // (dinheiro) é opcional — o valor do card é a soma das vendas abertas.
+  // Card sai do funil quando RESOLVIDO: tem venda(s) e todas estão fechadas
+  // (ganha/perdida) → vai pra tabela/LTV. Fica quem tem venda aberta ou ainda
+  // não tem venda (lead em trabalho). Uma venda nova reabre o card no funil.
+  const isResolved = (c: CrmClientSummary) => salesResolved(c.sales);
   const clientsByStage = new Map<string, CrmClientSummary[]>();
   for (const c of filtered) {
-    if (c.triageStatus !== 'ACCEPTED') continue;
+    if (c.triageStatus !== 'ACCEPTED' || isResolved(c)) continue;
     const key = c.stageId ?? '_none';
     if (!clientsByStage.has(key)) clientsByStage.set(key, []);
     clientsByStage.get(key)!.push(c);
@@ -2418,23 +2428,32 @@ function ClientDrawer(props: {
                 )}
               </div>
 
-              {/* Funil — posição do CARD (o card é o lead; anda sem precisar de venda) */}
+              {/* Funil — posição do CARD, ou o desfecho quando resolvido (ganho/perdido) */}
               {(() => {
+                const resolved = salesResolved(detail.sales);
+                const lastClosed = resolved
+                  ? [...detail.sales].sort((a, b) => (b.closedAt ?? '').localeCompare(a.closedAt ?? ''))[0]
+                  : null;
+                const outcome = lastClosed?.status ?? null; // 'WON' | 'LOST'
                 const activeIdx = stages.findIndex((st) => st.id === detail.stageId);
-                const stageName = stages.find((st) => st.id === detail.stageId)?.name ?? 'Sem etapa';
+                const stageName = outcome === 'WON' ? 'Venda ganha'
+                  : outcome === 'LOST' ? 'Venda perdida'
+                  : (stages.find((st) => st.id === detail.stageId)?.name ?? 'Sem etapa');
+                const nameColor = outcome === 'WON' ? '#4ade80'
+                  : outcome === 'LOST' ? '#f87171'
+                  : activeIdx >= 0 ? '#ffffff' : 'rgba(255,255,255,0.6)';
                 return (
                   <div className="mt-3">
                     <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Funil de Vendas</p>
-                    <p className="text-sm font-semibold mt-0.5" style={{ color: activeIdx >= 0 ? '#ffffff' : 'rgba(255,255,255,0.6)' }}>{stageName}</p>
+                    <p className="text-sm font-semibold mt-0.5" style={{ color: nameColor }}>{stageName}</p>
                     <div className="flex gap-1 mt-1.5">
-                      {stages.map((st, i) => (
-                        <span
-                          key={st.id}
-                          title={st.name}
-                          className="h-1.5 flex-1 rounded-full"
-                          style={{ backgroundColor: activeIdx >= 0 && i <= activeIdx ? '#60a5fa' : 'rgba(255,255,255,0.22)' }}
-                        />
-                      ))}
+                      {stages.map((st, i) => {
+                        const filled = outcome === 'WON' ? '#4ade80'
+                          : outcome === 'LOST' ? '#f87171'
+                          : activeIdx >= 0 && i <= activeIdx ? '#60a5fa'
+                          : 'rgba(255,255,255,0.22)';
+                        return <span key={st.id} title={st.name} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: filled }} />;
+                      })}
                     </div>
                   </div>
                 );
@@ -2465,7 +2484,7 @@ function ClientDrawer(props: {
                 )}
               </div>
 
-              {detail.triageStatus === 'ACCEPTED' && (
+              {detail.triageStatus === 'ACCEPTED' && !salesResolved(detail.sales) && (
                 <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                   <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Etapa</span>
                   <Dropdown
