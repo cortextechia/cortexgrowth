@@ -102,12 +102,6 @@ function parseMoney(masked: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-// Card RESOLVIDO = tem venda(s) e todas estão fechadas (ganha/perdida). Sai do
-// funil ativo (kanban) e no drawer mostra o desfecho em vez da etapa.
-function salesResolved(sales: { status: string }[]): boolean {
-  return sales.length > 0 && !sales.some((s) => s.status === 'OPEN');
-}
-
 function fmtPhone(p: string): string {
   // 5585999998888 → (85) 99999-8888
   const d = p.startsWith('55') ? p.slice(2) : p;
@@ -417,7 +411,8 @@ export default function CrmPage() {
   const [detail, setDetail] = useState<CrmClientDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [showNewClient, setShowNewClient] = useState(false);
-  const [saleModalClient, setSaleModalClient] = useState<CrmClientDetail | null>(null);
+  // Aceita detail (drawer) ou summary (coluna Recorrente) — o modal só usa esses campos
+  const [saleModalClient, setSaleModalClient] = useState<Pick<CrmClientSummary, 'id' | 'name' | 'origin' | 'stageId'> | null>(null);
   // id+value bastam para os modais de desfecho — permite abrir tanto do drawer quanto do kanban
   const [winSaleTarget, setWinSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
@@ -762,8 +757,8 @@ export default function CrmPage() {
     }
   };
 
-  // Triagem: aceitar põe o contato no funil (venda sem valor na 1ª etapa),
-  // rejeitar arquiva. Otimista nos dois casos — o card sai da coluna na hora.
+  // Triagem: aceitar põe o contato no funil (sem venda, na 1ª etapa), rejeitar
+  // arquiva. Otimista nos dois casos — o card sai da coluna na hora.
   const [triaging, setTriaging] = useState<Set<string>>(new Set());
 
   const handleTriage = async (clientId: string, action: 'accept' | 'reject') => {
@@ -775,6 +770,23 @@ export default function CrmPage() {
       await loadAll(searchRef.current.trim() || undefined, { force: true });
     } catch (err) {
       showToast('error', apiErrorMsg(err, 'Erro ao processar o contato.'));
+    } finally {
+      setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
+    }
+  };
+
+  // Recorrente: "Aceitar" devolve o card fechado pro funil no Novo Lead, SEM
+  // exigir venda/valor (igual aceitar um contato novo). A recompra vem depois.
+  const handleReopen = async (clientId: string) => {
+    const first = status?.stages[0];
+    if (!first) return;
+    setTriaging((prev) => new Set(prev).add(clientId));
+    try {
+      await apiService.moveCrmClientStage(clientId, first.id);
+      showToast('success', 'Card de volta no funil (Novo Lead).');
+      await loadAll(searchRef.current.trim() || undefined, { force: true });
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao reabrir o card.'));
     } finally {
       setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
     }
@@ -929,18 +941,31 @@ export default function CrmPage() {
   // no funil. Rejeitado sai do board (o card e a conversa continuam existindo).
   const pendingClients = filtered.filter((c) => c.triageStatus === 'PENDING');
 
+  // "Recorrente": cliente já RESOLVIDO (comprou/fechou) que voltou a falar no
+  // WhatsApp DEPOIS do fechamento (mensagem não lida após a última venda fechada).
+  // Coluna temporária, como "Novos contatos" — some ao reabrir (recompra) ou ao ler.
+  const lastClosedAt = (c: CrmClientSummary): string | null =>
+    c.sales.filter((s) => s.status !== 'OPEN' && s.closedAt).map((s) => s.closedAt as string).sort().at(-1) ?? null;
+  const returningClients = filtered.filter((c) => {
+    // Só quem JÁ COMPROU (tem venda ganha → ltv > 0), está FORA do funil (fechou,
+    // stageId null) e voltou a falar após o fechamento (não lida depois da última venda).
+    if (c.triageStatus !== 'ACCEPTED' || c.stageId || c.ltv <= 0 || !hasUnread(c)) return false;
+    const closed = lastClosedAt(c);
+    return !!(closed && c.lastInboundAt && c.lastInboundAt > closed);
+  });
+
   // Kanban client-based: o card é o LEAD, agrupado por client.stageId. A venda
   // (dinheiro) é opcional — o valor do card é a soma das vendas abertas.
   // Card sai do funil quando RESOLVIDO: tem venda(s) e todas estão fechadas
   // (ganha/perdida) → vai pra tabela/LTV. Fica quem tem venda aberta ou ainda
   // não tem venda (lead em trabalho). Uma venda nova reabre o card no funil.
-  const isResolved = (c: CrmClientSummary) => salesResolved(c.sales);
+  // No funil ATIVO = aceito e com etapa (stageId). Ganhar/perder limpa a etapa
+  // (stageId null) → o card sai do funil. Reabre via Aceitar ou nova venda.
   const clientsByStage = new Map<string, CrmClientSummary[]>();
   for (const c of filtered) {
-    if (c.triageStatus !== 'ACCEPTED' || isResolved(c)) continue;
-    const key = c.stageId ?? '_none';
-    if (!clientsByStage.has(key)) clientsByStage.set(key, []);
-    clientsByStage.get(key)!.push(c);
+    if (c.triageStatus !== 'ACCEPTED' || !c.stageId) continue;
+    if (!clientsByStage.has(c.stageId)) clientsByStage.set(c.stageId, []);
+    clientsByStage.get(c.stageId)!.push(c);
   }
   const noStage = clientsByStage.get('_none') ?? [];
 
@@ -1162,6 +1187,60 @@ export default function CrmPage() {
                       Rejeitar
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recorrente — quem já comprou e voltou a falar. Temporária como "Novos
+            contatos": some ao Reabrir venda (recompra) ou ao abrir/ler a conversa. */}
+        {returningClients.length > 0 && (
+          <div
+            className="w-64 shrink-0 rounded-xl p-3"
+            style={{ ...card, border: '1px dashed var(--badge-warn-text)' }}
+          >
+            <div className="flex items-baseline justify-between mb-1">
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                Recorrente
+              </span>
+              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{returningClients.length}</span>
+            </div>
+            <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+              Já comprou e voltou a falar
+            </div>
+            <div className="space-y-2">
+              {returningClients.map((client) => (
+                <div
+                  key={client.id}
+                  className="rounded-lg p-2.5"
+                  style={{ backgroundColor: 'var(--bg-elevated)' }}
+                >
+                  <button
+                    onClick={() => openClient(client.id)}
+                    className="w-full text-left"
+                    title="Abrir a conversa"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
+                      <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                        <span className="truncate">{client.name}</span>
+                        {hasUnread(client) && <UnreadDot />}
+                      </div>
+                    </div>
+                    <div className="text-xs mb-2 flex items-center justify-between gap-2" style={{ color: 'var(--text-muted)' }}>
+                      <span className="truncate">{fmtPhone(client.phone)}</span>
+                      <span className="whitespace-nowrap" title="Total já comprado (LTV)">{fmtMoney(client.ltv)}</span>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => void handleReopen(client.id)}
+                    disabled={triaging.has(client.id)}
+                    className="w-full rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                  >
+                    Aceitar no funil
+                  </button>
                 </div>
               ))}
             </div>
@@ -1500,6 +1579,7 @@ export default function CrmPage() {
             setSaleModalClient(null);
             showToast('success', 'Venda registrada.');
             await refreshDetail();
+            await loadAll(searchRef.current.trim() || undefined, { force: true });
           }}
           onError={(msg) => showToast('error', msg)}
         />
@@ -2430,7 +2510,7 @@ function ClientDrawer(props: {
 
               {/* Funil — posição do CARD, ou o desfecho quando resolvido (ganho/perdido) */}
               {(() => {
-                const resolved = salesResolved(detail.sales);
+                const resolved = !detail.stageId; // fora do funil (ganho/perdido)
                 const lastClosed = resolved
                   ? [...detail.sales].sort((a, b) => (b.closedAt ?? '').localeCompare(a.closedAt ?? ''))[0]
                   : null;
@@ -2484,7 +2564,7 @@ function ClientDrawer(props: {
                 )}
               </div>
 
-              {detail.triageStatus === 'ACCEPTED' && !salesResolved(detail.sales) && (
+              {detail.triageStatus === 'ACCEPTED' && detail.stageId && (
                 <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                   <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Etapa</span>
                   <Dropdown
@@ -4161,7 +4241,7 @@ function NewClientModal({ onClose, onSaved }: {
 }
 
 function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
-  client: CrmClientDetail;
+  client: Pick<CrmClientSummary, 'id' | 'name' | 'origin' | 'stageId'>;
   stages: CrmStage[];
   onClose: () => void;
   onSaved: () => void;
