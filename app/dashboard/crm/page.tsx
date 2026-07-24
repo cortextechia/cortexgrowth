@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReasonOption, CrmClientTypeOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
   CrmTask, CrmTaskType, CrmReport,
 } from '@/types';
 
@@ -52,6 +52,8 @@ const EVENT_LABELS: Record<string, string> = {
   SALE_CREATED: 'Venda aberta',
   SALE_UPDATED: 'Venda editada',
   STAGE_CHANGED: 'Mudou de etapa',
+  TRIAGE_ACCEPTED: 'Contato aceito no funil',
+  TRIAGE_REJECTED: 'Contato arquivado',
   RESPONSIBLE_CHANGED: 'Troca de responsável',
   SALE_WON: 'Venda ganha',
   SALE_LOST: 'Venda perdida',
@@ -416,12 +418,14 @@ export default function CrmPage() {
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
   const [showClientTypesEditor, setShowClientTypesEditor] = useState(false);
+  const [showTagsEditor, setShowTagsEditor] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [orgUsers, setOrgUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<CrmTask[]>([]);
-  // Tipos de cliente configuráveis da org — alimentam o seletor no card e o filtro
+  // Listas configuráveis da org — alimentam os seletores no card e os filtros
   const [clientTypes, setClientTypes] = useState<CrmClientTypeOption[]>([]);
+  const [crmTags, setCrmTags] = useState<CrmTagOption[]>([]);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -480,7 +484,8 @@ export default function CrmPage() {
 
   useEffect(() => { loadAll(); }, [loadAll]);
 
-  // Tipos de cliente da org: carrega quando o CRM está ativo e após editar a lista.
+  // Listas configuráveis da org (tipos de cliente + tags): carrega quando o CRM
+  // está ativo e após editar cada lista.
   const loadClientTypes = useCallback(async () => {
     try {
       const res = await apiService.getCrmClientTypes();
@@ -488,7 +493,18 @@ export default function CrmPage() {
     } catch { /* seletor/filtro apenas degradam para vazio */ }
   }, []);
 
-  useEffect(() => { if (status?.enabled) void loadClientTypes(); }, [status?.enabled, loadClientTypes]);
+  const loadTags = useCallback(async () => {
+    try {
+      const res = await apiService.getCrmTags();
+      if (res.success) setCrmTags(res.data);
+    } catch { /* seletor/filtro apenas degradam para vazio */ }
+  }, []);
+
+  useEffect(() => {
+    if (!status?.enabled) return;
+    void loadClientTypes();
+    void loadTags();
+  }, [status?.enabled, loadClientTypes, loadTags]);
 
   // Deep-link: /dashboard/crm?client=<id> abre o drawer direto (link compartilhável)
   useEffect(() => {
@@ -690,47 +706,49 @@ export default function CrmPage() {
 
   // ─── Drag and drop no kanban ──────────────────────────────────────────
 
-  const [draggingSaleId, setDraggingSaleId] = useState<string | null>(null);
+  const [draggingClientId, setDraggingClientId] = useState<string | null>(null);
   const [dropStageId, setDropStageId] = useState<string | null>(null);
   const [dropOutcome, setDropOutcome] = useState<'win' | 'lose' | null>(null);
   const justDraggedRef = useRef(false); // evita o click de abrir o drawer logo após soltar
 
-  // Soltar o card em Ganhar/Perder abre o modal de desfecho correspondente
-  const handleOutcomeDrop = (kind: 'win' | 'lose', payload: string) => {
-    const saleId = payload.split('|')[0];
-    setDraggingSaleId(null);
+  // Soltar o card em Ganhar/Perder age na venda aberta do cliente. Sem venda
+  // aberta, avisa pra criar uma antes (não reintroduz a venda-zerada).
+  const handleOutcomeDrop = (kind: 'win' | 'lose', clientId: string) => {
+    setDraggingClientId(null);
     setDropStageId(null);
     setDropOutcome(null);
-    const sale = clients.flatMap((c) => c.sales).find((s) => s.id === saleId);
-    if (!sale) return;
-    if (kind === 'win') setWinSaleTarget({ id: sale.id, value: sale.value });
-    else setLoseSaleTarget({ id: sale.id, value: sale.value });
+    const client = clients.find((c) => c.id === clientId);
+    const openSale = client?.sales.find((s) => s.status === 'OPEN');
+    if (!openSale) {
+      showToast('error', 'Crie uma venda no card antes de marcar como ganha/perdida.');
+      void openClient(clientId);
+      return;
+    }
+    if (kind === 'win') setWinSaleTarget({ id: openSale.id, value: openSale.value });
+    else setLoseSaleTarget({ id: openSale.id, value: openSale.value });
   };
 
-  const handleDropOnStage = async (stageId: string, saleId: string, fromStageId: string | null) => {
-    setDraggingSaleId(null);
+  const handleDropOnClientStage = async (stageId: string, clientId: string, fromStageId: string | null) => {
+    setDraggingClientId(null);
     setDropStageId(null);
-    if (!saleId || stageId === fromStageId) return;
+    if (!clientId || stageId === fromStageId) return;
 
-    // Trava de valor: barra aqui para o card não "pular e voltar" na tela.
-    // O backend valida de novo — este check é só o aviso imediato.
+    // Trava: entrar numa etapa com marco exige venda aberta com valor > 0.
+    // Barra aqui para o card não "pular e voltar"; o backend valida de novo.
     const target = status?.stages.find((st) => st.id === stageId);
-    const dragged = clients.flatMap((c) => c.sales).find((s) => s.id === saleId);
-    if (target && dragged && dragged.value <= 0 && stageLocksValue(target)) {
-      showToast('error', `"${target.name}" exige o valor da venda. Abra o card e informe o valor primeiro.`);
+    const client = clients.find((c) => c.id === clientId);
+    if (target && client && stageLocksValue(target) && !hasValuedOpenSale(client)) {
+      showToast('error', `"${target.name}" exige uma venda aberta com valor. Abra o card e crie a venda primeiro.`);
       return;
     }
 
-    // Otimista: move na UI antes da API responder
-    setClients((prev) => prev.map((c) => ({
-      ...c,
-      sales: c.sales.map((s) => (s.id === saleId ? { ...s, stageId } : s)),
-    })));
+    // Otimista: move o card na UI antes da API responder
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, stageId } : c)));
     movingRef.current++;
     try {
-      await apiService.changeCrmSaleStage(saleId, stageId);
+      await apiService.moveCrmClientStage(clientId, stageId);
     } catch (err) {
-      showToast('error', apiErrorMsg(err, 'Erro ao mover a venda.'));
+      showToast('error', apiErrorMsg(err, 'Erro ao mover o card.'));
     } finally {
       movingRef.current--;
       // Reconcilia só quando o último movimento em voo terminar (drags rápidos em sequência)
@@ -899,23 +917,29 @@ export default function CrmPage() {
   const responsibleOptions = [...new Map(
     clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name])
   ).entries()];
-  const tagOptions = [...new Set(clients.flatMap((c) => c.tags))].sort((a, b) => a.localeCompare(b));
+  const tagOptions = crmTags.map((t) => t.label);
 
   // Triagem: contato novo do WhatsApp espera Aceitar/Rejeitar antes de entrar
   // no funil. Rejeitado sai do board (o card e a conversa continuam existindo).
   const pendingClients = filtered.filter((c) => c.triageStatus === 'PENDING');
 
-  const openSalesByStage = new Map<string, { sale: CrmClientSummary['sales'][number]; client: CrmClientSummary }[]>();
+  // Kanban client-based: o card é o LEAD, agrupado por client.stageId. A venda
+  // (dinheiro) é opcional — o valor do card é a soma das vendas abertas.
+  const clientsByStage = new Map<string, CrmClientSummary[]>();
   for (const c of filtered) {
     if (c.triageStatus !== 'ACCEPTED') continue;
-    for (const s of c.sales) {
-      if (s.status !== 'OPEN') continue;
-      const key = s.stageId ?? '_none';
-      if (!openSalesByStage.has(key)) openSalesByStage.set(key, []);
-      openSalesByStage.get(key)!.push({ sale: s, client: c });
-    }
+    const key = c.stageId ?? '_none';
+    if (!clientsByStage.has(key)) clientsByStage.set(key, []);
+    clientsByStage.get(key)!.push(c);
   }
-  const noStage = openSalesByStage.get('_none') ?? [];
+  const noStage = clientsByStage.get('_none') ?? [];
+
+  const openValue = (c: CrmClientSummary) =>
+    c.sales.reduce((acc, s) => acc + (s.status === 'OPEN' ? s.value : 0), 0);
+  const hasValuedOpenSale = (c: CrmClientSummary) =>
+    c.sales.some((s) => s.status === 'OPEN' && s.value > 0);
+  const oldestOpenSaleAt = (c: CrmClientSummary): string | null =>
+    c.sales.filter((s) => s.status === 'OPEN').map((s) => s.createdAt).sort()[0] ?? null;
 
   // Marco "daqui pra frente exige valor" — o menor order marcado no funil.
   // Espelha stageValueThreshold() do backend; aqui é só para avisar antes.
@@ -958,6 +982,7 @@ export default function CrmPage() {
               { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
               { label: 'Motivos de perda', onClick: () => setShowLostReasonsEditor(true) },
               { label: 'Tipos de cliente', onClick: () => setShowClientTypesEditor(true) },
+              { label: 'Tags', onClick: () => setShowTagsEditor(true) },
               { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
               { label: 'Exportar clientes (CSV)', onClick: () => void handleExport() },
             ]}
@@ -1134,9 +1159,9 @@ export default function CrmPage() {
         )}
 
         {status.stages.map((stage) => {
-          const items = openSalesByStage.get(stage.id) ?? [];
-          const total = items.reduce((acc, i) => acc + i.sale.value, 0);
-          const isDropTarget = dropStageId === stage.id && draggingSaleId !== null;
+          const items = clientsByStage.get(stage.id) ?? [];
+          const total = items.reduce((acc, c) => acc + openValue(c), 0);
+          const isDropTarget = dropStageId === stage.id && draggingClientId !== null;
           return (
             <div
               key={stage.id}
@@ -1152,8 +1177,8 @@ export default function CrmPage() {
               onDrop={(e) => {
                 e.preventDefault();
                 const payload = e.dataTransfer.getData('text/plain');
-                const [saleId, fromStageId] = payload.split('|');
-                void handleDropOnStage(stage.id, saleId ?? '', fromStageId || null);
+                const [clientId, fromStageId] = payload.split('|');
+                void handleDropOnClientStage(stage.id, clientId ?? '', fromStageId || null);
               }}
             >
               <div className="flex items-baseline justify-between mb-1">
@@ -1163,7 +1188,7 @@ export default function CrmPage() {
                     <span
                       className="text-xs"
                       style={{ color: 'var(--text-muted)' }}
-                      title="Desta etapa em diante a venda precisa ter valor"
+                      title="Desta etapa em diante o card precisa de uma venda aberta com valor"
                     >
                       🔒
                     </span>
@@ -1173,17 +1198,21 @@ export default function CrmPage() {
               </div>
               <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{fmtMoney(total)}</div>
               <div className="space-y-2">
-                {items.map(({ sale, client }) => (
+                {items.map((client) => {
+                  const val = openValue(client);
+                  const refDate = oldestOpenSaleAt(client) ?? client.updatedAt;
+                  const days = daysSince(refDate);
+                  return (
                   <button
-                    key={sale.id}
+                    key={client.id}
                     draggable
                     onDragStart={(e) => {
-                      e.dataTransfer.setData('text/plain', `${sale.id}|${sale.stageId ?? ''}`);
+                      e.dataTransfer.setData('text/plain', `${client.id}|${client.stageId ?? ''}`);
                       e.dataTransfer.effectAllowed = 'move';
-                      setDraggingSaleId(sale.id);
+                      setDraggingClientId(client.id);
                     }}
                     onDragEnd={() => {
-                      setDraggingSaleId(null);
+                      setDraggingClientId(null);
                       setDropStageId(null);
                       justDraggedRef.current = true;
                       setTimeout(() => { justDraggedRef.current = false; }, 200);
@@ -1193,37 +1222,35 @@ export default function CrmPage() {
                     style={{
                       backgroundColor: 'var(--bg-elevated)',
                       border: '1px solid var(--border)',
-                      opacity: draggingSaleId === sale.id ? 0.4 : 1,
+                      opacity: draggingClientId === client.id ? 0.4 : 1,
                     }}
                   >
-                    {/* Linha 1: quem é. Linha 2: o valor, sozinho e legível.
-                        Linha 3: os chips, que podem quebrar sem empurrar nada.
-                        Antes as 3 coisas dividiam ~180px na mesma linha (com um
-                        pl-8 que só roubava espaço) e se sobrepunham. */}
+                    {/* Linha 1: quem é + dias parado. Linha 2: o valor em aberto,
+                        sozinho e legível (só quando há venda). Linha 3: os chips. */}
                     <div className="flex items-center gap-2">
                       <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px] shrink-0" />
                       <div className="text-sm font-medium truncate flex-1 min-w-0 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
                         {hasUnread(client) && <UnreadDot />}
                       </div>
-                      {daysSince(sale.createdAt) >= STALE_SALE_DAYS ? (
+                      {days >= STALE_SALE_DAYS ? (
                         <span
                           className="text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
                           style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}
-                          title={`Venda aberta há ${daysSince(sale.createdAt)} dias — atenção`}
+                          title={`Card parado há ${days} dias — atenção`}
                         >
-                          {daysSince(sale.createdAt)}d
+                          {days}d
                         </span>
                       ) : (
-                        <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }} title="Dias desde a abertura da venda">
-                          {daysSince(sale.createdAt)}d
+                        <span className="text-[10px] shrink-0" style={{ color: 'var(--text-muted)' }} title="Dias parado no funil">
+                          {days}d
                         </span>
                       )}
                     </div>
 
-                    {sale.value > 0 && (
+                    {val > 0 && (
                       <div className="mt-1.5 text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
-                        {fmtMoney(sale.value)}
+                        {fmtMoney(val)}
                       </div>
                     )}
 
@@ -1232,7 +1259,8 @@ export default function CrmPage() {
                       <FollowUpChip iso={client.nextFollowUpAt} />
                     </div>
                   </button>
-                ))}
+                  );
+                })}
                 {items.length === 0 && (
                   <div className="text-xs text-center py-4" style={{ color: 'var(--text-muted)' }}>
                     {isDropTarget ? 'Solte aqui' : '—'}
@@ -1245,7 +1273,7 @@ export default function CrmPage() {
       </div>
       {/* Setas de navegação — só quando há funil fora da tela; escondidas durante
           o arrasto de card (a borda já rola sozinha) */}
-      {!draggingSaleId && boardNav.left && (
+      {!draggingClientId && boardNav.left && (
         <button
           onClick={() => scrollBoard(-1)}
           aria-label="Rolar funil para a esquerda"
@@ -1255,7 +1283,7 @@ export default function CrmPage() {
           ‹
         </button>
       )}
-      {!draggingSaleId && boardNav.right && (
+      {!draggingClientId && boardNav.right && (
         <button
           onClick={() => scrollBoard(1)}
           aria-label="Rolar funil para a direita"
@@ -1268,12 +1296,12 @@ export default function CrmPage() {
       </div>
 
       {/* Zonas de desfecho — etapa é caminho, ganho/perda é destino. Só existem durante o arrasto. */}
-      {draggingSaleId && (
+      {draggingClientId && (
         <div className="flex gap-3 mt-3">
           <div
             onDragOver={(e) => { e.preventDefault(); if (dropOutcome !== 'win') setDropOutcome('win'); }}
             onDragLeave={() => dropOutcome === 'win' && setDropOutcome(null)}
-            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('win', e.dataTransfer.getData('text/plain')); }}
+            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('win', e.dataTransfer.getData('text/plain').split('|')[0] ?? ''); }}
             className="flex-1 rounded-xl py-4 text-center text-sm font-semibold transition-all"
             style={{
               border: `2px dashed var(--badge-success-text)`,
@@ -1287,7 +1315,7 @@ export default function CrmPage() {
           <div
             onDragOver={(e) => { e.preventDefault(); if (dropOutcome !== 'lose') setDropOutcome('lose'); }}
             onDragLeave={() => dropOutcome === 'lose' && setDropOutcome(null)}
-            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('lose', e.dataTransfer.getData('text/plain')); }}
+            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('lose', e.dataTransfer.getData('text/plain').split('|')[0] ?? ''); }}
             className="flex-1 rounded-xl py-4 text-center text-sm font-semibold transition-all"
             style={{
               border: `2px dashed var(--badge-error-text)`,
@@ -1303,7 +1331,7 @@ export default function CrmPage() {
 
       {noStage.length > 0 && (
         <p className="text-xs mt-1" style={{ color: 'var(--badge-warn-text)' }}>
-          {noStage.length} venda(s) sem etapa (a etapa original foi removida do funil) — abra o cliente para reposicionar.
+          {noStage.length} card(s) sem etapa (a etapa foi removida do funil) — abra o cliente para reposicionar.
         </p>
       )}
 
@@ -1368,6 +1396,7 @@ export default function CrmPage() {
           loading={detailLoading}
           stages={status.stages}
           clientTypes={clientTypes}
+          crmTags={crmTags}
           isAdmin={isAdmin}
           currentUserId={user?.id ?? null}
           liveSignal={waSignal}
@@ -1381,11 +1410,13 @@ export default function CrmPage() {
           onNewSale={() => detail && setSaleModalClient(detail)}
           onWin={(s) => setWinSaleTarget(s)}
           onLose={(s) => setLoseSaleTarget(s)}
-          onChangeStage={async (saleId, stageId) => {
+          onChangeClientStage={async (stageId) => {
+            if (!detail) return;
             try {
-              await apiService.changeCrmSaleStage(saleId, stageId);
+              await apiService.moveCrmClientStage(detail.id, stageId);
               await refreshDetail();
-            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao mover etapa.')); }
+              await loadAll(searchRef.current.trim() || undefined, { force: true });
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao mover o card.')); }
           }}
           onTransfer={async (responsibleId) => {
             if (!detail) return;
@@ -1524,6 +1555,19 @@ export default function CrmPage() {
             setShowClientTypesEditor(false);
             showToast('success', msg);
             await loadClientTypes();
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {showTagsEditor && (
+        <TagsEditorModal
+          onClose={() => setShowTagsEditor(false)}
+          onSaved={async (msg) => {
+            setShowTagsEditor(false);
+            showToast('success', msg);
+            await loadTags();
+            if (detail) await refreshDetail();
           }}
           onError={(msg) => showToast('error', msg)}
         />
@@ -2079,6 +2123,7 @@ function ClientDrawer(props: {
   loading: boolean;
   stages: CrmStage[];
   clientTypes: CrmClientTypeOption[];
+  crmTags: CrmTagOption[];
   isAdmin: boolean;
   currentUserId: string | null;
   liveSignal: { clientId: string; seq: number } | null;
@@ -2092,7 +2137,7 @@ function ClientDrawer(props: {
   onNewSale: () => void;
   onWin: (s: CrmSale) => void;
   onLose: (s: CrmSale) => void;
-  onChangeStage: (saleId: string, stageId: string) => void;
+  onChangeClientStage: (stageId: string) => void;
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
@@ -2114,7 +2159,6 @@ function ClientDrawer(props: {
   const [valueDraft, setValueDraft] = useState('');
   const [savingValue, setSavingValue] = useState(false);
   const [addingTag, setAddingTag] = useState(false);
-  const [tagDraft, setTagDraft] = useState('');
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -2189,13 +2233,11 @@ function ClientDrawer(props: {
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const addTag = () => {
-    const t = tagDraft.trim();
+  const addTag = (label: string) => {
     setAddingTag(false);
-    setTagDraft('');
-    if (!detail || !t) return;
-    if (detail.tags.some((x) => x.toLowerCase() === t.toLowerCase())) return;
-    void props.onUpdateClient({ tags: [...detail.tags, t] });
+    if (!detail) return;
+    if (detail.tags.some((x) => x.toLowerCase() === label.toLowerCase())) return;
+    void props.onUpdateClient({ tags: [...detail.tags, label] });
   };
 
   const removeTag = (tag: string) => {
@@ -2335,56 +2377,64 @@ function ClientDrawer(props: {
                     </span>
                   );
                 })}
-                {addingTag ? (
-                  <input
-                    autoFocus
-                    className="rounded-md px-2 py-0.5 text-[11px] w-28 outline-none"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.35)', color: '#ffffff' }}
-                    value={tagDraft}
-                    maxLength={30}
-                    placeholder="nova tag"
-                    onChange={(e) => setTagDraft(e.target.value)}
-                    onBlur={addTag}
-                    onKeyDown={(e) => { if (e.key === 'Enter') addTag(); if (e.key === 'Escape') { setAddingTag(false); setTagDraft(''); } }}
-                  />
+                {props.crmTags.length > 0 ? (
+                  <div className="relative">
+                    <button
+                      onClick={() => setAddingTag((v) => !v)}
+                      className="text-[11px] px-2 py-0.5 rounded-md"
+                      style={{ border: '1px dashed rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.75)' }}
+                    >
+                      + tag
+                    </button>
+                    {addingTag && (() => {
+                      const available = props.crmTags.filter(
+                        (t) => !detail.tags.some((x) => x.toLowerCase() === t.label.toLowerCase())
+                      );
+                      return (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setAddingTag(false)} />
+                          <div className="absolute z-20 mt-1 left-0 w-44 max-h-56 overflow-y-auto rounded-lg p-1" style={popoverPanel}>
+                            {available.length === 0 ? (
+                              <p className="text-[11px] px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Todas as tags já foram atribuídas.</p>
+                            ) : available.map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => addTag(t.label)}
+                                className="w-full text-left text-xs px-2 py-1.5 rounded-md"
+                                style={{ color: 'var(--text-primary)' }}
+                              >
+                                {t.label}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => setAddingTag(true)}
-                    className="text-[11px] px-2 py-0.5 rounded-md"
-                    style={{ border: '1px dashed rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.75)' }}
-                  >
-                    + tag
-                  </button>
+                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                    Configure em ⚙ Configurar → Tags
+                  </span>
                 )}
               </div>
 
-              {/* Funil de vendas — etapa atual + barra de progresso (como no Kommo) */}
+              {/* Funil — posição do CARD (o card é o lead; anda sem precisar de venda) */}
               {(() => {
-                const openSale = detail.sales.find((s) => s.status === 'OPEN');
-                const lastSale = detail.sales[0];
-                const activeIdx = openSale ? stages.findIndex((st) => st.id === openSale.stageId) : -1;
-                const outcome = !openSale && lastSale ? lastSale.status : null;
-                const stageName = openSale
-                  ? (openSale.stage?.name ?? stages.find((st) => st.id === openSale.stageId)?.name ?? 'Sem etapa')
-                  : outcome === 'WON' ? 'Venda ganha'
-                  : outcome === 'LOST' ? 'Venda perdida'
-                  : 'Sem venda aberta';
-                // Cores fixas — o banner tem fundo escuro nos dois temas
-                const stageColor = outcome === 'WON' ? '#4ade80'
-                  : outcome === 'LOST' ? '#f87171'
-                  : openSale ? '#ffffff' : 'rgba(255,255,255,0.6)';
+                const activeIdx = stages.findIndex((st) => st.id === detail.stageId);
+                const stageName = stages.find((st) => st.id === detail.stageId)?.name ?? 'Sem etapa';
                 return (
                   <div className="mt-3">
                     <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Funil de Vendas</p>
-                    <p className="text-sm font-semibold mt-0.5" style={{ color: stageColor }}>{stageName}</p>
+                    <p className="text-sm font-semibold mt-0.5" style={{ color: activeIdx >= 0 ? '#ffffff' : 'rgba(255,255,255,0.6)' }}>{stageName}</p>
                     <div className="flex gap-1 mt-1.5">
-                      {stages.map((st, i) => {
-                        const filled = outcome === 'WON' ? '#4ade80'
-                          : outcome === 'LOST' ? '#f87171'
-                          : openSale && i <= activeIdx ? '#60a5fa'
-                          : 'rgba(255,255,255,0.22)';
-                        return <span key={st.id} title={st.name} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: filled }} />;
-                      })}
+                      {stages.map((st, i) => (
+                        <span
+                          key={st.id}
+                          title={st.name}
+                          className="h-1.5 flex-1 rounded-full"
+                          style={{ backgroundColor: activeIdx >= 0 && i <= activeIdx ? '#60a5fa' : 'rgba(255,255,255,0.22)' }}
+                        />
+                      ))}
                     </div>
                   </div>
                 );
@@ -2414,6 +2464,21 @@ function ClientDrawer(props: {
                   <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{detail.responsible?.name ?? 'Não atribuído'}</span>
                 )}
               </div>
+
+              {detail.triageStatus === 'ACCEPTED' && (
+                <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Etapa</span>
+                  <Dropdown
+                    className="w-fit min-w-[160px]"
+                    value={detail.stageId ?? ''}
+                    onChange={(v) => v && props.onChangeClientStage(v)}
+                    options={[
+                      ...(!detail.stageId ? [{ value: '', label: 'Sem etapa' }] : []),
+                      ...stages.map((st) => ({ value: st.id, label: st.name })),
+                    ]}
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>LTV</span>
@@ -2581,18 +2646,9 @@ function ClientDrawer(props: {
 
                     {s.status === 'OPEN' && (
                       <div className="flex items-center gap-2 mt-2.5">
-                        <Dropdown
-                          className="flex-1"
-                          value={s.stageId ?? ''}
-                          onChange={(v) => v && props.onChangeStage(s.id, v)}
-                          options={[
-                            ...(!s.stageId ? [{ value: '', label: 'Sem etapa' }] : []),
-                            ...stages.map((st) => ({ value: st.id, label: st.name })),
-                          ]}
-                        />
                         <button
                           onClick={() => props.onWin(s)}
-                          className="text-xs px-2.5 py-1 rounded-md font-medium"
+                          className="flex-1 text-xs px-2.5 py-1 rounded-md font-medium"
                           style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
                         >
                           Ganhar
@@ -4094,7 +4150,8 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
 }) {
   const [title, setTitle] = useState('');
   const [value, setValue] = useState('');
-  const [stageId, setStageId] = useState(stages[0]?.id ?? '');
+  // A venda herda a etapa do CARD (o card é quem anda no funil).
+  const stageId = client.stageId ?? stages[0]?.id ?? '';
   const [origin, setOrigin] = useState<CrmOrigin>(client.origin);
   const [segments, setSegments] = useState<{ name: string; value: string }[]>([]);
   const [saving, setSaving] = useState(false);
@@ -4131,19 +4188,9 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
           <label className="text-xs block mb-1" style={label}>Título (opcional)</label>
           <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} placeholder="Ex: Corte e Dobra galpão" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs block mb-1" style={label}>Valor (R$) *</label>
-            <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} />
-          </div>
-          <div>
-            <label className="text-xs block mb-1" style={label}>Etapa</label>
-            <Dropdown
-              value={stageId}
-              onChange={setStageId}
-              options={stages.map((s) => ({ value: s.id, label: s.name }))}
-            />
-          </div>
+        <div>
+          <label className="text-xs block mb-1" style={label}>Valor (R$) *</label>
+          <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} />
         </div>
         <div>
           <label className="text-xs block mb-1" style={label}>Origem desta venda</label>
@@ -4433,6 +4480,90 @@ function ClientTypesEditorModal({ onClose, onSaved, onError }: {
   );
 }
 
+function TagsEditorModal({ onClose, onSaved, onError }: {
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getCrmTags()
+      .then((res) => setDraft(res.data.map((o) => ({ id: o.id, label: o.label }))))
+      .catch(() => onError('Erro ao carregar as tags.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    const valid = draft.filter((s) => s.label.trim());
+    if (valid.length === 0) { onError('Informe ao menos 1 tag.'); return; }
+    setSaving(true);
+    try {
+      const res = await apiService.saveCrmTags(valid);
+      onSaved(res.message);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar as tags.'));
+      setSaving(false);
+    }
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const n = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[i], n[j]] = [n[j]!, n[i]!];
+      return n;
+    });
+  };
+
+  return (
+    <ModalShell title="Tags" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Tags oferecidas no card e no filtro, na ordem. Só se atribui tag da lista.
+        Remover uma tag não altera os cards antigos — eles guardam a tag da época.
+        A tag <strong>Carteira</strong> marca cliente recorrente no dashboard.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {draft.map((s, i) => (
+              <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+                <input
+                  className="flex-1 rounded-lg px-3 py-2 text-sm"
+                  style={input}
+                  value={s.label}
+                  maxLength={30}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                />
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Subir">↑</button>
+                <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Descer">↓</button>
+                <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { label: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar tag
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar tags'}
+          </button>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
 function StagesEditorModal({ stages, onClose, onSaved, onError }: {
   stages: CrmStage[];
   onClose: () => void;
@@ -4481,8 +4612,8 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
         Remover uma etapa solta as vendas abertas dela (ficam &quot;sem etapa&quot;).
       </p>
       <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-        🔒 marca a partir de onde a venda <strong>precisa ter valor</strong> — normalmente a etapa de
-        orçamento. As etapas antes dela ficam livres para qualificar o contato sem saber o valor ainda.
+        🔒 marca a partir de onde o card <strong>precisa de uma venda aberta com valor</strong> — normalmente
+        a etapa de orçamento. As etapas antes dela ficam livres para qualificar o contato sem venda ainda.
         {markedIndex !== -1 && draft[markedIndex]?.name.trim() && (
           <> Hoje: <strong style={{ color: 'var(--accent)' }}>{draft[markedIndex]!.name}</strong> em diante.</>
         )}

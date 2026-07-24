@@ -674,6 +674,13 @@ export interface CrmClientTypeOption {
   order: number;
 }
 
+// Tag configurável por org (ex: Carteira, Quente, Frio)
+export interface CrmTagOption {
+  id: string;
+  label: string;
+  order: number;
+}
+
 // Resposta rápida — template de mensagem da org ({nome} = primeiro nome do cliente)
 export interface CrmQuickReply {
   id: string;
@@ -730,6 +737,8 @@ export interface CrmClientSummary {
   waAvatarUrl: string | null;
   /** PENDING = na coluna "Novos contatos" aguardando Aceitar/Rejeitar. */
   triageStatus: CrmTriageStatus;
+  /** Posição do card no kanban (o card é o lead; anda sem precisar de venda). */
+  stageId: string | null;
   responsibleId: string | null;
   responsible?: { id: string; name: string } | null;
   sales: Pick<CrmSale, 'id' | 'value' | 'status' | 'stageId' | 'closedAt' | 'createdAt'>[];
