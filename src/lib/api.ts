@@ -863,6 +863,35 @@ class ApiService {
     return response.data;
   }
 
+  // ── Disparos em massa ──
+  async previewCrmBroadcast(body: { tags: string[]; types: string[]; combine: 'AND' | 'OR' }): Promise<{ success: boolean; data: import('@/types').CrmBroadcastPreview }> {
+    const response = await this.client.post('/crm/broadcasts/preview', body);
+    return response.data;
+  }
+
+  async createCrmBroadcast(body: {
+    title?: string;
+    message: string;
+    tags: string[];
+    types: string[];
+    combine: 'AND' | 'OR';
+    scheduledAt?: string | null;
+    media?: { base64: string; type: string; fileName?: string } | null;
+  }): Promise<{ success: boolean; message: string; data: import('@/types').CrmBroadcast }> {
+    const response = await this.client.post('/crm/broadcasts', body);
+    return response.data;
+  }
+
+  async listCrmBroadcasts(): Promise<{ success: boolean; data: import('@/types').CrmBroadcast[] }> {
+    const response = await this.client.get('/crm/broadcasts');
+    return response.data;
+  }
+
+  async cancelCrmBroadcast(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/broadcasts/${id}/cancel`);
+    return response.data;
+  }
+
   async addCrmNote(clientId: string, text: string): Promise<{ success: boolean; message: string; data: import('@/types').CrmEvent }> {
     const response = await this.client.post(`/crm/clients/${clientId}/notes`, { text });
     return response.data;

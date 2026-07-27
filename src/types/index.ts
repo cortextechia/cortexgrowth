@@ -772,6 +772,36 @@ export interface CrmStatus {
   maxClients: number | null;
 }
 
+export type CrmBroadcastStatus = 'SCHEDULED' | 'QUEUED' | 'SENDING' | 'DONE' | 'CANCELED';
+
+// Disparo em massa (promoção) segmentado por tag/tipo, enviado pelo WhatsApp do
+// vendedor responsável de cada cliente.
+export interface CrmBroadcast {
+  id: string;
+  title: string | null;
+  message: string;
+  status: CrmBroadcastStatus;
+  scheduledAt: string | null;    // null = enviado na hora
+  combine: 'AND' | 'OR';
+  filterTags: string[];
+  filterTypes: string[];
+  mediaType: string | null;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;          // sem telefone / vendedor sem WhatsApp conectado
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+// Prévia da audiência: quantos casam os filtros e quantos têm vendedor com WhatsApp
+export interface CrmBroadcastPreview {
+  total: number;
+  sendable: number;
+  skipped: number;
+}
+
 export interface CrmSummary {
   funnel: { id: string; name: string; count: number; value: number }[];
   pipeline: { count: number; value: number };

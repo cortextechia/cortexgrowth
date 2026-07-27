@@ -149,6 +149,7 @@ const NAV_ITEMS = [
     roles: null,
     children: [
       { href: '/dashboard/crm/contatos', label: 'Contatos' },
+      { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true },
     ],
   },
   {
@@ -233,6 +234,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Estado para TRAFFIC_MANAGER: lista de clientes e org selecionada
   const isTrafficManager = user?.role === UserRole.TRAFFIC_MANAGER;
+  // Subitens só-admin do menu (ex: Disparos)
+  const canBroadcast = !!user && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TRAFFIC_MANAGER].includes(user.role);
   const [clientOrgs, setClientOrgs] = useState<TrafficManagerClient[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
 
@@ -281,7 +284,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       const isActive = exact
         ? pathname === item.href
         : (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href)));
-      const childItems = ('children' in item ? item.children : undefined) as { href: string; label: string }[] | undefined;
+      const childItems = (('children' in item ? item.children : undefined) as { href: string; label: string; adminOnly?: boolean }[] | undefined)
+        ?.filter((c) => !c.adminOnly || canBroadcast);
 
       // Item com submenu (CRM) e sidebar expandida → linha com seta + filhos indentados.
       // Recolhida (só ícone): cai no render padrão (submenu não faz sentido sem rótulo).
