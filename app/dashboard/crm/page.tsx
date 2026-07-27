@@ -792,6 +792,20 @@ export default function CrmPage() {
     }
   };
 
+  // Recorrente: "Dispensar" marca a conversa como lida (só dúvida, não é recompra)
+  // → sai da coluna SEM arquivar o cliente. Se voltar a falar depois, reaparece.
+  const handleDismissReturning = async (clientId: string) => {
+    setTriaging((prev) => new Set(prev).add(clientId));
+    try {
+      await apiService.markCrmClientRead(clientId);
+      await loadAll(searchRef.current.trim() || undefined, { force: true });
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao dispensar o contato.'));
+    } finally {
+      setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
+    }
+  };
+
   // ─── Navegação horizontal do kanban ──────────────────────────────────
   // Funil com muitas etapas passa da largura da tela e nada indicava que havia
   // mais colunas: setas nas bordas, arrastar o fundo pra rolar e auto-scroll
@@ -1233,14 +1247,26 @@ export default function CrmPage() {
                       <span className="whitespace-nowrap" title="Total já comprado (LTV)">{fmtMoney(client.ltv)}</span>
                     </div>
                   </button>
-                  <button
-                    onClick={() => void handleReopen(client.id)}
-                    disabled={triaging.has(client.id)}
-                    className="w-full rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
-                  >
-                    Aceitar no funil
-                  </button>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => void handleReopen(client.id)}
+                      disabled={triaging.has(client.id)}
+                      title="Devolve o card pro Novo Lead (recompra)"
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                    >
+                      Aceitar
+                    </button>
+                    <button
+                      onClick={() => void handleDismissReturning(client.id)}
+                      disabled={triaging.has(client.id)}
+                      title="Só dúvida do pedido anterior — dispensa da lista (não arquiva)"
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                    >
+                      Dispensar
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

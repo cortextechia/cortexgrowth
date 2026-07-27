@@ -898,6 +898,11 @@ class ApiService {
     return response.data;
   }
 
+  async markCrmClientRead(clientId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/read`);
+    return response.data;
+  }
+
   async updateCrmSale(saleId: string, data: { value?: number; title?: string }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
     const response = await this.client.put(`/crm/sales/${saleId}`, data);
     return response.data;
