@@ -695,6 +695,8 @@ export interface CrmStage {
   id: string;
   name: string;
   order: number;
+  /** Cor da etapa no kanban (hex "#rrggbb"). Null = cor padrão por ordem (stageColor no front). */
+  color: string | null;
   /** Marco "daqui pra frente exige valor": esta etapa e as seguintes pedem venda com valor. */
   requiresValue: boolean;
 }

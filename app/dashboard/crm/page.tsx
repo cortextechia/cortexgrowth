@@ -129,6 +129,15 @@ function daysSince(iso: string): number {
 // Mesmo threshold da regra de cards parados do CRM_HYGIENE (30d)
 const STALE_SALE_DAYS = 30;
 
+// Paleta de cores das etapas do funil (kanban). Cada etapa pode escolher uma no
+// "Editar funil"; sem escolha, cai na cor por ordem (stageColor).
+const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#64748b'];
+
+// Cor efetiva da etapa: a escolhida, ou a padrão pela ordem no funil.
+function stageColor(stage: { color?: string | null; order: number }): string {
+  return stage.color ?? STAGE_COLORS[stage.order % STAGE_COLORS.length]!;
+}
+
 // Larguras do drawer ajustadas pelo mouse — preferência de quem usa, fica local
 const DRAWER_W_KEY = 'crm_drawer_width';
 const WA_PANEL_W_KEY = 'crm_wa_panel_width';
@@ -1277,12 +1286,14 @@ export default function CrmPage() {
           const items = clientsByStage.get(stage.id) ?? [];
           const total = items.reduce((acc, c) => acc + openValue(c), 0);
           const isDropTarget = dropStageId === stage.id && draggingClientId !== null;
+          const stColor = stageColor(stage);
           return (
             <div
               key={stage.id}
               className="w-64 shrink-0 rounded-xl p-3 transition-colors"
               style={{
                 ...card,
+                borderTop: `3px solid ${stColor}`,
                 ...(isDropTarget ? { border: '1px dashed var(--accent)', backgroundColor: 'var(--accent-dim)' } : {}),
               }}
               onDragOver={(e) => { e.preventDefault(); if (dropStageId !== stage.id) setDropStageId(stage.id); }}
@@ -1297,7 +1308,8 @@ export default function CrmPage() {
               }}
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-sm font-semibold flex items-center gap-1" style={{ color: 'var(--text-primary)' }}>
+                <span className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stColor }} aria-hidden />
                   {stage.name}
                   {stageLocksValue(stage) && (
                     <span
@@ -1372,6 +1384,24 @@ export default function CrmPage() {
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       <OriginPill origin={client.origin} />
                       <FollowUpChip iso={client.nextFollowUpAt} />
+                      {client.tags.slice(0, 2).map((tag) => {
+                        const tc = tagColor(tag);
+                        return (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded max-w-[88px] truncate"
+                            style={{ backgroundColor: tc.bg, color: tc.text, border: `1px solid ${tc.border}` }}
+                            title={tag}
+                          >
+                            {tag}
+                          </span>
+                        );
+                      })}
+                      {client.tags.length > 2 && (
+                        <span className="text-[10px]" style={{ color: 'var(--text-muted)' }} title={client.tags.slice(2).join(', ')}>
+                          +{client.tags.length - 2}
+                        </span>
+                      )}
                     </div>
                   </button>
                   );
@@ -1450,58 +1480,22 @@ export default function CrmPage() {
         </p>
       )}
 
-      {/* Lista de clientes (inclui quem não tem venda aberta) */}
-      <div className="mt-6 rounded-xl p-4" style={card}>
-        <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Todos os clientes</h2>
-        {filtered.length === 0 ? (
-          <p className="text-sm py-4 text-center" style={{ color: 'var(--text-muted)' }}>
-            {hasActiveFilter ? 'Nenhum cliente com esses filtros.' : 'Nenhum cliente ainda. Crie o primeiro com o botão acima.'}
+      {/* A lista completa de clientes virou a página Contatos (menu lateral) —
+          o funil aqui fica enxuto; busca e filtros da carteira inteira ficam lá. */}
+      <div className="mt-6 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3" style={card}>
+        <div>
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Todos os clientes</h2>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+            {totalClients} cliente{totalClients === 1 ? '' : 's'} — a lista completa, com busca e filtros, fica em Contatos.
           </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ color: 'var(--text-muted)' }}>
-                  <th className="text-left font-medium py-2 pr-4">Cliente</th>
-                  <th className="text-left font-medium py-2 pr-4">Telefone</th>
-                  <th className="text-left font-medium py-2 pr-4">Origem</th>
-                  <th className="text-left font-medium py-2 pr-4">Responsável</th>
-                  <th className="text-left font-medium py-2 pr-4">Follow-up</th>
-                  <th className="text-right font-medium py-2 pr-4">Em aberto</th>
-                  <th className="text-right font-medium py-2">LTV</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr
-                    key={c.id}
-                    onClick={() => openClient(c.id)}
-                    className="cursor-pointer"
-                    style={{ borderTop: '1px solid var(--border)' }}
-                  >
-                    <td className="py-2.5 pr-4 font-medium" style={{ color: 'var(--text-primary)' }}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <WaAvatar url={c.waAvatarUrl} name={c.name} className="w-5 h-5 text-[9px]" />
-                        {c.name}
-                        {hasUnread(c) && <UnreadDot />}
-                      </span>
-                    </td>
-                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
-                    <td className="py-2.5 pr-4"><OriginPill origin={c.origin} /></td>
-                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{c.responsible?.name ?? '—'}</td>
-                    <td className="py-2.5 pr-4">
-                      {c.nextFollowUpAt ? <FollowUpChip iso={c.nextFollowUpAt} /> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                    </td>
-                    <td className="py-2.5 pr-4 text-right" style={{ color: 'var(--text-secondary)' }}>{c.openSales}</td>
-                    <td className="py-2.5 text-right font-semibold" style={{ color: c.ltv > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
-                      {fmtMoney(c.ltv)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        </div>
+        <a
+          href="/dashboard/crm/contatos"
+          className="px-3 py-2 rounded-lg text-sm font-medium shrink-0"
+          style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
+        >
+          Ver contatos →
+        </a>
       </div>
 
       {/* Drawer do cliente */}
@@ -1532,6 +1526,16 @@ export default function CrmPage() {
               await refreshDetail();
               await loadAll(searchRef.current.trim() || undefined, { force: true });
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao mover o card.')); }
+          }}
+          onReopen={async () => {
+            if (!detail) return;
+            await handleReopen(detail.id);
+            closeClient();
+          }}
+          onDismissReturning={async () => {
+            if (!detail) return;
+            await handleDismissReturning(detail.id);
+            closeClient();
           }}
           onTransfer={async (responsibleId) => {
             if (!detail) return;
@@ -2254,6 +2258,8 @@ function ClientDrawer(props: {
   onWin: (s: CrmSale) => void;
   onLose: (s: CrmSale) => void;
   onChangeClientStage: (stageId: string) => void;
+  onReopen: () => Promise<void>;
+  onDismissReturning: () => Promise<void>;
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
@@ -2275,6 +2281,8 @@ function ClientDrawer(props: {
   const [valueDraft, setValueDraft] = useState('');
   const [savingValue, setSavingValue] = useState(false);
   const [addingTag, setAddingTag] = useState(false);
+  // Ação de recorrência (Aceitar/Dispensar) em andamento — desabilita os botões do banner
+  const [returningBusy, setReturningBusy] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -2545,18 +2553,21 @@ function ClientDrawer(props: {
                 const stageName = outcome === 'WON' ? 'Venda ganha'
                   : outcome === 'LOST' ? 'Venda perdida'
                   : (stages.find((st) => st.id === detail.stageId)?.name ?? 'Sem etapa');
+                // Nome da etapa ativa segue a cor da própria etapa (mesma do kanban)
+                const activeColor = activeIdx >= 0 ? stageColor(stages[activeIdx]!) : null;
                 const nameColor = outcome === 'WON' ? '#4ade80'
                   : outcome === 'LOST' ? '#f87171'
-                  : activeIdx >= 0 ? '#ffffff' : 'rgba(255,255,255,0.6)';
+                  : activeColor ?? 'rgba(255,255,255,0.6)';
                 return (
                   <div className="mt-3">
                     <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Funil de Vendas</p>
                     <p className="text-sm font-semibold mt-0.5" style={{ color: nameColor }}>{stageName}</p>
                     <div className="flex gap-1 mt-1.5">
                       {stages.map((st, i) => {
+                        // Cada segmento preenchido usa a cor da SUA etapa (segue o dashboard)
                         const filled = outcome === 'WON' ? '#4ade80'
                           : outcome === 'LOST' ? '#f87171'
-                          : activeIdx >= 0 && i <= activeIdx ? '#60a5fa'
+                          : activeIdx >= 0 && i <= activeIdx ? stageColor(st)
                           : 'rgba(255,255,255,0.22)';
                         return <span key={st.id} title={st.name} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: filled }} />;
                       })}
@@ -2565,6 +2576,46 @@ function ClientDrawer(props: {
                 );
               })()}
             </div>
+
+            {/* Recorrente — mesmo Aceitar/Dispensar da coluna do kanban, agora dentro do
+                card: cliente que já comprou (fora do funil) e mandou nova mensagem. */}
+            {(() => {
+              const lastClosed = detail.sales
+                .filter((s) => s.status !== 'OPEN' && s.closedAt)
+                .map((s) => s.closedAt as string).sort().at(-1) ?? null;
+              const isReturning =
+                detail.triageStatus === 'ACCEPTED' && !detail.stageId && detail.ltv > 0 &&
+                hasUnread(detail) && !!lastClosed && !!detail.lastInboundAt && detail.lastInboundAt > lastClosed;
+              if (!isReturning) return null;
+              return (
+                <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'var(--badge-warn-bg)', border: '1px solid var(--badge-warn-text)' }}>
+                  <p className="text-sm font-semibold" style={{ color: 'var(--badge-warn-text)' }}>Cliente recorrente voltou a falar</p>
+                  <p className="text-xs mt-0.5 mb-2.5" style={{ color: 'var(--text-secondary)' }}>
+                    Já comprou (LTV {fmtMoney(detail.ltv)}) e mandou uma nova mensagem. É recompra ou só dúvida do pedido anterior?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => { setReturningBusy(true); try { await props.onReopen(); } finally { setReturningBusy(false); } }}
+                      disabled={returningBusy}
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                      title="Devolve o card pro Novo Lead (recompra)"
+                    >
+                      Aceitar no funil
+                    </button>
+                    <button
+                      onClick={async () => { setReturningBusy(true); try { await props.onDismissReturning(); } finally { setReturningBusy(false); } }}
+                      disabled={returningBusy}
+                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                      title="Só dúvida do pedido anterior — dispensa da lista (não arquiva)"
+                    >
+                      Dispensar
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Principal — campos do card (espelha a aba "Principal" do Kommo) */}
             <div className="mt-4 space-y-2.5">
@@ -4695,8 +4746,8 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
   onSaved: (msg: string) => void;
   onError: (msg: string) => void;
 }) {
-  const [draft, setDraft] = useState<{ id?: string; name: string; requiresValue?: boolean }[]>(
-    stages.map((s) => ({ id: s.id, name: s.name, requiresValue: s.requiresValue }))
+  const [draft, setDraft] = useState<{ id?: string; name: string; requiresValue?: boolean; color?: string | null }[]>(
+    stages.map((s) => ({ id: s.id, name: s.name, requiresValue: s.requiresValue, color: s.color }))
   );
   const [saving, setSaving] = useState(false);
 
@@ -4746,6 +4797,15 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
       <div className="space-y-2 mb-3">
         {draft.map((s, i) => (
           <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+            <input
+              type="color"
+              className="w-8 h-8 shrink-0 rounded cursor-pointer bg-transparent p-0.5"
+              style={{ border: '1px solid var(--border)' }}
+              value={s.color ?? STAGE_COLORS[i % STAGE_COLORS.length]}
+              onChange={(e) => setDraft((p) => p.map((x, j) => j === i ? { ...x, color: e.target.value } : x))}
+              title="Cor da etapa no kanban"
+              aria-label="Cor da etapa"
+            />
             <input
               className="flex-1 rounded-lg px-3 py-2 text-sm"
               style={input}

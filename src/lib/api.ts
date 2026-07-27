@@ -793,7 +793,7 @@ class ApiService {
     return response.data;
   }
 
-  async saveCrmStages(stages: { id?: string; name: string; requiresValue?: boolean }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
+  async saveCrmStages(stages: { id?: string; name: string; requiresValue?: boolean; color?: string | null }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
     const response = await this.client.put('/crm/stages', { stages });
     return response.data;
   }

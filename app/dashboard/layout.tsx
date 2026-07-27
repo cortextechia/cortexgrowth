@@ -136,14 +136,20 @@ const NAV_ITEMS = [
   },
   {
     // Só aparece quando a org NÃO usa Kommo (visibilidade controlada no layout via /crm/status)
+    // exact: sem isso, ficaria ativo junto com o subitem /dashboard/crm/contatos.
+    // children: submenu recolhível (a lista de contatos aninha aqui, estilo dropdown).
     href: '/dashboard/crm',
     label: 'CRM',
+    exact: true,
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
       </svg>
     ),
     roles: null,
+    children: [
+      { href: '/dashboard/crm/contatos', label: 'Contatos' },
+    ],
   },
   {
     href: '/dashboard/historico',
@@ -238,6 +244,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }).catch(() => {});
   }, []);
 
+  // Submenu do CRM (dropdown p/ Contatos): por padrão segue a rota (aberto quando
+  // se está na seção CRM); ao clicar na seta, a escolha do usuário passa a valer.
+  const [crmMenuToggled, setCrmMenuToggled] = useState<boolean | null>(null);
+  const crmMenuOpen = crmMenuToggled ?? pathname.startsWith('/dashboard/crm');
+
   useEffect(() => {
     if (!isTrafficManager) return;
     apiService.getMyClients().then((res) => {
@@ -265,8 +276,68 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const renderNavLinks = (expanded: boolean) =>
-    NAV_ITEMS.filter((item) => item.href !== '/dashboard/crm' || crmVisible).map((item) => {
-      const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+    NAV_ITEMS.filter((item) => !item.href.startsWith('/dashboard/crm') || crmVisible).map((item) => {
+      const exact = 'exact' in item && item.exact;
+      const isActive = exact
+        ? pathname === item.href
+        : (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href)));
+      const childItems = ('children' in item ? item.children : undefined) as { href: string; label: string }[] | undefined;
+
+      // Item com submenu (CRM) e sidebar expandida → linha com seta + filhos indentados.
+      // Recolhida (só ícone): cai no render padrão (submenu não faz sentido sem rótulo).
+      if (childItems && childItems.length > 0 && expanded) {
+        const node = (
+          <div key={item.href}>
+            <div
+              className="flex items-center rounded-lg"
+              style={isActive ? { backgroundColor: 'var(--accent-dim)', borderLeft: '2px solid var(--accent)' } : undefined}
+            >
+              <Link
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-3 flex-1 min-w-0 px-2.5 py-2 text-sm transition-colors"
+                style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', ...(isActive ? { paddingLeft: '8px' } : {}) }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </Link>
+              <button
+                onClick={() => setCrmMenuToggled(!crmMenuOpen)}
+                className="px-2 py-2 shrink-0 transition-transform"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label={crmMenuOpen ? 'Recolher submenu do CRM' : 'Expandir submenu do CRM'}
+                aria-expanded={crmMenuOpen}
+              >
+                <svg className={`h-4 w-4 transition-transform duration-150 ${crmMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none">
+                  <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+            {crmMenuOpen && childItems.map((child) => {
+              const childActive = pathname === child.href || pathname.startsWith(child.href + '/');
+              return (
+                <Link
+                  key={child.href}
+                  href={child.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center rounded-lg py-2 pr-2.5 text-sm transition-colors"
+                  style={childActive
+                    ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', borderLeft: '2px solid var(--accent)', paddingLeft: '42px' }
+                    : { color: 'var(--text-muted)', paddingLeft: '44px' }}
+                  onMouseEnter={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+                  onMouseLeave={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                >
+                  {child.label}
+                </Link>
+              );
+            })}
+          </div>
+        );
+        return item.roles ? (
+          <PermissionGuard key={item.href} requiredRoles={item.roles}>{node}</PermissionGuard>
+        ) : node;
+      }
+
       const link = (
         <Link
           key={item.href}
