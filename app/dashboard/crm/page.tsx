@@ -1527,6 +1527,16 @@ export default function CrmPage() {
               await loadAll(searchRef.current.trim() || undefined, { force: true });
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao mover o card.')); }
           }}
+          onAcceptTriage={async () => {
+            if (!detail) return;
+            await handleTriage(detail.id, 'accept');
+            closeClient();
+          }}
+          onRejectTriage={async () => {
+            if (!detail) return;
+            await handleTriage(detail.id, 'reject');
+            closeClient();
+          }}
           onReopen={async () => {
             if (!detail) return;
             await handleReopen(detail.id);
@@ -2258,6 +2268,8 @@ function ClientDrawer(props: {
   onWin: (s: CrmSale) => void;
   onLose: (s: CrmSale) => void;
   onChangeClientStage: (stageId: string) => void;
+  onAcceptTriage: () => Promise<void>;
+  onRejectTriage: () => Promise<void>;
   onReopen: () => Promise<void>;
   onDismissReturning: () => Promise<void>;
   onTransfer: (responsibleId: string | null) => void;
@@ -2283,6 +2295,8 @@ function ClientDrawer(props: {
   const [addingTag, setAddingTag] = useState(false);
   // Ação de recorrência (Aceitar/Dispensar) em andamento — desabilita os botões do banner
   const [returningBusy, setReturningBusy] = useState(false);
+  // Ação de triagem (Aceitar/Rejeitar do contato novo) em andamento
+  const [triageBusy, setTriageBusy] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
   const [savingNote, setSavingNote] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -2576,6 +2590,37 @@ function ClientDrawer(props: {
                 );
               })()}
             </div>
+
+            {/* Triagem — mesmo Aceitar/Rejeitar da coluna "Novos contatos", agora dentro
+                do card: contato novo do WhatsApp aguardando decisão antes de entrar no funil. */}
+            {detail.triageStatus === 'PENDING' && (
+              <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)' }}>
+                <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>Contato novo do WhatsApp</p>
+                <p className="text-xs mt-0.5 mb-2.5" style={{ color: 'var(--text-secondary)' }}>
+                  Aceite para entrar no funil (Novo Lead) ou rejeite para arquivar o contato.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => { setTriageBusy(true); try { await props.onAcceptTriage(); } finally { setTriageBusy(false); } }}
+                    disabled={triageBusy}
+                    className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                    title="Coloca o contato no funil, na primeira etapa"
+                  >
+                    Aceitar
+                  </button>
+                  <button
+                    onClick={async () => { setTriageBusy(true); try { await props.onRejectTriage(); } finally { setTriageBusy(false); } }}
+                    disabled={triageBusy}
+                    className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
+                    style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                    title="Arquiva o contato (o card e a conversa continuam existindo)"
+                  >
+                    Rejeitar
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Recorrente — mesmo Aceitar/Dispensar da coluna do kanban, agora dentro do
                 card: cliente que já comprou (fora do funil) e mandou nova mensagem. */}
