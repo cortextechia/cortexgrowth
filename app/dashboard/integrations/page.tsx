@@ -165,6 +165,71 @@ function GoogleBudgetBadge({ budget }: { budget: GoogleBudgetStatus }) {
   );
 }
 
+// Seletor de conta de anúncio Meta — o OAuth só auto-seleciona quando há 1 conta
+// ativa; com 0/várias, a conta fica sem escolher e não há como corrigir na UI.
+function MetaAccountSelector({
+  currentExternalId,
+  showToast,
+  onChanged,
+}: {
+  currentExternalId: string | null;
+  showToast: (m: string, t?: 'success' | 'error') => void;
+  onChanged: () => void;
+}) {
+  const [accounts, setAccounts] = useState<{ externalId: string; name: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getMetaAccounts()
+      .then((res) => setAccounts(res.data.connected ? res.data.accounts : []))
+      .catch(() => setAccounts([]));
+  }, []);
+
+  const pick = async (externalId: string) => {
+    if (!externalId || externalId === currentExternalId) return;
+    setSaving(true);
+    try {
+      const res = await apiService.setMetaAccount(externalId);
+      showToast(res.message);
+      onChanged();
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao vincular a conta.';
+      showToast(msg, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (accounts === null) {
+    return <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>Carregando contas de anúncio…</p>;
+  }
+  if (accounts.length === 0) {
+    return <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>Nenhuma conta de anúncio nessa conta do Facebook.</p>;
+  }
+  return (
+    <div className="mt-2">
+      {!currentExternalId && (
+        <p className="text-xs mb-1" style={{ color: 'var(--badge-warn-text)' }}>
+          Nenhuma conta de anúncio selecionada — escolha a conta para sincronizar.
+        </p>
+      )}
+      <label className="text-xs block mb-1" style={{ color: 'var(--text-muted)' }}>Conta de anúncio</label>
+      <select
+        value={currentExternalId ?? ''}
+        disabled={saving}
+        onChange={(e) => void pick(e.target.value)}
+        className="w-full rounded-lg px-2.5 py-2 text-xs disabled:opacity-60"
+        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+      >
+        <option value="" disabled>Selecione a conta…</option>
+        {accounts.map((a) => (
+          <option key={a.externalId} value={a.externalId}>{a.name} (act_{a.externalId})</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -426,6 +491,20 @@ export default function IntegrationsPage() {
                   <div className="mt-2">
                     <GoogleBudgetBadge budget={googleBudget} />
                   </div>
+                )}
+
+                {/* Seletor de conta de anúncio Meta (quando conectado) */}
+                {config.type === IntegrationType.META_ADS && isConnected && (
+                  <MetaAccountSelector
+                    currentExternalId={integration?.externalId ?? null}
+                    showToast={showToast}
+                    onChanged={() => {
+                      void loadIntegrations();
+                      apiService.getBudgetStatus()
+                        .then(({ data }) => { setMetaBudget(data.meta); setGoogleBudget(data.google); })
+                        .catch(() => {});
+                    }}
+                  />
                 )}
 
                 {/* Actions */}

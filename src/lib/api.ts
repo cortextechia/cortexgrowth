@@ -252,6 +252,17 @@ class ApiService {
     return response.data;
   }
 
+  // Contas de anúncio Meta acessíveis (para escolher a conta quando o OAuth não auto-seleciona)
+  async getMetaAccounts(): Promise<{ success: boolean; data: { connected: boolean; accounts: { externalId: string; name: string }[]; currentExternalId: string | null } }> {
+    const response = await this.client.get('/integrations/meta/accounts');
+    return response.data;
+  }
+
+  async setMetaAccount(externalId: string): Promise<{ success: boolean; message: string; data: { externalId: string; name: string; count: number } }> {
+    const response = await this.client.put('/integrations/meta/account', { externalId });
+    return response.data;
+  }
+
   async getIntegration(id: string): Promise<{ success: boolean; integration: Integration }> {
     const response = await this.client.get(`/integrations/${id}`);
     return response.data;
