@@ -300,11 +300,13 @@ class ApiService {
   }
 
   async syncIntegration(type: string): Promise<{ success: boolean; recordsProcessed: number }> {
+    // ⚠️ Nunca usar "/ads/" no path: ad blockers cancelam a requisição no browser
+    // (Network Error sem status, sem chegar no servidor). Prefixo canônico: /platforms.
     const endpointMap: Record<string, string> = {
-      META_ADS: '/ads/meta/sync',
-      FACEBOOK: '/ads/meta/sync',
-      GOOGLE_ADS: '/ads/google/sync',
-      KOMMO: '/ads/kommo/sync',
+      META_ADS: '/platforms/meta/sync',
+      FACEBOOK: '/platforms/meta/sync',
+      GOOGLE_ADS: '/platforms/google/sync',
+      KOMMO: '/platforms/kommo/sync',
     };
 
     const endpoint = endpointMap[type] ?? null;
@@ -352,7 +354,7 @@ class ApiService {
   async getAttributionSummary(days: number, start?: string, end?: string): Promise<{ success: boolean; data: AttributionSummary }> {
     // start/end (YYYY-MM-DD) definem janela explícita no range personalizado; sem eles o backend usa "últimos N dias"
     const params = start && end ? { days, start, end } : { days };
-    const response = await this.client.get('/ads/attribution/summary', { params });
+    const response = await this.client.get('/platforms/attribution/summary', { params });
     return response.data;
   }
 
@@ -365,17 +367,17 @@ class ApiService {
   // ─── AI Insights ─────────────────────────────────────────────────────────
 
   async getHistorico(months: number): Promise<{ success: boolean; data: HistoricoData }> {
-    const response = await this.client.get('/ads/historico', { params: { months } });
+    const response = await this.client.get('/platforms/historico', { params: { months } });
     return response.data;
   }
 
   async googleBackfill(since: string, until: string): Promise<{ success: boolean; message: string; data: { count: number } }> {
-    const response = await this.client.post('/ads/google/backfill', undefined, { params: { since, until } });
+    const response = await this.client.post('/platforms/google/backfill', undefined, { params: { since, until } });
     return response.data;
   }
 
   async metaBackfill(since: string, until: string): Promise<{ success: boolean; message: string; data: { count: number } }> {
-    const response = await this.client.post('/ads/meta/backfill', undefined, { params: { since, until } });
+    const response = await this.client.post('/platforms/meta/backfill', undefined, { params: { since, until } });
     return response.data;
   }
 
