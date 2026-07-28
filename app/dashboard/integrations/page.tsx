@@ -230,6 +230,32 @@ function MetaAccountSelector({
   );
 }
 
+// Aviso de conta Google Ads não vinculada. Diferente da Meta, aqui não há seletor:
+// o caso real é conta Google SEM Google Ads (listAccessibleCustomers vazio), em que
+// escolher conta não é opção — o certo é reconectar com outra conta. Com 2+ contas a
+// troca segue na tela do Gestor.
+function GoogleAccountNotice() {
+  const [state, setState] = useState<{ count: number } | null>(null);
+
+  useEffect(() => {
+    apiService.getGoogleAccounts()
+      .then((res) => setState(res.data.connected ? { count: res.data.accounts.length } : null))
+      .catch(() => setState(null));
+  }, []);
+
+  if (!state) return null;
+
+  const msg = state.count === 0
+    ? 'Esta conta Google não administra nenhuma conta de Google Ads — a sincronização não vai funcionar. Reconecte usando uma conta com acesso à conta de anúncios.'
+    : `Esta conta Google acessa ${state.count} contas de Google Ads e nenhuma foi vinculada. Selecione a conta desejada na tela do Gestor.`;
+
+  return (
+    <p className="mt-2 text-xs" style={{ color: 'var(--badge-warn-text)' }}>
+      {msg}
+    </p>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function IntegrationsPage() {
@@ -505,6 +531,11 @@ export default function IntegrationsPage() {
                         .catch(() => {});
                     }}
                   />
+                )}
+
+                {/* Aviso de conta Google Ads não vinculada (quando conectado sem externalId) */}
+                {config.type === IntegrationType.GOOGLE_ADS && isConnected && !integration?.externalId && (
+                  <GoogleAccountNotice />
                 )}
 
                 {/* Actions */}

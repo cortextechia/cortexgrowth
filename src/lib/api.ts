@@ -258,6 +258,12 @@ class ApiService {
     return response.data;
   }
 
+  // Contas de Google Ads acessíveis — só leitura, pro aviso quando o OAuth não vinculou conta
+  async getGoogleAccounts(): Promise<{ success: boolean; data: { connected: boolean; accounts: { externalId: string; name: string }[]; currentExternalId: string | null } }> {
+    const response = await this.client.get('/integrations/google/accounts');
+    return response.data;
+  }
+
   async setMetaAccount(externalId: string): Promise<{ success: boolean; message: string; data: { externalId: string; name: string; count: number } }> {
     const response = await this.client.put('/integrations/meta/account', { externalId });
     return response.data;
