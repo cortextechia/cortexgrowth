@@ -1652,8 +1652,9 @@ export default function DashboardPage() {
     (i) => i.type === 'KOMMO' && i.status === 'CONNECTED'
   );
   // CRM Cortex projeta as vendas no mesmo read model do Kommo — pra exibição de
-  // receita/funil as duas fontes são equivalentes (Ranking de Vendedores e
-  // deep-links continuam exclusivos do Kommo).
+  // receita/funil as duas fontes são equivalentes. O Ranking de Vendedores passou a
+  // usar hasCrmSource (nome vem do rawData nas orgs CRM Cortex); só os deep-links
+  // continuam exclusivos do Kommo, porque apontam pra URL do lead lá.
   const hasCrmSource = hasKommo || integrations.some(
     (i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED'
   );
@@ -2482,7 +2483,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── 5.1.5 RANKING DE VENDEDORES ───────────────────────────────────────── */}
-      {hasKommo && kommoCur.length > 0 && rankingMonth && sellersRanking && (() => {
+      {hasCrmSource && kommoCur.length > 0 && rankingMonth && sellersRanking && (() => {
         const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
         const label = `${MES[rankingMonth.month - 1]}/${String(rankingMonth.year).slice(2)}`;
         const now = new Date();

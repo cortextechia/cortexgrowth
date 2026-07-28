@@ -638,7 +638,8 @@ export interface CrmHygiene {
 }
 
 export interface SellerRankingRow {
-  userId: number;
+  // id do Kommo (numérico) ou UUID do User (CRM Cortex) — sempre string na resposta
+  userId: string;
   name: string;
   sales: number;
   revenue: number;
