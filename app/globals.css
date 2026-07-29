@@ -34,6 +34,17 @@
   --creative-accent-text:   #c084fc;
   --creative-accent-bg:     rgba(168,85,247,0.12);
   --creative-accent-border: rgba(168,85,247,0.20);
+  /* Identidade dos planos (cadastro e login). No claro elas escurecem: os tons
+     vivos do dark somem sobre branco. */
+  --plano-starter:         #22d3ee;
+  --plano-starter-soft:    rgba(34,211,238,0.13);
+  --plano-pro:             #a855f7;
+  --plano-pro-soft:        rgba(168,85,247,0.13);
+  --plano-enterprise:      #f59e0b;
+  --plano-enterprise-soft: rgba(245,158,11,0.13);
+  --auth-glow-1: rgba(59,130,246,0.16);
+  --auth-glow-2: rgba(168,85,247,0.10);
+  --auth-grid:   rgba(255,255,255,0.025);
 }
 
 /* ─── Light theme ────────────────────────────────────────────────────────── */
@@ -69,6 +80,15 @@
   --creative-accent-text:   #7c3aed;
   --creative-accent-bg:     rgba(124,58,237,0.10);
   --creative-accent-border: rgba(124,58,237,0.22);
+  --plano-starter:         #0891b2;
+  --plano-starter-soft:    rgba(8,145,178,0.10);
+  --plano-pro:             #7c3aed;
+  --plano-pro-soft:        rgba(124,58,237,0.10);
+  --plano-enterprise:      #b45309;
+  --plano-enterprise-soft: rgba(180,83,9,0.10);
+  --auth-glow-1: rgba(37,99,235,0.10);
+  --auth-glow-2: rgba(124,58,237,0.07);
+  --auth-grid:   rgba(0,0,0,0.03);
 }
 
 @theme inline {

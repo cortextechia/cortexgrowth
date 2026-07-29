@@ -43,30 +43,30 @@ export default function LoginPage() {
   };
 
   const inputStyle = {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    color: '#f1f5f9',
+    backgroundColor: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)',
   };
 
   const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = '#3b82f6';
+    e.target.style.borderColor = 'var(--accent)';
     e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
   };
 
   const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+    e.target.style.borderColor = 'var(--input-border)';
     e.target.style.boxShadow = 'none';
   };
 
   return (
     <div className="min-h-screen relative flex items-center overflow-hidden px-6 py-10"
-      style={{ backgroundColor: '#080d19' }}>
+      style={{ backgroundColor: 'var(--bg-base)' }}>
 
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 28% 42%, rgba(59,130,246,0.15) 0%, transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(168,85,247,0.08) 0%, transparent 45%)'
+        background: 'radial-gradient(ellipse at 28% 42%, var(--auth-glow-1) 0%, transparent 55%), radial-gradient(ellipse at 80% 90%, var(--auth-glow-2) 0%, transparent 45%)'
       }} />
-      <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{
-        backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+      <div className="absolute inset-0 pointer-events-none" style={{
+        backgroundImage: 'linear-gradient(var(--auth-grid) 1px, transparent 1px), linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }} />
 
@@ -78,18 +78,18 @@ export default function LoginPage() {
             como massa visual — é o que dá peso à composição sem virar pitch. */}
         <div className="hidden lg:block">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <span className="text-white font-semibold text-xl">Cortex Growth</span>
+            <span className="font-semibold text-xl" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
           </div>
 
-          <h2 className="mt-8 text-4xl font-bold leading-[1.15]" style={{ color: '#f1f5f9' }}>
+          <h2 className="mt-8 text-4xl font-bold leading-[1.15]" style={{ color: 'var(--text-primary)' }}>
             Meta Ads, Google Ads<br />e CRM no{' '}
             <span style={{
-              background: 'linear-gradient(120deg, #22d3ee, #a855f7 55%, #f59e0b)',
+              background: 'linear-gradient(120deg, var(--plano-starter), var(--plano-pro) 55%, var(--plano-enterprise))',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
             }}>
@@ -98,36 +98,36 @@ export default function LoginPage() {
           </h2>
 
           <div className="espectro mt-10" aria-hidden>
-            <span style={{ backgroundColor: '#22d3ee' }} />
-            <span style={{ backgroundColor: '#a855f7' }} />
-            <span style={{ backgroundColor: '#f59e0b' }} />
+            <span style={{ backgroundColor: 'var(--plano-starter)' }} />
+            <span style={{ backgroundColor: 'var(--plano-pro)' }} />
+            <span style={{ backgroundColor: 'var(--plano-enterprise)' }} />
           </div>
         </div>
 
         {/* Marca compacta só no mobile, onde o painel da esquerda não aparece */}
         <div className="flex items-center justify-center gap-2 lg:hidden">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <span className="text-white font-semibold text-lg">Cortex Growth</span>
+          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
         </div>
 
         <div className="overflow-hidden rounded-2xl" style={{
-          backgroundColor: 'rgba(15,22,41,0.82)',
-          border: '1px solid rgba(255,255,255,0.06)',
+          backgroundColor: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
           backdropFilter: 'blur(12px)',
         }}>
           {/* Sem régua tricolor aqui: o espectro já aparece no título e nas barras
               à esquerda. Repetir pela terceira vez viraria maneirismo. */}
           <div className="p-8">
-            <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Entrar</h1>
-            <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Acesse o painel da sua operação.</p>
+            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Entrar</h1>
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>Acesse o painel da sua operação.</p>
 
             {error && (
               <div className="mt-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
-                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
                 <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
                 </svg>
@@ -137,7 +137,7 @@ export default function LoginPage() {
 
             <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="mt-5 space-y-4">
               <div>
-                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>
+                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
                   Email
                 </label>
                 <input
@@ -151,10 +151,10 @@ export default function LoginPage() {
 
               <div>
                 <div className="flex items-baseline justify-between mb-1.5">
-                  <label htmlFor="password" className="block text-xs font-medium" style={{ color: '#94a3b8' }}>
+                  <label htmlFor="password" className="block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
                     Senha
                   </label>
-                  <Link href="/auth/esqueci-senha" className="text-xs transition-colors" style={{ color: '#60a5fa' }}>
+                  <Link href="/auth/esqueci-senha" className="text-xs transition-colors" style={{ color: 'var(--accent)' }}>
                     Esqueci minha senha
                   </Link>
                 </div>
@@ -170,25 +170,25 @@ export default function LoginPage() {
               <button
                 type="submit" disabled={isLoading}
                 className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
-                style={{ backgroundColor: '#3b82f6' }}
-                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}
+                style={{ backgroundColor: 'var(--accent)' }}
+                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
               >
                 {isLoading && <Spinner />}
                 {isLoading ? 'Entrando...' : 'Entrar'}
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm" style={{ color: '#475569' }}>
+            <p className="mt-6 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
               Não tem conta?{' '}
-              <Link href="/auth/register" className="font-medium transition-colors" style={{ color: '#60a5fa' }}>
+              <Link href="/auth/register" className="font-medium transition-colors" style={{ color: 'var(--accent)' }}>
                 Ver planos
               </Link>
             </p>
           </div>
         </div>
 
-        <p className="text-center text-xs lg:col-start-2" style={{ color: '#334155' }}>
+        <p className="text-center text-xs lg:col-start-2" style={{ color: 'var(--text-muted)' }}>
           © 2026 IA Cortex Tech ·{' '}
           <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
         </p>

@@ -28,22 +28,22 @@ const IDENTIDADE: Record<string, {
   inclui: string[];
 }> = {
   STARTER: {
-    cor: '#22d3ee',
-    corSuave: 'rgba(34,211,238,0.13)',
+    cor: 'var(--plano-starter)',
+    corSuave: 'var(--plano-starter-soft)',
     chamada: 'Para quem toca sozinho',
     publico: '1 usuário',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
-    cor: '#a855f7',
-    corSuave: 'rgba(168,85,247,0.13)',
+    cor: 'var(--plano-pro)',
+    corSuave: 'var(--plano-pro-soft)',
     chamada: 'Para equipe pequena',
     publico: 'até 3 usuários',
     inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
   },
   ENTERPRISE: {
-    cor: '#f59e0b',
-    corSuave: 'rgba(245,158,11,0.13)',
+    cor: 'var(--plano-enterprise)',
+    corSuave: 'var(--plano-enterprise-soft)',
     chamada: 'Para agência',
     publico: 'usuários ilimitados',
     inclui: ['Tudo do Professional', 'Usuários sem limite', 'Vários clientes na mesma conta'],
@@ -79,7 +79,7 @@ function BannerPlano({
         background: selecionado
           ? `linear-gradient(100deg, ${id.corSuave} 0%, rgba(255,255,255,0.02) 62%)`
           : 'rgba(255,255,255,0.025)',
-        border: `1px solid ${selecionado ? id.cor : 'rgba(255,255,255,0.07)'}`,
+        border: `1px solid ${selecionado ? id.cor : 'var(--border)'}`,
         boxShadow: selecionado ? `0 0 0 1px ${id.cor}22, 0 14px 40px -22px ${id.cor}` : 'none',
       }}
     >
@@ -89,34 +89,34 @@ function BannerPlano({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="text-sm font-bold tracking-wide" style={{ color: selecionado ? '#f8fafc' : '#cbd5e1' }}>
+            <span className="text-sm font-bold tracking-wide" style={{ color: selecionado ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
               {opcao.plan}
             </span>
             {opcao.plan === 'PROFESSIONAL' && (
               <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                style={{ backgroundColor: id.cor, color: '#0b1020' }}>
+                style={{ backgroundColor: id.cor, color: 'var(--bg-base)' }}>
                 Mais escolhido
               </span>
             )}
           </div>
-          <p className="mt-0.5 text-xs" style={{ color: '#64748b' }}>
+          <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
             {id.chamada} · {id.publico}
           </p>
         </div>
 
         <div className="shrink-0 text-right">
           <p className="text-2xl font-extrabold leading-none tabular-nums tracking-tight"
-            style={{ color: selecionado ? id.cor : '#94a3b8' }}>
+            style={{ color: selecionado ? id.cor : 'var(--text-secondary)' }}>
             {brl(info.monthlyEquivalent)}
           </p>
-          <p className="mt-1 text-[11px]" style={{ color: '#64748b' }}>por mês</p>
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>por mês</p>
         </div>
       </div>
 
       {/* A economia é o argumento do ciclo longo — precisa ser legível SEM precisar
           selecionar o plano, por isso mantém o verde nos dois estados. */}
       {ciclo !== 'MONTHLY' && (
-        <p className="mt-2 text-[11px]" style={{ color: selecionado ? '#86efac' : 'rgba(134,239,172,0.62)' }}>
+        <p className="mt-2 text-[11px]" style={{ color: 'var(--badge-success-text)' }}>
           {brl(info.total)} a cada {info.months} meses · você economiza <strong>{brl(info.savings)}</strong>
         </p>
       )}
@@ -126,7 +126,7 @@ function BannerPlano({
         style={{ gridTemplateRows: selecionado ? '1fr' : '0fr' }}>
         <ul className="overflow-hidden">
           {id.inclui.map((item) => (
-            <li key={item} className="mt-2 flex items-start gap-2 text-xs first:mt-3" style={{ color: '#94a3b8' }}>
+            <li key={item} className="mt-2 flex items-start gap-2 text-xs first:mt-3" style={{ color: 'var(--text-secondary)' }}>
               <span aria-hidden style={{ color: id.cor }}>✓</span>
               {item}
             </li>
@@ -203,18 +203,18 @@ function RegisterContent() {
   };
 
   const inputStyle = {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    color: '#f1f5f9',
+    backgroundColor: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)',
   };
 
   const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = '#3b82f6';
+    e.target.style.borderColor = 'var(--accent)';
     e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
   };
 
   const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+    e.target.style.borderColor = 'var(--input-border)';
     e.target.style.boxShadow = 'none';
   };
 
@@ -222,24 +222,24 @@ function RegisterContent() {
   const infoAtual = planoAtual?.cycles.find((c) => c.cycle === ciclo);
 
   return (
-    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#080d19' }}>
+    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--bg-base)' }}>
       {/* Foco de luz atrás dos banners — dá profundidade sem competir com as cores dos planos */}
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 22% 35%, rgba(59,130,246,0.16) 0%, transparent 58%), radial-gradient(ellipse at 78% 80%, rgba(168,85,247,0.10) 0%, transparent 50%)'
+        background: 'radial-gradient(ellipse at 22% 35%, var(--auth-glow-1) 0%, transparent 58%), radial-gradient(ellipse at 78% 80%, var(--auth-glow-2) 0%, transparent 50%)'
       }} />
-      <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{
-        backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+      <div className="absolute inset-0 pointer-events-none" style={{
+        backgroundImage: 'linear-gradient(var(--auth-grid) 1px, transparent 1px), linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }} />
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 lg:py-14">
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
-          <span className="text-white font-semibold text-lg">Cortex Growth</span>
+          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 lg:items-start">
@@ -247,17 +247,17 @@ function RegisterContent() {
           {/* ── Planos ─────────────────────────────────────────────────── */}
           {escolhePlano ? (
             <div>
-              <h1 className="text-3xl lg:text-4xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
+              <h1 className="text-3xl lg:text-4xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
                 Escolha o tamanho da{' '}
-                <span style={{ background: 'linear-gradient(135deg, #22d3ee, #a855f7 55%, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                <span style={{ background: 'linear-gradient(135deg, var(--plano-starter), var(--plano-pro) 55%, var(--plano-enterprise))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                   sua operação.
                 </span>
               </h1>
-              <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
+              <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
                 Meta Ads, Google Ads e CRM no mesmo painel. Você troca de plano quando a operação crescer.
               </p>
 
-              <div className="mt-6 inline-flex rounded-xl p-1" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+              <div className="mt-6 inline-flex rounded-xl p-1" style={{ backgroundColor: 'var(--input-bg)', border: '1px solid var(--border)' }}>
                 {(['MONTHLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((c) => {
                   const ativo = ciclo === c;
                   const desconto = c === 'SEMIANNUAL' ? '−10%' : c === 'ANNUAL' ? '−20%' : null;
@@ -266,12 +266,12 @@ function RegisterContent() {
                       aria-pressed={ativo}
                       className="rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors"
                       style={{
-                        backgroundColor: ativo ? 'rgba(255,255,255,0.08)' : 'transparent',
-                        color: ativo ? '#f1f5f9' : '#64748b',
+                        backgroundColor: ativo ? 'var(--input-border)' : 'transparent',
+                        color: ativo ? 'var(--text-primary)' : 'var(--text-muted)',
                       }}>
                       {ROTULO_CICLO[c]}
                       {desconto && (
-                        <span className="ml-1.5 font-bold" style={{ color: ativo ? '#4ade80' : '#475569' }}>{desconto}</span>
+                        <span className="ml-1.5 font-bold" style={{ color: ativo ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>{desconto}</span>
                       )}
                     </button>
                   );
@@ -280,7 +280,7 @@ function RegisterContent() {
 
               <div className="mt-4 space-y-2.5">
                 {planos.length === 0 ? (
-                  <p className="text-sm" style={{ color: '#475569' }}>Carregando planos…</p>
+                  <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando planos…</p>
                 ) : (
                   planos.map((p) => (
                     <BannerPlano key={p.plan} opcao={p} ciclo={ciclo}
@@ -291,11 +291,11 @@ function RegisterContent() {
             </div>
           ) : (
             <div>
-              <h1 className="text-3xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
+              <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
                 Seu painel está pronto.
               </h1>
-              <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
-                Crie sua conta para assumir o painel <strong style={{ color: '#cbd5e1' }}>{claimInfo?.organizationName}</strong>
+              <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
+                Crie sua conta para assumir o painel <strong style={{ color: 'var(--text-secondary)' }}>{claimInfo?.organizationName}</strong>
                 {claimInfo?.managerName ? <> , configurado por {claimInfo.managerName}</> : null}.
               </p>
             </div>
@@ -303,15 +303,15 @@ function RegisterContent() {
 
           {/* ── Formulário ─────────────────────────────────────────────── */}
           <div className="rounded-2xl p-7" style={{
-            backgroundColor: 'rgba(15,22,41,0.82)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            backgroundColor: 'var(--bg-surface)',
+            border: '1px solid var(--border)',
             backdropFilter: 'blur(12px)',
           }}>
-            <h2 className="text-lg font-bold" style={{ color: '#f1f5f9' }}>Criar conta</h2>
+            <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Criar conta</h2>
             {escolhePlano && infoAtual && (
-              <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
                 {plano} · {ROTULO_CICLO[ciclo].toLowerCase()} ·{' '}
-                <strong style={{ color: IDENTIDADE[plano]?.cor ?? '#60a5fa' }}>
+                <strong style={{ color: IDENTIDADE[plano]?.cor ?? 'var(--accent)' }}>
                   {brl(infoAtual.total)}
                 </strong>
                 {ciclo !== 'MONTHLY' && <> a cada {infoAtual.months} meses</>}
@@ -320,54 +320,54 @@ function RegisterContent() {
 
             {refCode && !claimToken && (
               <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
-                style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--accent)' }}>
                 Você foi convidado por um gestor de tráfego.
               </div>
             )}
 
             {claimInfo && !claimInfo.valid && (
               <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
-                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
                 Convite inválido ou expirado. Você ainda pode criar uma conta normal.
               </div>
             )}
 
             {error && (
               <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
-                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
                 {error}
               </div>
             )}
 
             <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="mt-5 space-y-4">
               <div>
-                <label htmlFor="name" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome completo</label>
+                <label htmlFor="name" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome completo</label>
                 <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required
                   placeholder="Seu nome" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
                   style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
               </div>
 
               <div>
-                <label htmlFor="organizationName" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome da empresa</label>
+                <label htmlFor="organizationName" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nome da empresa</label>
                 <input type="text" id="organizationName" name="organizationName" value={formData.organizationName} onChange={handleChange} required
                   readOnly={!!claimInfo?.valid}
                   placeholder="Minha Agência" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
                   style={claimInfo?.valid ? { ...inputStyle, opacity: 0.65, cursor: 'not-allowed' } : inputStyle}
                   onFocus={claimInfo?.valid ? undefined : onFocus} onBlur={claimInfo?.valid ? undefined : onBlur} />
                 {claimInfo?.valid && (
-                  <p className="mt-1 text-xs" style={{ color: '#475569' }}>Definido pelo convite do gestor.</p>
+                  <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>Definido pelo convite do gestor.</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Email</label>
+                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Email</label>
                 <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required
                   placeholder="seu@email.com" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
                   style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Senha</label>
+                <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Senha</label>
                 <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required
                   placeholder="Mínimo 8 caracteres" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
                   style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
@@ -375,27 +375,27 @@ function RegisterContent() {
 
               <button type="submit" disabled={isLoading}
                 className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
-                style={{ backgroundColor: '#3b82f6' }}
-                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}>
+                style={{ backgroundColor: 'var(--accent)' }}
+                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}>
                 {isLoading && <Spinner />}
                 {isLoading ? 'Criando conta...' : 'Criar conta'}
               </button>
             </form>
 
-            <p className="mt-5 text-center text-sm" style={{ color: '#475569' }}>
+            <p className="mt-5 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
               Já tem conta?{' '}
-              <Link href="/auth/login" className="font-medium" style={{ color: '#60a5fa' }}>Entrar</Link>
+              <Link href="/auth/login" className="font-medium" style={{ color: 'var(--accent)' }}>Entrar</Link>
             </p>
 
-            <p className="mt-3 text-center text-xs" style={{ color: '#334155' }}>
+            <p className="mt-3 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
               Ao criar uma conta, você concorda com nossa{' '}
               <Link href="/privacy" className="hover:text-blue-400 transition-colors">política de privacidade</Link>.
             </p>
           </div>
         </div>
 
-        <p className="mt-10 text-xs" style={{ color: '#334155' }}>
+        <p className="mt-10 text-xs" style={{ color: 'var(--text-muted)' }}>
           © 2026 IA Cortex Tech ·{' '}
           <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
         </p>
@@ -409,7 +409,7 @@ function RegisterContent() {
           transform: translateY(-2px);
         }
         .banner-plano:focus-visible {
-          outline: 2px solid #60a5fa;
+          outline: 2px solid var(--accent);
           outline-offset: 3px;
         }
         @media (prefers-reduced-motion: reduce) {
@@ -426,7 +426,7 @@ function RegisterContent() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#080d19' }}><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>}>
       <RegisterContent />
     </Suspense>
   );

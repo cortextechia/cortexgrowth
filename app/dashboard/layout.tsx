@@ -334,8 +334,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/auth/login');
   };
 
+  // A "Configuração Inicial" é tarefa de uma vez só: depois de concluída, um item
+  // fixo no menu para "primeiros passos" vira ruído — e sugere que ainda falta algo.
+  // Nada se perde ao escondê-la: site/concorrentes ficam em SEO, integrações em
+  // Integrações e o nome da empresa em Organizações.
+  const onboardingConcluido = Boolean(organization?.onboardingCompletedAt);
+
   const renderNavLinks = (expanded: boolean) =>
-    NAV_ITEMS.filter((item) => !item.href.startsWith('/dashboard/crm') || crmVisible).map((item) => {
+    NAV_ITEMS
+      .filter((item) => !item.href.startsWith('/dashboard/crm') || crmVisible)
+      .filter((item) => item.href !== '/onboarding' || !onboardingConcluido)
+      .map((item) => {
       const exact = 'exact' in item && item.exact;
       const isActive = exact
         ? pathname === item.href

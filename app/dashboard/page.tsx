@@ -10,6 +10,7 @@ import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
 import Link from 'next/link';
+import { PrimeirosPassos } from '@/components/PrimeirosPassos';
 import { LineChart, Line, ComposedChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -1779,6 +1780,9 @@ export default function DashboardPage() {
           />
         </div>
       )}
+
+      {/* ── 1.5 PRIMEIROS PASSOS (some quando a configuração é concluída) ──────── */}
+      <PrimeirosPassos />
 
       {/* ── 2. ALERTAS ATIVOS ──────────────────────────────────────────────────── */}
       {alerts.length > 0 && (
