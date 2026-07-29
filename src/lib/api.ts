@@ -948,6 +948,42 @@ class ApiService {
     return response.data;
   }
 
+  // ── Criativos rastreáveis ──────────────────────────────────────────────
+  async listCrmAdCreatives(): Promise<{ success: boolean; data: import('@/types').CrmAdCreative[] }> {
+    const response = await this.client.get('/crm/ad-creatives');
+    return response.data;
+  }
+
+  async listCrmAdNumbers(): Promise<{ success: boolean; data: import('@/types').CrmAdNumber[] }> {
+    const response = await this.client.get('/crm/ad-creatives/numbers');
+    return response.data;
+  }
+
+  async createCrmAdCreative(payload: {
+    name: string;
+    message: string;
+    platform: import('@/types').CrmAdPlatform;
+    campaignName?: string;
+    destPhone?: string;
+    adMediaUrl?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/crm/ad-creatives', payload);
+    return response.data;
+  }
+
+  async updateCrmAdCreative(
+    id: string,
+    payload: Partial<{ name: string; message: string; platform: import('@/types').CrmAdPlatform; campaignName: string | null; destPhone: string | null; adMediaUrl: string | null; active: boolean }>
+  ): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/ad-creatives/${id}`, payload);
+    return response.data;
+  }
+
+  async deleteCrmAdCreative(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/ad-creatives/${id}`);
+    return response.data;
+  }
+
   async listCrmBroadcasts(): Promise<{ success: boolean; data: import('@/types').CrmBroadcast[] }> {
     const response = await this.client.get('/crm/broadcasts');
     return response.data;

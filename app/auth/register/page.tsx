@@ -192,6 +192,13 @@ function RegisterContent() {
         ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}),
       });
       if (response.success) {
+        // Quem entra por claim assume uma org que o gestor JÁ configurou — inclusive as
+        // integrações, que são copiadas na criação do cliente. Mandar essa pessoa para o
+        // wizard seria pedir que conectasse o que já está conectado.
+        if (claimToken && claimInfo?.valid) {
+          router.push('/dashboard');
+          return;
+        }
         sessionStorage.setItem('onboarding_new_account', 'true');
         router.push('/onboarding');
       }

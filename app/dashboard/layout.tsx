@@ -150,6 +150,9 @@ const NAV_ITEMS = [
     children: [
       { href: '/dashboard/crm/contatos', label: 'Contatos' },
       { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true },
+      // "Rastreio" e não "Criativos": já existe um item Criativos no menu (a
+      // Inteligência Criativa da IA) e dois rótulos iguais confundem.
+      { href: '/dashboard/crm/criativos', label: 'Rastreio', adminOnly: true },
     ],
   },
   {

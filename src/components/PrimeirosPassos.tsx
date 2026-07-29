@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
@@ -20,8 +20,13 @@ interface Passo {
 }
 
 export function PrimeirosPassos() {
-  const { organization } = useAuth();
+  const { organization, user } = useAuth();
   const [passos, setPassos] = useState<Passo[] | null>(null);
+  // Quem pulou o wizard nunca passou pelo botão final, então `onboardingCompletedAt`
+  // ficava null para sempre — o cartão seguia na tela mesmo com tudo 100% feito.
+  // Concluir por dedução: se os passos estão todos prontos, a configuração acabou.
+  const [concluidoAgora, setConcluidoAgora] = useState(false);
+  const jaMarcou = useRef(false);
 
   const concluido = Boolean(organization?.onboardingCompletedAt);
 
@@ -35,7 +40,7 @@ export function PrimeirosPassos() {
       const conectado = (tipo: string) =>
         integ.integrations.some((i) => i.type === tipo && i.status === 'CONNECTED');
 
-      setPassos([
+      const lista: Passo[] = [
         {
           titulo: 'Conecte o Meta Ads',
           descricao: 'Traz gasto, impressões e leads das campanhas.',
@@ -54,11 +59,28 @@ export function PrimeirosPassos() {
           href: '/dashboard/seo',
           feito: Boolean(seo.data?.websiteUrl),
         },
-      ]);
-    });
-  }, [concluido]);
+      ];
+      setPassos(lista);
 
-  if (concluido || !passos) return null;
+      if (!lista.every((p) => p.feito)) return;
+
+      // Não há mais o que fazer: esconde para todos, mesmo que a marcação não persista.
+      setConcluidoAgora(true);
+
+      // Só ADMIN/SUPER_ADMIN pode marcar (a rota exige). Sem esta guarda, um vendedor
+      // dispararia um 403 a cada visita ao dashboard.
+      const podeMarcar = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
+      // `jaMarcou` guarda contra o duplo-invoke do useEffect em Strict Mode (dev).
+      if (podeMarcar && !jaMarcou.current) {
+        jaMarcou.current = true;
+        // Falha aqui não pode tirar o dashboard do ar — no pior caso não persiste
+        // e o cartão reaparece no próximo carregamento.
+        void apiService.completeOnboarding().catch(() => {});
+      }
+    });
+  }, [concluido, user?.role]);
+
+  if (concluido || concluidoAgora || !passos) return null;
 
   const prontos = passos.filter((p) => p.feito).length;
   const pct = Math.round((prontos / passos.length) * 100);

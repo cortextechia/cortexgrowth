@@ -858,6 +858,30 @@ export interface CrmBroadcastPreview {
   skipped: number;
 }
 
+export type CrmAdPlatform = 'META' | 'GOOGLE';
+
+// Criativo rastreável: a FRASE viaja no texto pré-preenchido do wa.me e volta na
+// primeira mensagem do lead, que é como o card ganha origem Meta/Google.
+export interface CrmAdCreative {
+  id: string;
+  code: string;                // identificador curto na tela (CX1) — não casa nada
+  name: string;
+  message: string | null;      // frase do wa.me — fallback quando não vem anúncio
+  adMediaUrl: string | null;   // URL do vídeo do anúncio (fonte primária, via CTWA)
+  platform: CrmAdPlatform;
+  campaignName: string | null;
+  destPhone: string | null;
+  active: boolean;
+  leads: number;
+  waLink: string | null;       // null sem número ou sem frase
+  createdAt: string;
+}
+
+export interface CrmAdNumber {
+  phone: string | null;
+  sellerName: string;
+}
+
 export interface CrmSummary {
   funnel: { id: string; name: string; count: number; value: number }[];
   pipeline: { count: number; value: number };
