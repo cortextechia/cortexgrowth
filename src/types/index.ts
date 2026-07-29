@@ -96,6 +96,24 @@ export interface RegisterRequest {
   password: string;
   name: string;
   organizationName: string;
+  // Escolhidos na tela de cadastro. Ausentes em quem entra por link de claim
+  // (a org já existe e já tem plano).
+  plan?: string;
+  billingCycle?: BillingCycle;
+  ref?: string;
+  claim?: string;
+}
+
+export interface PlanOption {
+  plan: string;
+  monthlyListPrice: number;
+  cycles: {
+    cycle: BillingCycle;
+    months: number;
+    total: number;
+    monthlyEquivalent: number;
+    savings: number;
+  }[];
 }
 
 export interface LoginRequest {
@@ -635,6 +653,43 @@ export interface CrmHygiene {
   stagnant: { count: number; thresholdDays: number; items: CrmHygieneItem[] };
   wonNoValue: { count: number; windowDays: number; items: CrmHygieneItem[] };
   noOrigin: { count: number; total: number; pct: number; windowDays: number; items: CrmHygieneItem[] };
+}
+
+// ===== ASSINATURA / COBRANÇA =====
+export type BillingCycle = 'MONTHLY' | 'SEMIANNUAL' | 'ANNUAL';
+export type PaymentStatus = 'PENDING' | 'CONFIRMED' | 'OVERDUE' | 'REFUNDED' | 'CANCELLED';
+export type PaymentMethod = 'PIX' | 'BOLETO' | 'CREDIT_CARD' | 'MANUAL';
+
+export interface BillingStatus {
+  plan: string;
+  billingCycle: BillingCycle;
+  orgStatus: string;
+  price: number;
+  monthlyEquivalent: number;
+  monthlyListPrice: number;
+  subscriptionEnds: string | null;
+  daysLeft: number | null;
+  expired: boolean;
+  monthsPaid: number;
+  totalPaid: number;
+  paymentsCount: number;
+  lastPaymentAt: string | null;
+  nextDueDate: string | null;
+}
+
+export interface PaymentRecord {
+  id: string;
+  amount: number;
+  plan: string;
+  billingCycle: BillingCycle;
+  status: PaymentStatus;
+  method: PaymentMethod;
+  periodStart: string;
+  periodEnd: string;
+  dueDate: string | null;
+  paidAt: string | null;
+  invoiceUrl: string | null;
+  notes: string | null;
 }
 
 export interface SellerRankingRow {

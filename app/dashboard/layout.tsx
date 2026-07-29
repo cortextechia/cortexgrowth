@@ -203,6 +203,16 @@ const NAV_ITEMS = [
     roles: null,
   },
   {
+    href: '/dashboard/assinatura',
+    label: 'Assinatura',
+    icon: (
+      <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+      </svg>
+    ),
+    roles: ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'] as string[],
+  },
+  {
     href: '/dashboard/organizations',
     label: 'Organizações',
     icon: (
@@ -224,6 +234,52 @@ const NAV_ITEMS = [
     roles: ['ADMIN', 'SUPER_ADMIN'] as string[],
   },
 ];
+
+// Faixa de confirmação de e-mail. Sem ela, quem não recebeu o e-mail (spam, endereço
+// digitado errado) não tem como pedir outro nem sabe que está pendente — a verificação
+// vira um recurso invisível. Não bloqueia o uso do produto: só avisa e oferece o reenvio.
+function AvisoEmailNaoConfirmado() {
+  const { user } = useAuth();
+  const [estado, setEstado] = useState<'idle' | 'enviando' | 'enviado' | 'erro'>('idle');
+  const [mensagem, setMensagem] = useState('');
+
+  if (user?.emailVerified !== false) return null;
+
+  const reenviar = async () => {
+    setEstado('enviando');
+    try {
+      const r = await apiService.resendVerification();
+      setEstado('enviado');
+      setMensagem(r.message);
+    } catch (e: any) {
+      setEstado('erro');
+      setMensagem(e?.response?.data?.message ?? 'Não foi possível reenviar agora.');
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:px-6"
+      style={{ backgroundColor: 'var(--badge-warn-bg)', borderBottom: '1px solid var(--border)' }}>
+      <span className="text-sm" style={{ color: 'var(--badge-warn-text)' }}>
+        {estado === 'enviado'
+          ? mensagem
+          : <>Confirme seu e-mail <strong>{user.email}</strong> para garantir o acesso à conta.</>}
+      </span>
+
+      {estado !== 'enviado' && (
+        <button onClick={() => void reenviar()} disabled={estado === 'enviando'}
+          className="text-sm font-semibold underline underline-offset-2 disabled:opacity-60"
+          style={{ color: 'var(--badge-warn-text)' }}>
+          {estado === 'enviando' ? 'Enviando…' : 'Reenviar e-mail'}
+        </button>
+      )}
+
+      {estado === 'erro' && (
+        <span className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{mensagem}</span>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, organization, logout } = useAuth();
@@ -539,6 +595,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
           </div>
+
+          <AvisoEmailNaoConfirmado />
 
           <div className="p-4 sm:p-6">{children}</div>
         </main>

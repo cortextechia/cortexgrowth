@@ -84,6 +84,15 @@ class ApiService {
           }
         }
 
+        // 402 = assinatura suspensa/cancelada/vencida (checkOrgBilling no backend).
+        // Manda para a tela de assinatura em vez de deixar a UI quebrada em pedaços.
+        if (error.response?.status === 402 && typeof window !== 'undefined') {
+          const data = error.response.data as { code?: string; reason?: string } | undefined;
+          if (data?.code === 'SUBSCRIPTION_INACTIVE' && !window.location.pathname.startsWith('/assinatura')) {
+            window.location.href = `/assinatura?motivo=${data.reason ?? 'EXPIRED'}`;
+          }
+        }
+
         return Promise.reject(error);
       }
     );
@@ -255,6 +264,44 @@ class ApiService {
   // Contas de anúncio Meta acessíveis (para escolher a conta quando o OAuth não auto-seleciona)
   async getMetaAccounts(): Promise<{ success: boolean; data: { connected: boolean; accounts: { externalId: string; name: string }[]; currentExternalId: string | null } }> {
     const response = await this.client.get('/integrations/meta/accounts');
+    return response.data;
+  }
+
+  // Tabela de preços — rota pública, usada na tela de cadastro
+  async getPlans(): Promise<{ success: boolean; data: import('@/types').PlanOption[] }> {
+    const response = await this.client.get('/billing/plans');
+    return response.data;
+  }
+
+  // ─── Verificação de e-mail e recuperação de senha ───────────────────────────
+  async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/auth/verify-email', { token });
+    return response.data;
+  }
+
+  async resendVerification(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/auth/resend-verification');
+    return response.data;
+  }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/auth/forgot-password', { email });
+    return response.data;
+  }
+
+  async resetPassword(token: string, password: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/auth/reset-password', { token, password });
+    return response.data;
+  }
+
+  // ─── Assinatura / cobrança ──────────────────────────────────────────────────
+  async getBillingStatus(): Promise<{ success: boolean; data: import('@/types').BillingStatus }> {
+    const response = await this.client.get('/billing/status');
+    return response.data;
+  }
+
+  async getBillingPayments(): Promise<{ success: boolean; data: import('@/types').PaymentRecord[] }> {
+    const response = await this.client.get('/billing/payments');
     return response.data;
   }
 
