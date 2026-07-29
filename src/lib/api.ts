@@ -961,7 +961,7 @@ class ApiService {
 
   async createCrmAdCreative(payload: {
     name: string;
-    message: string;
+    message?: string;
     platform: import('@/types').CrmAdPlatform;
     campaignName?: string;
     destPhone?: string;
@@ -976,6 +976,11 @@ class ApiService {
     payload: Partial<{ name: string; message: string; platform: import('@/types').CrmAdPlatform; campaignName: string | null; destPhone: string | null; adMediaUrl: string | null; active: boolean }>
   ): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/ad-creatives/${id}`, payload);
+    return response.data;
+  }
+
+  async syncCrmAdCreativeNames(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/crm/ad-creatives/sync-names');
     return response.data;
   }
 

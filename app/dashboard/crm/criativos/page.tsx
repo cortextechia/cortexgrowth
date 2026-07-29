@@ -2,12 +2,14 @@
 
 // CRM · Criativos — rastreia de qual criativo veio cada lead.
 //
-// Cada criativo tem a PRÓPRIA FRASE, que vai no texto pré-preenchido do link
-// wa.me. A primeira mensagem do lead chega com ela, o webhook casa e grava a
-// origem real (Meta/Google) no card — que é o que faz esse lead entrar no ROAS.
-// Sem frase reconhecida nada muda: o card nasce como WhatsApp, igual antes.
-// Nada de código à vista: "[CX1]" numa conversa de vendas convida o cliente a
-// apagar o texto, e apagar o texto é perder o rastreio.
+// Duas fontes, nesta ordem:
+// 1) O anúncio Click-to-WhatsApp: a Meta manda o ID do anúncio junto da primeira
+//    mensagem. Não exige nada de você nem do cliente, e anúncio ainda não
+//    cadastrado é DETECTADO sozinho — só falta dar nome (ou puxar da Meta).
+// 2) A frase pré-preenchida do link wa.me, para Google e links que não são CTWA.
+//
+// Em qualquer dos dois o card nasce com origem Meta/Google em vez de WhatsApp,
+// e é isso que faz o lead entrar no ROAS. Sem nenhum sinal nada muda.
 //
 // A lista é um RANKING: ordenada por leads e com barra proporcional ao líder,
 // porque a pergunta que a tela responde é "qual criativo está ganhando".
@@ -63,6 +65,22 @@ export default function CrmCriativosPage() {
   const [saving, setSaving] = useState(false);
 
   const [copied, setCopied] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  // Criativo descoberto sozinho nasce com o título do anúncio; a Meta tem o nome
+  // real que o gestor deu, e é esse que ele reconhece.
+  const sincronizarNomes = async () => {
+    setSyncing(true);
+    try {
+      const r = await apiService.syncCrmAdCreativeNames();
+      await load();
+      showToast('success', r.message);
+    } catch {
+      showToast('error', 'Não foi possível buscar os nomes na Meta.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -88,12 +106,15 @@ export default function CrmCriativosPage() {
 
   const criar = async () => {
     if (!name.trim()) { showToast('error', 'Dê um nome ao criativo.'); return; }
-    if (message.trim().length < 8) { showToast('error', 'Escreva a frase que o cliente vai enviar.'); return; }
+    if (!adMediaUrl.trim() && message.trim().length < 8) {
+      showToast('error', 'Informe o link do anúncio ou a frase que o cliente vai enviar.');
+      return;
+    }
     setSaving(true);
     try {
       await apiService.createCrmAdCreative({
         name: name.trim(),
-        message: message.trim(),
+        ...(message.trim() ? { message: message.trim() } : {}),
         ...(adMediaUrl.trim() ? { adMediaUrl: adMediaUrl.trim() } : {}),
         platform,
         ...(campaignName.trim() ? { campaignName: campaignName.trim() } : {}),
@@ -161,17 +182,29 @@ export default function CrmCriativosPage() {
         <div>
           <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Rastreio de criativos</h1>
           <p className="mt-1 max-w-xl text-sm" style={{ color: 'var(--text-muted)' }}>
-            Descubra qual anúncio traz mais leads. Cada criativo ganha um link próprio — use como
-            destino do anúncio e o lead chega já identificado.
+            Descubra qual anúncio traz mais leads. Anúncios de WhatsApp da Meta são
+            reconhecidos sozinhos; para Google e outros links, use a frase de cada criativo.
           </p>
         </div>
-        <button
-          onClick={() => setOpen(true)}
-          className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ backgroundColor: 'var(--accent)' }}
-        >
-          Novo criativo
-        </button>
+        <div className="flex gap-2">
+          {list.some((c) => c.autoCreated) && (
+            <button
+              onClick={() => void sincronizarNomes()}
+              disabled={syncing}
+              className="rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
+              style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+            >
+              {syncing ? 'Buscando…' : 'Buscar nomes na Meta'}
+            </button>
+          )}
+          <button
+            onClick={() => setOpen(true)}
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            Novo criativo
+          </button>
+        </div>
       </div>
 
       {/* Resumo — some quando não há nada, para não mostrar três zeros */}
@@ -248,6 +281,11 @@ export default function CrmCriativosPage() {
                     <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: p.bg, color: p.color }}>
                       {p.label}
                     </span>
+                    {c.autoCreated && (
+                      <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}>
+                        Detectado — confira o nome
+                      </span>
+                    )}
                     {!c.active && (
                       <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
                         Pausado
@@ -277,16 +315,17 @@ export default function CrmCriativosPage() {
                 />
               </div>
 
-              {/* Link + ações */}
+              {/* Link + ações. O link só existe para o rastreio por frase — criativo
+                  reconhecido pelo próprio anúncio não precisa de link nenhum. */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <code
+                {c.message && <code
                   className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-xs"
                   style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
                   title={c.waLink ?? 'Escolha um número de destino'}
                 >
                   {c.waLink ?? 'Sem número de destino — edite para gerar o link'}
-                </code>
-                <button
+                </code>}
+                {c.message && <button
                   onClick={() => void copiar(c)}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
                   style={
@@ -296,7 +335,7 @@ export default function CrmCriativosPage() {
                   }
                 >
                   {copied === c.id ? 'Copiado' : 'Copiar link'}
-                </button>
+                </button>}
                 <button
                   onClick={() => void alternarAtivo(c)}
                   className="rounded-lg px-3 py-1.5 text-xs transition-colors"
@@ -314,9 +353,11 @@ export default function CrmCriativosPage() {
               </div>
 
               <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-                {c.adMediaUrl
-                  ? <>Reconhecido pelo anúncio: <span style={{ color: 'var(--text-secondary)' }}>{c.adMediaUrl}</span></>
-                  : <>O cliente enviará: <span style={{ color: 'var(--text-secondary)' }}>“{c.message ?? '—'}”</span></>}
+                {c.adSourceId
+                  ? <>Reconhecido pelo anúncio <span style={{ color: 'var(--text-secondary)' }}>{c.adSourceId}</span> na Meta</>
+                  : c.adMediaUrl
+                    ? <>Reconhecido pelo anúncio: <span style={{ color: 'var(--text-secondary)' }}>{c.adMediaUrl}</span></>
+                    : <>O cliente enviará: <span style={{ color: 'var(--text-secondary)' }}>“{c.message ?? '—'}”</span></>}
               </p>
             </div>
           );

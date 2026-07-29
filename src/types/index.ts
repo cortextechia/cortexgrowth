@@ -867,7 +867,9 @@ export interface CrmAdCreative {
   code: string;                // identificador curto na tela (CX1) — não casa nada
   name: string;
   message: string | null;      // frase do wa.me — fallback quando não vem anúncio
-  adMediaUrl: string | null;   // URL do vídeo do anúncio (fonte primária, via CTWA)
+  adMediaUrl: string | null;   // URL do vídeo do anúncio (externalAdReply.mediaUrl)
+  adSourceId: string | null;   // ID do anúncio na Meta — chave canônica do rastreio
+  autoCreated: boolean;        // descoberto pelo sistema, ainda sem nome real
   platform: CrmAdPlatform;
   campaignName: string | null;
   destPhone: string | null;
