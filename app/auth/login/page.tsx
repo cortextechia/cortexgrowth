@@ -14,12 +14,9 @@ function Spinner() {
   );
 }
 
-const features = [
-  { icon: '⚡', text: 'Dados de Meta e Google Ads em tempo real' },
-  { icon: '🤖', text: 'Insights gerados por IA automaticamente' },
-  { icon: '📊', text: 'Dashboard unificado de todas as campanhas' },
-];
-
+// Quem chega aqui já é cliente e quer entrar — esta tela não repete o pitch do
+// cadastro. A única continuidade visual com a tela de planos é a régua tricolor
+// (ciano/violeta/âmbar, as cores dos três planos) no topo do cartão.
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -45,179 +42,186 @@ export default function LoginPage() {
     }
   };
 
+  const inputStyle = {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    color: '#f1f5f9',
+  };
+
+  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = '#3b82f6';
+    e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+  };
+
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    e.target.style.borderColor = 'rgba(255,255,255,0.08)';
+    e.target.style.boxShadow = 'none';
+  };
+
   return (
-    <div className="min-h-screen relative flex items-center overflow-hidden" style={{ backgroundColor: '#080d19' }}>
+    <div className="min-h-screen relative flex items-center overflow-hidden px-6 py-10"
+      style={{ backgroundColor: '#080d19' }}>
 
-      {/* Gradiente de fundo cobrindo a página inteira */}
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 25% 50%, rgba(59,130,246,0.18) 0%, transparent 55%), radial-gradient(ellipse at 10% 20%, rgba(99,102,241,0.1) 0%, transparent 45%)'
+        background: 'radial-gradient(ellipse at 28% 42%, rgba(59,130,246,0.15) 0%, transparent 55%), radial-gradient(ellipse at 80% 90%, rgba(168,85,247,0.08) 0%, transparent 45%)'
       }} />
-
-      {/* Grid sutil */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{
         backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }} />
 
-      {/* Fade para a direita — dissolve o grid/gradiente antes do formulário */}
-      <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none" style={{
-        background: 'linear-gradient(to left, #080d19 30%, transparent 100%)'
-      }} />
+      <div className="relative z-10 mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1fr_400px]">
 
-      {/* Conteúdo — dois lados sem divisão visual */}
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-8 flex items-center justify-between gap-12">
-
-        {/* Lado esquerdo — branding */}
-        <div className="hidden lg:flex flex-col gap-10 flex-1 max-w-md">
-
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+        {/* ── Lado esquerdo ────────────────────────────────────────────────
+            Sem promessa e sem depoimento inventado: só o nome do produto, uma
+            frase factual do que ele É, e o espectro das três cores dos planos
+            como massa visual — é o que dá peso à composição sem virar pitch. */}
+        <div className="hidden lg:block">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
-            <span className="text-white font-semibold text-lg">Cortex Growth</span>
+            <span className="text-white font-semibold text-xl">Cortex Growth</span>
           </div>
 
-          <div>
-            <h2 className="text-4xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
-              Seu marketing,{' '}
-              <span style={{
-                background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                inteligente.
-              </span>
-            </h2>
-            <p className="mt-3 text-base leading-relaxed" style={{ color: '#64748b' }}>
-              Centralize campanhas, analise performance e tome decisões com dados reais.
-            </p>
-          </div>
+          <h2 className="mt-8 text-4xl font-bold leading-[1.15]" style={{ color: '#f1f5f9' }}>
+            Meta Ads, Google Ads<br />e CRM no{' '}
+            <span style={{
+              background: 'linear-gradient(120deg, #22d3ee, #a855f7 55%, #f59e0b)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
+              mesmo painel.
+            </span>
+          </h2>
 
-          <div className="space-y-4">
-            {features.map((f, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
-                  <span className="text-sm">{f.icon}</span>
-                </div>
-                <span className="text-sm" style={{ color: '#94a3b8' }}>{f.text}</span>
-              </div>
-            ))}
+          <div className="espectro mt-10" aria-hidden>
+            <span style={{ backgroundColor: '#22d3ee' }} />
+            <span style={{ backgroundColor: '#a855f7' }} />
+            <span style={{ backgroundColor: '#f59e0b' }} />
           </div>
-
-          <p className="text-xs" style={{ color: '#334155' }}>
-            © 2026 IA Cortex Tech ·{' '}
-            <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
-          </p>
         </div>
 
-        {/* Lado direito — formulário */}
-        <div className="w-full lg:w-auto lg:flex-shrink-0">
-          <div className="w-full max-w-sm mx-auto lg:mx-0" style={{ minWidth: '360px' }}>
+        {/* Marca compacta só no mobile, onde o painel da esquerda não aparece */}
+        <div className="flex items-center justify-center gap-2 lg:hidden">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <span className="text-white font-semibold text-lg">Cortex Growth</span>
+        </div>
 
-            {/* Logo mobile */}
-            <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+        <div className="overflow-hidden rounded-2xl" style={{
+          backgroundColor: 'rgba(15,22,41,0.82)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          {/* Sem régua tricolor aqui: o espectro já aparece no título e nas barras
+              à esquerda. Repetir pela terceira vez viraria maneirismo. */}
+          <div className="p-8">
+            <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Entrar</h1>
+            <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Acesse o painel da sua operação.</p>
+
+            {error && (
+              <div className="mt-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
+                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
                 </svg>
+                {error}
               </div>
-              <span className="text-white font-semibold">Cortex Growth</span>
-            </div>
+            )}
 
-            {/* Card do formulário */}
-            <div className="rounded-2xl p-8" style={{
-              backgroundColor: 'rgba(15,22,41,0.8)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              backdropFilter: 'blur(12px)',
-            }}>
-              <div className="mb-6">
-                <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Bem-vindo de volta</h1>
-                <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Entre na sua conta para continuar</p>
+            <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>
+                  Email
+                </label>
+                <input
+                  type="email" id="email" name="email" required autoComplete="email"
+                  value={formData.email} onChange={handleChange}
+                  placeholder="seu@email.com"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={inputStyle} onFocus={onFocus} onBlur={onBlur}
+                />
               </div>
 
-              {error && (
-                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
-                  </svg>
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    required
-                    placeholder="seu@email.com"
-                    className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={{
-                      backgroundColor: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      color: '#f1f5f9',
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>
+              <div>
+                <div className="flex items-baseline justify-between mb-1.5">
+                  <label htmlFor="password" className="block text-xs font-medium" style={{ color: '#94a3b8' }}>
                     Senha
                   </label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                    placeholder="••••••••"
-                    className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={{
-                      backgroundColor: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      color: '#f1f5f9',
-                    }}
-                    onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; }}
-                    onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; e.target.style.boxShadow = 'none'; }}
-                  />
+                  <Link href="/auth/esqueci-senha" className="text-xs transition-colors" style={{ color: '#60a5fa' }}>
+                    Esqueci minha senha
+                  </Link>
                 </div>
+                <input
+                  type="password" id="password" name="password" required autoComplete="current-password"
+                  value={formData.password} onChange={handleChange}
+                  placeholder="••••••••"
+                  className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={inputStyle} onFocus={onFocus} onBlur={onBlur}
+                />
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#3b82f6' }}
-                  onMouseEnter={(e) => { if (!isLoading) (e.currentTarget).style.backgroundColor = '#2563eb'; }}
-                  onMouseLeave={(e) => { (e.currentTarget).style.backgroundColor = '#3b82f6'; }}
-                >
-                  {isLoading && <Spinner />}
-                  {isLoading ? 'Entrando...' : 'Entrar'}
-                </button>
-              </form>
+              <button
+                type="submit" disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                style={{ backgroundColor: '#3b82f6' }}
+                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}
+              >
+                {isLoading && <Spinner />}
+                {isLoading ? 'Entrando...' : 'Entrar'}
+              </button>
+            </form>
 
-              <p className="mt-5 text-center text-sm" style={{ color: '#475569' }}>
-                Não tem conta?{' '}
-                <Link href="/auth/register" className="font-medium transition-colors" style={{ color: '#60a5fa' }}>
-                  Criar conta
-                </Link>
-              </p>
-            </div>
+            <p className="mt-6 text-center text-sm" style={{ color: '#475569' }}>
+              Não tem conta?{' '}
+              <Link href="/auth/register" className="font-medium transition-colors" style={{ color: '#60a5fa' }}>
+                Ver planos
+              </Link>
+            </p>
           </div>
         </div>
+
+        <p className="text-center text-xs lg:col-start-2" style={{ color: '#334155' }}>
+          © 2026 IA Cortex Tech ·{' '}
+          <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
+        </p>
       </div>
+
+      <style jsx>{`
+        /* Três faixas de luz nas cores dos planos — massa visual que equilibra o
+           formulário sem inventar conteúdo. A respiração é lenta e quase imperceptível. */
+        .espectro {
+          display: flex;
+          gap: 14px;
+          max-width: 420px;
+        }
+        .espectro span {
+          height: 5px;
+          flex: 1;
+          border-radius: 999px;
+          filter: blur(0.3px);
+          opacity: 0.85;
+          animation: respirar 7s ease-in-out infinite;
+        }
+        .espectro span:nth-child(2) { animation-delay: 1.1s; }
+        .espectro span:nth-child(3) { animation-delay: 2.2s; }
+
+        @keyframes respirar {
+          0%, 100% { opacity: 0.32; transform: scaleX(0.94); }
+          50%      { opacity: 0.9;  transform: scaleX(1); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .espectro span { animation: none; opacity: 0.7; }
+        }
+      `}</style>
     </div>
   );
 }

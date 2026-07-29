@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
+import type { BillingCycle, PlanOption } from '@/types';
 import Link from 'next/link';
 
 function Spinner() {
@@ -15,11 +16,126 @@ function Spinner() {
   );
 }
 
-const steps = [
-  { label: 'Conecte Meta Ads e Google Ads' },
-  { label: 'Sincronize seus dados de campanha' },
-  { label: 'Receba insights gerados por IA' },
-];
+// Identidade visual por plano. As cores são deliberadamente distintas entre si
+// (ciano → violeta → âmbar) para o banner ser reconhecido pela cor, não pelo texto.
+// O conteúdo de `inclui` vem do que os planos REALMENTE entregam (planLimits.ts):
+// limite de usuários, cap de clientes no CRM e integração Kommo.
+const IDENTIDADE: Record<string, {
+  cor: string;
+  corSuave: string;
+  chamada: string;
+  publico: string;
+  inclui: string[];
+}> = {
+  STARTER: {
+    cor: '#22d3ee',
+    corSuave: 'rgba(34,211,238,0.13)',
+    chamada: 'Para quem toca sozinho',
+    publico: '1 usuário',
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+  },
+  PROFESSIONAL: {
+    cor: '#a855f7',
+    corSuave: 'rgba(168,85,247,0.13)',
+    chamada: 'Para equipe pequena',
+    publico: 'até 3 usuários',
+    inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
+  },
+  ENTERPRISE: {
+    cor: '#f59e0b',
+    corSuave: 'rgba(245,158,11,0.13)',
+    chamada: 'Para agência',
+    publico: 'usuários ilimitados',
+    inclui: ['Tudo do Professional', 'Usuários sem limite', 'Vários clientes na mesma conta'],
+  },
+};
+
+const ROTULO_CICLO: Record<BillingCycle, string> = {
+  MONTHLY: 'Mensal',
+  SEMIANNUAL: 'Semestral',
+  ANNUAL: 'Anual',
+};
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function BannerPlano({
+  opcao, ciclo, selecionado, onSelect,
+}: {
+  opcao: PlanOption;
+  ciclo: BillingCycle;
+  selecionado: boolean;
+  onSelect: () => void;
+}) {
+  const id = IDENTIDADE[opcao.plan] ?? IDENTIDADE.STARTER!;
+  const info = opcao.cycles.find((c) => c.cycle === ciclo) ?? opcao.cycles[0]!;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selecionado}
+      className="banner-plano group relative w-full overflow-hidden rounded-2xl px-5 py-4 text-left"
+      style={{
+        background: selecionado
+          ? `linear-gradient(100deg, ${id.corSuave} 0%, rgba(255,255,255,0.02) 62%)`
+          : 'rgba(255,255,255,0.025)',
+        border: `1px solid ${selecionado ? id.cor : 'rgba(255,255,255,0.07)'}`,
+        boxShadow: selecionado ? `0 0 0 1px ${id.cor}22, 0 14px 40px -22px ${id.cor}` : 'none',
+      }}
+    >
+      {/* Barra de cor: identidade do plano mesmo quando não selecionado */}
+      <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: id.cor, opacity: selecionado ? 1 : 0.45 }} />
+
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-bold tracking-wide" style={{ color: selecionado ? '#f8fafc' : '#cbd5e1' }}>
+              {opcao.plan}
+            </span>
+            {opcao.plan === 'PROFESSIONAL' && (
+              <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                style={{ backgroundColor: id.cor, color: '#0b1020' }}>
+                Mais escolhido
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs" style={{ color: '#64748b' }}>
+            {id.chamada} · {id.publico}
+          </p>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="text-2xl font-extrabold leading-none tabular-nums tracking-tight"
+            style={{ color: selecionado ? id.cor : '#94a3b8' }}>
+            {brl(info.monthlyEquivalent)}
+          </p>
+          <p className="mt-1 text-[11px]" style={{ color: '#64748b' }}>por mês</p>
+        </div>
+      </div>
+
+      {/* A economia é o argumento do ciclo longo — precisa ser legível SEM precisar
+          selecionar o plano, por isso mantém o verde nos dois estados. */}
+      {ciclo !== 'MONTHLY' && (
+        <p className="mt-2 text-[11px]" style={{ color: selecionado ? '#86efac' : 'rgba(134,239,172,0.62)' }}>
+          {brl(info.total)} a cada {info.months} meses · você economiza <strong>{brl(info.savings)}</strong>
+        </p>
+      )}
+
+      {/* Só o plano escolhido abre a lista: mantém a coluna respirando */}
+      <div className="grid transition-[grid-template-rows] duration-300"
+        style={{ gridTemplateRows: selecionado ? '1fr' : '0fr' }}>
+        <ul className="overflow-hidden">
+          {id.inclui.map((item) => (
+            <li key={item} className="mt-2 flex items-start gap-2 text-xs first:mt-3" style={{ color: '#94a3b8' }}>
+              <span aria-hidden style={{ color: id.cor }}>✓</span>
+              {item}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </button>
+  );
+}
 
 function RegisterContent() {
   const router = useRouter();
@@ -31,6 +147,16 @@ function RegisterContent() {
   const [refCode, setRefCode] = useState<string | null>(null);
   const [claimToken, setClaimToken] = useState<string | null>(null);
   const [claimInfo, setClaimInfo] = useState<{ valid: boolean; organizationName?: string; managerName?: string | null } | null>(null);
+  const [planos, setPlanos] = useState<PlanOption[]>([]);
+  const [plano, setPlano] = useState('PROFESSIONAL');
+  const [ciclo, setCiclo] = useState<BillingCycle>('MONTHLY');
+
+  // Quem chega por claim assume uma org que já existe (e já tem plano) — não escolhe nada.
+  const escolhePlano = !claimInfo?.valid;
+
+  useEffect(() => {
+    apiService.getPlans().then((r) => setPlanos(r.data)).catch(() => setPlanos([]));
+  }, []);
 
   // Lê ref= (link de registro do gestor) e claim= (link para assumir um dashboard) da URL
   useEffect(() => {
@@ -59,8 +185,12 @@ function RegisterContent() {
     if (formData.password.length < 8) { setError('Senha deve ter no mínimo 8 caracteres'); return; }
     setIsLoading(true);
     try {
-      // Só envia claim se o convite for válido — claim inválido/expirado vira registro normal
-      const response = await register({ ...formData, ...(refCode ? { ref: refCode } : {}), ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}) });
+      const response = await register({
+        ...formData,
+        ...(escolhePlano ? { plan: plano, billingCycle: ciclo } : {}),
+        ...(refCode ? { ref: refCode } : {}),
+        ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}),
+      });
       if (response.success) {
         sessionStorage.setItem('onboarding_new_account', 'true');
         router.push('/onboarding');
@@ -88,206 +218,208 @@ function RegisterContent() {
     e.target.style.boxShadow = 'none';
   };
 
+  const planoAtual = planos.find((p) => p.plan === plano);
+  const infoAtual = planoAtual?.cycles.find((c) => c.cycle === ciclo);
+
   return (
-    <div className="min-h-screen relative flex items-center overflow-hidden" style={{ backgroundColor: '#080d19' }}>
-
-      {/* Gradiente cobrindo a página inteira */}
+    <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: '#080d19' }}>
+      {/* Foco de luz atrás dos banners — dá profundidade sem competir com as cores dos planos */}
       <div className="absolute inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse at 25% 50%, rgba(59,130,246,0.18) 0%, transparent 55%), radial-gradient(ellipse at 10% 20%, rgba(99,102,241,0.1) 0%, transparent 45%)'
+        background: 'radial-gradient(ellipse at 22% 35%, rgba(59,130,246,0.16) 0%, transparent 58%), radial-gradient(ellipse at 78% 80%, rgba(168,85,247,0.10) 0%, transparent 50%)'
       }} />
-
-      {/* Grid sutil */}
       <div className="absolute inset-0 pointer-events-none opacity-[0.025]" style={{
         backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
         backgroundSize: '40px 40px'
       }} />
 
-      {/* Fade para a direita */}
-      <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none" style={{
-        background: 'linear-gradient(to left, #080d19 30%, transparent 100%)'
-      }} />
-
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-8 flex items-center justify-between gap-12 py-12">
-
-        {/* Lado esquerdo — branding */}
-        <div className="hidden lg:flex flex-col gap-10 flex-1 max-w-md">
-
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span className="text-white font-semibold text-lg">Cortex Growth</span>
+      <div className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 lg:py-14">
+        <div className="flex items-center gap-2 mb-8">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
           </div>
+          <span className="text-white font-semibold text-lg">Cortex Growth</span>
+        </div>
 
-          <div>
-            <h2 className="text-4xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
-              Comece em{' '}
-              <span style={{
-                background: 'linear-gradient(135deg, #60a5fa, #a78bfa)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                minutos.
-              </span>
-            </h2>
-            <p className="mt-3 text-base leading-relaxed" style={{ color: '#64748b' }}>
-              Crie sua conta e conecte suas plataformas de marketing em poucos passos.
-            </p>
-          </div>
+        <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 lg:items-start">
 
-          <div className="space-y-5">
-            {steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-4">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold"
-                  style={{ backgroundColor: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa' }}>
-                  {i + 1}
-                </div>
-                <span className="text-sm" style={{ color: '#94a3b8' }}>{step.label}</span>
+          {/* ── Planos ─────────────────────────────────────────────────── */}
+          {escolhePlano ? (
+            <div>
+              <h1 className="text-3xl lg:text-4xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
+                Escolha o tamanho da{' '}
+                <span style={{ background: 'linear-gradient(135deg, #22d3ee, #a855f7 55%, #f59e0b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  sua operação.
+                </span>
+              </h1>
+              <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
+                Meta Ads, Google Ads e CRM no mesmo painel. Você troca de plano quando a operação crescer.
+              </p>
+
+              <div className="mt-6 inline-flex rounded-xl p-1" style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                {(['MONTHLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((c) => {
+                  const ativo = ciclo === c;
+                  const desconto = c === 'SEMIANNUAL' ? '−10%' : c === 'ANNUAL' ? '−20%' : null;
+                  return (
+                    <button key={c} type="button" onClick={() => setCiclo(c)}
+                      aria-pressed={ativo}
+                      className="rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors"
+                      style={{
+                        backgroundColor: ativo ? 'rgba(255,255,255,0.08)' : 'transparent',
+                        color: ativo ? '#f1f5f9' : '#64748b',
+                      }}>
+                      {ROTULO_CICLO[c]}
+                      {desconto && (
+                        <span className="ml-1.5 font-bold" style={{ color: ativo ? '#4ade80' : '#475569' }}>{desconto}</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
 
-          <div className="rounded-xl p-4" style={{
-            backgroundColor: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.05)'
+              <div className="mt-4 space-y-2.5">
+                {planos.length === 0 ? (
+                  <p className="text-sm" style={{ color: '#475569' }}>Carregando planos…</p>
+                ) : (
+                  planos.map((p) => (
+                    <BannerPlano key={p.plan} opcao={p} ciclo={ciclo}
+                      selecionado={plano === p.plan} onSelect={() => setPlano(p.plan)} />
+                  ))
+                )}
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h1 className="text-3xl font-bold leading-tight" style={{ color: '#f1f5f9' }}>
+                Seu painel está pronto.
+              </h1>
+              <p className="mt-2 text-sm" style={{ color: '#64748b' }}>
+                Crie sua conta para assumir o painel <strong style={{ color: '#cbd5e1' }}>{claimInfo?.organizationName}</strong>
+                {claimInfo?.managerName ? <> , configurado por {claimInfo.managerName}</> : null}.
+              </p>
+            </div>
+          )}
+
+          {/* ── Formulário ─────────────────────────────────────────────── */}
+          <div className="rounded-2xl p-7" style={{
+            backgroundColor: 'rgba(15,22,41,0.82)',
+            border: '1px solid rgba(255,255,255,0.06)',
+            backdropFilter: 'blur(12px)',
           }}>
-            <p className="text-sm italic" style={{ color: '#64748b' }}>
-              "Reduzi em 3h por semana o tempo gasto em relatórios de campanha."
+            <h2 className="text-lg font-bold" style={{ color: '#f1f5f9' }}>Criar conta</h2>
+            {escolhePlano && infoAtual && (
+              <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
+                {plano} · {ROTULO_CICLO[ciclo].toLowerCase()} ·{' '}
+                <strong style={{ color: IDENTIDADE[plano]?.cor ?? '#60a5fa' }}>
+                  {brl(infoAtual.total)}
+                </strong>
+                {ciclo !== 'MONTHLY' && <> a cada {infoAtual.months} meses</>}
+              </p>
+            )}
+
+            {refCode && !claimToken && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
+                style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#93c5fd' }}>
+                Você foi convidado por um gestor de tráfego.
+              </div>
+            )}
+
+            {claimInfo && !claimInfo.valid && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
+                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                Convite inválido ou expirado. Você ainda pode criar uma conta normal.
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
+                style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="mt-5 space-y-4">
+              <div>
+                <label htmlFor="name" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome completo</label>
+                <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required
+                  placeholder="Seu nome" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+              </div>
+
+              <div>
+                <label htmlFor="organizationName" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome da empresa</label>
+                <input type="text" id="organizationName" name="organizationName" value={formData.organizationName} onChange={handleChange} required
+                  readOnly={!!claimInfo?.valid}
+                  placeholder="Minha Agência" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={claimInfo?.valid ? { ...inputStyle, opacity: 0.65, cursor: 'not-allowed' } : inputStyle}
+                  onFocus={claimInfo?.valid ? undefined : onFocus} onBlur={claimInfo?.valid ? undefined : onBlur} />
+                {claimInfo?.valid && (
+                  <p className="mt-1 text-xs" style={{ color: '#475569' }}>Definido pelo convite do gestor.</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Email</label>
+                <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required
+                  placeholder="seu@email.com" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Senha</label>
+                <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required
+                  placeholder="Mínimo 8 caracteres" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
+                  style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
+              </div>
+
+              <button type="submit" disabled={isLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                style={{ backgroundColor: '#3b82f6' }}
+                onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}>
+                {isLoading && <Spinner />}
+                {isLoading ? 'Criando conta...' : 'Criar conta'}
+              </button>
+            </form>
+
+            <p className="mt-5 text-center text-sm" style={{ color: '#475569' }}>
+              Já tem conta?{' '}
+              <Link href="/auth/login" className="font-medium" style={{ color: '#60a5fa' }}>Entrar</Link>
             </p>
-            <p className="mt-2 text-xs font-medium" style={{ color: '#475569' }}>— Gestor de tráfego</p>
-          </div>
 
-          <p className="text-xs" style={{ color: '#334155' }}>
-            © 2026 IA Cortex Tech ·{' '}
-            <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
-          </p>
-        </div>
-
-        {/* Lado direito — formulário */}
-        <div className="w-full lg:w-auto lg:flex-shrink-0">
-          <div className="w-full mx-auto lg:mx-0" style={{ minWidth: '360px', maxWidth: '400px' }}>
-
-            <div className="lg:hidden flex items-center gap-2 mb-8 justify-center">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#3b82f6' }}>
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <span className="text-white font-semibold">Cortex Growth</span>
-            </div>
-
-            <div className="rounded-2xl p-8" style={{
-              backgroundColor: 'rgba(15,22,41,0.8)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              backdropFilter: 'blur(12px)',
-            }}>
-              <div className="mb-6">
-                <h1 className="text-xl font-bold" style={{ color: '#f1f5f9' }}>Criar conta</h1>
-                <p className="mt-1 text-sm" style={{ color: '#64748b' }}>Comece gratuitamente, sem cartão de crédito</p>
-              </div>
-
-              {refCode && !claimToken && (
-                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
-                  style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', color: '#93c5fd' }}>
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                  Você foi convidado por um gestor de tráfego.
-                </div>
-              )}
-
-              {claimInfo?.valid && (
-                <div className="mb-5 flex items-start gap-2 rounded-lg px-3 py-2.5 text-xs"
-                  style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#86efac' }}>
-                  <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>
-                    Você foi convidado para assumir o painel <strong>{claimInfo.organizationName}</strong>
-                    {claimInfo.managerName ? <> (criado por {claimInfo.managerName})</> : null}. Crie sua conta para ter acesso completo.
-                  </span>
-                </div>
-              )}
-
-              {claimInfo && !claimInfo.valid && (
-                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
-                  </svg>
-                  Convite inválido ou expirado. Você ainda pode criar uma conta normal abaixo.
-                </div>
-              )}
-
-              {error && (
-                <div className="mb-5 flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm"
-                  style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01" />
-                  </svg>
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={(e) => { e.preventDefault(); void handleSubmit(); }} className="space-y-4">
-                <div>
-                  <label htmlFor="name" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome completo</label>
-                  <input type="text" id="name" name="name" value={formData.name} onChange={handleChange} required
-                    placeholder="Seu nome" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
-                </div>
-
-                <div>
-                  <label htmlFor="organizationName" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nome da empresa</label>
-                  <input type="text" id="organizationName" name="organizationName" value={formData.organizationName} onChange={handleChange} required
-                    readOnly={!!claimInfo?.valid}
-                    placeholder="Minha Agência" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={claimInfo?.valid ? { ...inputStyle, opacity: 0.65, cursor: 'not-allowed' } : inputStyle}
-                    onFocus={claimInfo?.valid ? undefined : onFocus} onBlur={claimInfo?.valid ? undefined : onBlur} />
-                  {claimInfo?.valid && (
-                    <p className="mt-1 text-xs" style={{ color: '#475569' }}>Definido pelo convite do gestor.</p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Email</label>
-                  <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} required
-                    placeholder="seu@email.com" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Senha</label>
-                  <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} required
-                    placeholder="Mínimo 8 caracteres" className="w-full rounded-lg px-3 py-2.5 text-sm transition-all outline-none placeholder-slate-600"
-                    style={inputStyle} onFocus={onFocus} onBlur={onBlur} />
-                </div>
-
-                <button type="submit" disabled={isLoading}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-                  style={{ backgroundColor: '#3b82f6' }}
-                  onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = '#2563eb'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#3b82f6'; }}>
-                  {isLoading && <Spinner />}
-                  {isLoading ? 'Criando conta...' : 'Criar conta grátis'}
-                </button>
-              </form>
-
-              <p className="mt-5 text-center text-sm" style={{ color: '#475569' }}>
-                Já tem conta?{' '}
-                <Link href="/auth/login" className="font-medium transition-colors" style={{ color: '#60a5fa' }}>Entrar</Link>
-              </p>
-
-              <p className="mt-3 text-center text-xs" style={{ color: '#334155' }}>
-                Ao criar uma conta, você concorda com nossa{' '}
-                <Link href="/privacy" className="hover:text-blue-400 transition-colors">política de privacidade</Link>.
-              </p>
-            </div>
+            <p className="mt-3 text-center text-xs" style={{ color: '#334155' }}>
+              Ao criar uma conta, você concorda com nossa{' '}
+              <Link href="/privacy" className="hover:text-blue-400 transition-colors">política de privacidade</Link>.
+            </p>
           </div>
         </div>
+
+        <p className="mt-10 text-xs" style={{ color: '#334155' }}>
+          © 2026 IA Cortex Tech ·{' '}
+          <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
+        </p>
       </div>
+
+      <style jsx>{`
+        .banner-plano {
+          transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+        }
+        .banner-plano:hover {
+          transform: translateY(-2px);
+        }
+        .banner-plano:focus-visible {
+          outline: 2px solid #60a5fa;
+          outline-offset: 3px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .banner-plano,
+          .banner-plano:hover {
+            transition: none;
+            transform: none;
+          }
+        }
+      `}</style>
     </div>
   );
 }
