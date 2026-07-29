@@ -35,14 +35,18 @@ const GoogleIcon = () => (
   </svg>
 );
 
-const GoogleAnalyticsIcon = () => (
-  <svg viewBox="0 0 36 36" className="h-7 w-7">
-    <rect width="36" height="36" rx="18" fill="#F9AB00"/>
-    <rect x="8" y="20" width="5" height="8" rx="1.5" fill="white"/>
-    <rect x="15.5" y="14" width="5" height="14" rx="1.5" fill="white"/>
-    <rect x="23" y="8" width="5" height="20" rx="1.5" fill="white"/>
-  </svg>
-);
+// Google Analytics escondido até a feature existir (2026-07-29). O card conectava
+// (pedindo o escopo sensível analytics.readonly) mas tinha supportsSync: false — nada
+// consumia o dado. Escopo sensível sem feature demonstrável = rejeição na verificação
+// do app Google. Restaurar junto com o sync, declarando o escopo em Acesso a dados.
+// const GoogleAnalyticsIcon = () => (
+//   <svg viewBox="0 0 36 36" className="h-7 w-7">
+//     <rect width="36" height="36" rx="18" fill="#F9AB00"/>
+//     <rect x="8" y="20" width="5" height="8" rx="1.5" fill="white"/>
+//     <rect x="15.5" y="14" width="5" height="14" rx="1.5" fill="white"/>
+//     <rect x="23" y="8" width="5" height="20" rx="1.5" fill="white"/>
+//   </svg>
+// );
 
 const KommoIcon = () => (
   <svg viewBox="0 0 36 36" className="h-7 w-7">
@@ -68,14 +72,15 @@ const PROVIDERS: ProviderConfig[] = [
     icon: <GoogleIcon />,
     supportsSync: true,
   },
-  {
-    type: IntegrationType.GOOGLE_ANALYTICS,
-    provider: 'google_analytics',
-    label: 'Google Analytics',
-    description: 'Tráfego, sessões e comportamento do usuário no seu site.',
-    icon: <GoogleAnalyticsIcon />,
-    supportsSync: false,
-  },
+  // Ver nota em GoogleAnalyticsIcon — escondido até existir sync que use o dado.
+  // {
+  //   type: IntegrationType.GOOGLE_ANALYTICS,
+  //   provider: 'google_analytics',
+  //   label: 'Google Analytics',
+  //   description: 'Tráfego, sessões e comportamento do usuário no seu site.',
+  //   icon: <GoogleAnalyticsIcon />,
+  //   supportsSync: false,
+  // },
   {
     type: IntegrationType.KOMMO,
     provider: 'kommo',
