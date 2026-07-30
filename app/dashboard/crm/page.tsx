@@ -1527,10 +1527,15 @@ export default function CrmPage() {
               await loadAll(searchRef.current.trim() || undefined, { force: true });
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao mover o card.')); }
           }}
+          // Aceitar/dispensar pelo BANNER do drawer não fecha mais o card: quem
+          // clica ali está no meio da conversa com a pessoa, e fechar obrigava a
+          // procurar o card no Novo Lead e reabrir para continuar respondendo.
+          // Só refresca — o banner some sozinho e a etapa aparece atualizada.
+          // Rejeitar continua fechando: ali a intenção é tirar da frente.
           onAcceptTriage={async () => {
             if (!detail) return;
             await handleTriage(detail.id, 'accept');
-            closeClient();
+            await refreshDetail();
           }}
           onRejectTriage={async () => {
             if (!detail) return;
@@ -1540,12 +1545,12 @@ export default function CrmPage() {
           onReopen={async () => {
             if (!detail) return;
             await handleReopen(detail.id);
-            closeClient();
+            await refreshDetail();
           }}
           onDismissReturning={async () => {
             if (!detail) return;
             await handleDismissReturning(detail.id);
-            closeClient();
+            await refreshDetail();
           }}
           onTransfer={async (responsibleId) => {
             if (!detail) return;
