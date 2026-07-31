@@ -972,6 +972,23 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
     return DEFAULT_BOTTOM_KPIS;
   });
+  // Lembrete de CRM: some por 14 dias quando dispensado. É lembrete, não campanha —
+  // reaparecer todo dia treina o usuário a fechar sem ler.
+  const CRM_NUDGE_KEY = 'crm_nudge_hidden_until';
+  const [crmNudgeVisible, setCrmNudgeVisible] = useState(false);
+  useEffect(() => {
+    try {
+      const until = localStorage.getItem(CRM_NUDGE_KEY);
+      setCrmNudgeVisible(!until || new Date(until) <= new Date());
+    } catch { setCrmNudgeVisible(true); }
+  }, []);
+  const dismissCrmNudge = () => {
+    try {
+      localStorage.setItem(CRM_NUDGE_KEY, new Date(Date.now() + 14 * 86_400_000).toISOString());
+    } catch { /* ignore */ }
+    setCrmNudgeVisible(false);
+  };
+
   const [bottomKpiPickerOpen, setBottomKpiPickerOpen] = useState(false);
   const toggleBottomKpi = (key: BottomKpiKey) => {
     setVisibleBottomKpis((prev) => {
@@ -1175,7 +1192,7 @@ export default function DashboardPage() {
     const totalSpend  = metaSpend + googleSpend;
     const totalValue  = metaValue + googleValue;
     return {
-      metaConv, googleConv, totalConv, totalValue,
+      metaConv, googleConv, totalConv, totalValue, totalSpend,
       cpl:       totalConv  > 0 ? totalSpend  / totalConv  : null,
       metaCpl:   metaConv   > 0 ? metaSpend   / metaConv   : null,
       googleCpl: googleConv > 0 ? googleSpend / googleConv : null,
@@ -1903,6 +1920,45 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── LEMBRETE DE CRM — argumento é o dinheiro do próprio cliente ───────
+          Sem estatística de mercado: o número dele investido, contra o que a
+          plataforma NÃO consegue responder sem CRM. Só para quem pode ativar. */}
+      {!hasCrmSource && crmNudgeVisible && canEditGoal && platformConv.totalSpend > 0 && (
+        <div
+          className="rounded-2xl px-5 py-4"
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(245,158,11,0.3)' }}
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                Você investiu {fmtMoney(platformConv.totalSpend)} · {rangeLabel}
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                A plataforma consegue mostrar as {fmtNum(Math.round(platformConv.totalConv))} conversões que o Meta e o
+                Google registraram — mas não quanto disso virou <strong style={{ color: 'var(--text-primary)' }}>venda</strong>.
+                Com o CRM ativo, receita fechada, ticket médio e ROAS real aparecem aqui.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={dismissCrmNudge}
+                className="px-3 py-2 rounded-lg text-xs font-medium"
+                style={{ color: 'var(--text-muted)', border: '1px solid var(--border)' }}
+              >
+                Agora não
+              </button>
+              <Link
+                href="/dashboard/crm"
+                className="px-4 py-2 rounded-lg text-xs font-medium text-white"
+                style={{ backgroundColor: 'var(--accent)' }}
+              >
+                Ver o CRM
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── CONVERSÕES DAS PLATAFORMAS — preenche o vazio quando sem CRM ─────── */}
       {!hasCrmSource && platformConv.totalConv > 0 && (
         <div>
@@ -1912,7 +1968,7 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
             </svg>
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Conversões atribuídas pelo próprio Google e Meta — disponíveis mesmo sem CRM. Para vendas fechadas e ROAS real do negócio, conecte o CRM ou insira dados manuais.
+              Conversões atribuídas pelo próprio Google e Meta — disponíveis mesmo sem CRM. São cliques e mensagens contabilizados pela plataforma, não vendas confirmadas.
             </span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
