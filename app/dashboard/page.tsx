@@ -1004,8 +1004,8 @@ export default function DashboardPage() {
     { key: 'conv_meta',    label: 'Conversões Meta'       },
     { key: 'conv_google',  label: 'Conversões Google'     },
     { key: 'cpa',          label: 'Custo/Conversão'       },
-    { key: 'leads_meta',   label: 'Leads Meta (Kommo)'    },
-    { key: 'leads_google', label: 'Leads Google (Kommo)'  },
+    { key: 'leads_meta',   label: 'Leads Meta (CRM)'      },
+    { key: 'leads_google', label: 'Leads Google (CRM)'    },
     { key: 'cpl_meta',     label: 'CPL Meta'              },
     { key: 'cpl_google',   label: 'CPL Google'            },
     { key: 'cpm',          label: 'CPM'                   },
@@ -1676,6 +1676,9 @@ export default function DashboardPage() {
   const hasCrmSource = hasKommo || integrations.some(
     (i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED'
   );
+  // Nome do CRM nos textos de tela: org no CRM Cortex lia "Kommo" em toda parte
+  // porque a projeção compartilha o read model. Só os deep-links continuam fixos.
+  const crmLabel = hasKommo ? 'Kommo' : 'CRM Cortex';
 
   const negotiatingLeads = useMemo(() => {
     const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
@@ -1888,25 +1891,25 @@ export default function DashboardPage() {
                 <BottomKpiCard title="Frequência" value={topoKpis.frequency != null ? topoKpis.frequency.toFixed(1).replace('.', ',') : '—'} sub="Impressões ÷ Alcance · Meta" accent={topoKpis.frequency != null && topoKpis.frequency > 3 ? 'var(--badge-warn-text)' : PLATFORM_COLORS.Meta.text} info="Média de vezes que cada pessoa viu seus anúncios. Acima de 3–4 costuma indicar fadiga criativa — hora de renovar os criativos." />
               )}
               {visibleTopoKpis.includes('conv_meta') && (
-                <BottomKpiCard title="Conversões Meta" value={topoKpis.metaConv > 0 ? fmtNum(Math.round(topoKpis.metaConv)) : '—'} sub="Registradas pelo Meta" accent={PLATFORM_COLORS.Meta.text} info="Conversões contadas pela própria Meta (leads, mensagens, compras configurados no pixel). Pode não bater com o Kommo — muda conforme a janela de atribuição configurada no anúncio." />
+                <BottomKpiCard title="Conversões Meta" value={topoKpis.metaConv > 0 ? fmtNum(Math.round(topoKpis.metaConv)) : '—'} sub="Registradas pelo Meta" accent={PLATFORM_COLORS.Meta.text} info={`Conversões contadas pela própria Meta (leads, mensagens, compras configurados no pixel). Pode não bater com o ${crmLabel} — muda conforme a janela de atribuição configurada no anúncio.`} />
               )}
               {visibleTopoKpis.includes('conv_google') && (
-                <BottomKpiCard title="Conversões Google" value={topoKpis.googleConv > 0 ? fmtNum(Math.round(topoKpis.googleConv)) : '—'} sub="Registradas pelo Google" accent={PLATFORM_COLORS.Google.text} info="Conversões contadas pelo próprio Google Ads (cliques em chamada, preenchimento de formulário, etc). Pode não bater com o Kommo — depende do que está configurado no Google Ads." />
+                <BottomKpiCard title="Conversões Google" value={topoKpis.googleConv > 0 ? fmtNum(Math.round(topoKpis.googleConv)) : '—'} sub="Registradas pelo Google" accent={PLATFORM_COLORS.Google.text} info={`Conversões contadas pelo próprio Google Ads (cliques em chamada, preenchimento de formulário, etc). Pode não bater com o ${crmLabel} — depende do que está configurado no Google Ads.`} />
               )}
               {visibleTopoKpis.includes('cpa') && (
                 <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="#60a5fa" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
               )}
               {visibleTopoKpis.includes('leads_meta') && (
-                <BottomKpiCard title="Leads Meta (CRM)" value={topoKpis.metaLeads > 0 ? fmtNum(topoKpis.metaLeads) : '—'} sub="Com utm_source=meta no Kommo" accent={PLATFORM_COLORS.Meta.text} info="Leads no Kommo com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente." />
+                <BottomKpiCard title="Leads Meta (CRM)" value={topoKpis.metaLeads > 0 ? fmtNum(topoKpis.metaLeads) : '—'} sub={`Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
               )}
               {visibleTopoKpis.includes('leads_google') && (
-                <BottomKpiCard title="Leads Google (CRM)" value={topoKpis.googleLeads > 0 ? fmtNum(topoKpis.googleLeads) : '—'} sub="Com utm_source=google no Kommo" accent={PLATFORM_COLORS.Google.text} info="Leads no Kommo com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente." />
+                <BottomKpiCard title="Leads Google (CRM)" value={topoKpis.googleLeads > 0 ? fmtNum(topoKpis.googleLeads) : '—'} sub={`Com utm_source=google no ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Leads no ${crmLabel} com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
               )}
               {visibleTopoKpis.includes('cpl_meta') && (
-                <BottomKpiCard title="CPL Meta" value={topoKpis.cplMeta != null ? fmtMoney(topoKpis.cplMeta) : '—'} sub={`${topoKpis.metaLeads} leads Kommo`} accent={PLATFORM_COLORS.Meta.text} info="Gasto no Meta Ads ÷ leads com origem Meta no Kommo. Diferente do CPL da própria Meta, que usa o pixel — este usa os leads reais no CRM." />
+                <BottomKpiCard title="CPL Meta" value={topoKpis.cplMeta != null ? fmtMoney(topoKpis.cplMeta) : '—'} sub={`${topoKpis.metaLeads} leads ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Gasto no Meta Ads ÷ leads com origem Meta no ${crmLabel}. Diferente do CPL da própria Meta, que usa o pixel — este usa os leads reais no CRM.`} />
               )}
               {visibleTopoKpis.includes('cpl_google') && (
-                <BottomKpiCard title="CPL Google" value={topoKpis.cplGoogle != null ? fmtMoney(topoKpis.cplGoogle) : '—'} sub={`${topoKpis.googleLeads} leads Kommo`} accent={PLATFORM_COLORS.Google.text} info="Gasto no Google Ads ÷ leads com origem Google no Kommo. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM." />
+                <BottomKpiCard title="CPL Google" value={topoKpis.cplGoogle != null ? fmtMoney(topoKpis.cplGoogle) : '—'} sub={`${topoKpis.googleLeads} leads ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Gasto no Google Ads ÷ leads com origem Google no ${crmLabel}. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM.`} />
               )}
               {visibleTopoKpis.includes('cpm') && (
                 <BottomKpiCard title="CPM" value={topoKpis.cpm != null ? fmtMoney(topoKpis.cpm) : '—'} sub="Custo por mil impressões" accent="#60a5fa" info="Custo por mil impressões: gasto ÷ impressões × 1000. Mede o custo de alcançar audiência — sobe quando a competição pelo público aumenta." />
@@ -2006,7 +2009,7 @@ export default function DashboardPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                   <span className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
-                    Métricas de CRM baseadas em dados inseridos manualmente — conecte o Kommo para análise completa por lead.
+                    Métricas de CRM baseadas em dados inseridos manualmente — conecte um CRM para análise completa por lead.
                   </span>
                 </div>
                 <Link href="/dashboard/dados-manuais" className="text-xs font-medium shrink-0" style={{ color: 'var(--badge-warn-text)' }}>
@@ -2055,7 +2058,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Sem dados de CRM ou receita manual</p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                    Conecte o Kommo CRM ou insira dados manuais para ver ROAS, CAC e funil de vendas.
+                    Conecte um CRM ou insira dados manuais para ver ROAS, CAC e funil de vendas.
                   </p>
                 </div>
               </div>
@@ -2223,7 +2226,7 @@ export default function DashboardPage() {
       {kommoCur.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · Kommo</p>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · {crmLabel}</p>
             <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
                 <button
@@ -2396,7 +2399,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
                     ))}
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>* Estimativa — configure motivos de perda no Kommo para dados exatos</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>* Estimativa — configure motivos de perda no {crmLabel} para dados exatos</p>
                   </div>
                 )}
               </div>
@@ -2476,8 +2479,8 @@ export default function DashboardPage() {
       {crmHygiene && kommoCur.length > 0 && (
         <div>
           <div className="flex items-center gap-1.5 mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>saúde do crm · preenchimento do Kommo</p>
-            <InfoTip text="Problemas de preenchimento no Kommo distorcem receita, LTV e atribuição. Cards parados impedem o registro de recompras (conversa nova do cliente cai no card antigo); venda ganha sem valor entra como R$ 0 na receita; lead sem origem fica fora do ROAS atribuído." />
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>saúde do crm · preenchimento do {crmLabel}</p>
+            <InfoTip text={`Problemas de preenchimento no ${crmLabel} distorcem receita, LTV e atribuição. Cards parados impedem o registro de recompras (conversa nova do cliente cai no card antigo); venda ganha sem valor entra como R$ 0 na receita; lead sem origem fica fora do ROAS atribuído.`} />
           </div>
           <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
             {([
@@ -2553,7 +2556,7 @@ export default function DashboardPage() {
           <div>
             <div className="flex items-center gap-1.5 mb-3">
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ranking de vendedores</p>
-              <InfoTip text="Vendas ganhas no Kommo por vendedor responsável, pela data de fechamento (closed_at) do mês. Conversão = ganhos ÷ (ganhos + perdidos) decididos no mês. 'Pipeline' é o valor em negociação atual do vendedor — do orçamento enviado em diante, mesma base da seção Pipeline em Negociação (independe do mês). 'Fecha em' = tempo médio entre criação e fechamento. A seta compara a receita com o mês anterior. Use ◀ ▶ para navegar entre os meses." />
+              <InfoTip text={`Vendas ganhas no ${crmLabel} por vendedor responsável, pela data de fechamento (closed_at) do mês. Conversão = ganhos ÷ (ganhos + perdidos) decididos no mês. 'Pipeline' é o valor em negociação atual do vendedor — do orçamento enviado em diante, mesma base da seção Pipeline em Negociação (independe do mês). 'Fecha em' = tempo médio entre criação e fechamento. A seta compara a receita com o mês anterior. Use ◀ ▶ para navegar entre os meses.`} />
               <div className="flex items-center gap-2 ml-auto">
                 <button type="button" onClick={() => navRankingMonth(-1)} className="text-sm leading-none px-1" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>◀</button>
                 <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{label}</span>
@@ -2889,7 +2892,7 @@ export default function DashboardPage() {
                     value: String(recurrentCount),
                     color: 'var(--badge-warn-text)',
                     sub: 'tag carteira no período',
-                    info: 'Leads marcados com a tag Carteira no Kommo — clientes que voltaram a comprar no período.',
+                    info: `Leads marcados com a tag Carteira no ${crmLabel} — clientes que voltaram a comprar no período.`,
                   },
                 ].map((item, i) => (
                   <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
@@ -2957,7 +2960,7 @@ export default function DashboardPage() {
                       </div>
                       {!hasSpend && (
                         <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                          {label === 'Google Ads' ? 'Integração não conectada — leads rastreados via UTM do Kommo' : 'Nenhum gasto no período'}
+                          {label === 'Google Ads' ? `Integração não conectada — leads rastreados via UTM do ${crmLabel}` : 'Nenhum gasto no período'}
                         </p>
                       )}
                     </div>

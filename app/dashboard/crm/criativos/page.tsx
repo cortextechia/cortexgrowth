@@ -271,12 +271,6 @@ export default function CrmCriativosPage() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="rounded-md px-1.5 py-0.5 font-mono text-xs font-bold"
-                      style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
-                    >
-                      {c.code}
-                    </span>
                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{c.name}</span>
                     <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: p.bg, color: p.color }}>
                       {p.label}

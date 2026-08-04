@@ -635,6 +635,10 @@ export default function CrmPage() {
   };
 
   const handleEnable = async () => {
+    // Porta de mão única: nenhum caminho do código desconecta o CRM_CORTEX (não
+    // existe disableCrm). Desfazer exige UPDATE manual na integração, e enquanto
+    // isso o relatório do cliente passa a mostrar "Leads: 0".
+    if (!confirm('Ativar o CRM Cortex? Depois de ativado não dá para desativar pela tela — o dashboard passa a contar leads e vendas por aqui.')) return;
     setEnabling(true);
     try {
       const res = await apiService.enableCrm();
