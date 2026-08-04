@@ -305,6 +305,29 @@ class ApiService {
     return response.data;
   }
 
+  // Confirma a senha e devolve um token curto que autoriza as ações sensíveis de
+  // cobrança. O backend responde 403 com code STEP_UP_REQUIRED quando ele falta.
+  async stepUp(password: string): Promise<{ success: boolean; data: { stepUpToken: string; expiresInSeconds: number } }> {
+    const response = await this.client.post('/auth/step-up', { password });
+    return response.data;
+  }
+
+  // Cancela a assinatura. O acesso continua até o fim do período já pago.
+  async cancelSubscription(stepUpToken: string): Promise<{ success: boolean; message: string; data: { accessUntil: string | null } }> {
+    const response = await this.client.post('/billing/cancel', undefined, {
+      headers: { 'x-step-up-token': stepUpToken },
+    });
+    return response.data;
+  }
+
+  // Emite a cobrança do ciclo no Asaas e devolve o link da fatura (PIX ou boleto,
+  // o cliente escolhe lá). taxId só é obrigatório na PRIMEIRA assinatura.
+  async createCheckout(payload: { plan: string; billingCycle: import('@/types').BillingCycle; taxId?: string }):
+    Promise<{ success: boolean; message: string; data: import('@/types').CheckoutResult }> {
+    const response = await this.client.post('/billing/checkout', payload);
+    return response.data;
+  }
+
   // Contas de Google Ads acessíveis — só leitura, pro aviso quando o OAuth não vinculou conta
   async getGoogleAccounts(): Promise<{ success: boolean; data: { connected: boolean; accounts: { externalId: string; name: string }[]; currentExternalId: string | null } }> {
     const response = await this.client.get('/integrations/google/accounts');

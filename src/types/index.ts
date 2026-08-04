@@ -675,6 +675,26 @@ export interface BillingStatus {
   paymentsCount: number;
   lastPaymentAt: string | null;
   nextDueDate: string | null;
+  hasTaxId: boolean;
+  hasActiveSubscription: boolean;
+  pendingCharge: {
+    paymentId: string;
+    invoiceUrl: string | null; // null = veio do cadastro, cobrança ainda não emitida
+    amount: number;
+    dueDate: string | null;
+    plan: string;
+    billingCycle: BillingCycle;
+  } | null;
+}
+
+export interface CheckoutResult {
+  paymentId: string;
+  invoiceUrl: string;
+  value: number;
+  dueDate: string;
+  plan: string;
+  billingCycle: BillingCycle;
+  reused: boolean; // true = link que já existia, nenhuma cobrança nova foi emitida
 }
 
 export interface PaymentRecord {

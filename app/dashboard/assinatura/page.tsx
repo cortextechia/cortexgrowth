@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { apiService } from '@/lib/api';
+import PlanoCheckout from '@/components/PlanoCheckout';
+import ConfirmarSenha from '@/components/ConfirmarSenha';
 import type { BillingStatus, PaymentRecord, BillingCycle, PaymentStatus } from '@/types';
 
 const CICLO: Record<BillingCycle, string> = {
@@ -48,10 +50,18 @@ export default function AssinaturaPage() {
   const [pagamentos, setPagamentos] = useState<PaymentRecord[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [pedindoSenha, setPedindoSenha] = useState(false);
+  const [avisoCancelar, setAvisoCancelar] = useState<string | null>(null);
+  // Erro da AÇÃO, separado do erro de carregamento: `erro` dispara o return antecipado
+  // lá em cima e apagaria a tela inteira só porque um cancelamento falhou.
+  const [erroCancelar, setErroCancelar] = useState<string | null>(null);
+
+  const recarregar = () =>
+    Promise.all([apiService.getBillingStatus(), apiService.getBillingPayments()])
+      .then(([s, p]) => { setStatus(s.data); setPagamentos(p.data); });
 
   useEffect(() => {
-    Promise.all([apiService.getBillingStatus(), apiService.getBillingPayments()])
-      .then(([s, p]) => { setStatus(s.data); setPagamentos(p.data); })
+    recarregar()
       .catch(() => setErro('Não foi possível carregar os dados da assinatura.'))
       .finally(() => setCarregando(false));
   }, []);
@@ -153,7 +163,11 @@ export default function AssinaturaPage() {
                       <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{p.plan}</td>
                       <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{CICLO[p.billingCycle]}</td>
                       <td className="px-4 py-2.5 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.amount)}</td>
-                      <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{METODO[p.method] ?? p.method}</td>
+                      {/* Enquanto está PENDENTE o método é desconhecido: o cliente ainda
+                          vai escolher PIX ou boleto na fatura. Mostrar "Manual" seria mentira. */}
+                      <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>
+                        {p.status === 'PENDING' ? '—' : METODO[p.method] ?? p.method}
+                      </td>
                       <td className="px-4 py-2.5 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{fmtDate(p.paidAt)}</td>
                       <td className="px-4 py-2.5">
                         <span className="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
@@ -170,10 +184,70 @@ export default function AssinaturaPage() {
         )}
       </div>
 
-      {/* TODO(Asaas): botão "Renovar agora" entra aqui, gerando a cobrança PIX/boleto. */}
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-        Para trocar de plano ou de ciclo, fale com o time da Cortex Tech.
-      </p>
+      <PlanoCheckout status={status} onAtualizado={() => recarregar().catch(() => undefined)} />
+
+      {/* FORA do bloco de cancelar: assim que cancela, `hasActiveSubscription` vira
+          false e a seção some — se a confirmação morasse lá dentro, o cliente clicaria
+          e a tela mudaria sem dizer nada. */}
+      {avisoCancelar && (
+        <div className="rounded-xl px-4 py-3 text-sm"
+          style={{ ...card, borderColor: 'var(--badge-success-text)', color: 'var(--badge-success-text)' }}>
+          {avisoCancelar}
+        </div>
+      )}
+
+      {/* Cancelar só aparece com assinatura viva. O acesso NÃO some na hora: vai até
+          o fim do período pago — por isso o aviso diz a data, não "você perde tudo". */}
+      {status.hasActiveSubscription && (
+        <div className="rounded-xl px-4 py-3" style={card}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Cancelar assinatura</p>
+              <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                As próximas cobranças param.{' '}
+                {status.subscriptionEnds
+                  ? `Seu acesso continua até ${fmtDate(status.subscriptionEnds)}.`
+                  : 'O acesso continua até o fim do período já pago.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPedindoSenha(true)}
+              className="rounded-lg px-4 py-2 text-sm font-medium"
+              style={{ border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}
+            >
+              Cancelar assinatura
+            </button>
+          </div>
+          {erroCancelar && (
+            <p className="mt-3 text-sm" style={{ color: 'var(--badge-error-text)' }}>{erroCancelar}</p>
+          )}
+        </div>
+      )}
+
+      {pedindoSenha && (
+        <ConfirmarSenha
+          titulo="Cancelar assinatura"
+          aviso={status.subscriptionEnds
+            ? `As próximas cobranças param. Seu acesso continua até ${fmtDate(status.subscriptionEnds)}.`
+            : 'As próximas cobranças param.'}
+          rotuloConfirmar="Cancelar assinatura"
+          onCancelar={() => setPedindoSenha(false)}
+          onConfirmado={async (stepUpToken) => {
+            setErroCancelar(null);
+            try {
+              const r = await apiService.cancelSubscription(stepUpToken);
+              setPedindoSenha(false);
+              setAvisoCancelar(r.message);
+              await recarregar().catch(() => undefined);
+            } catch (e) {
+              const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+              setPedindoSenha(false);
+              setErroCancelar(msg ?? 'Não foi possível cancelar agora. Tente em alguns minutos.');
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
