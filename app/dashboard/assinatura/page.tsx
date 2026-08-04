@@ -83,13 +83,23 @@ export default function AssinaturaPage() {
         })
         .catch(() => undefined);
     };
-    let restantes = 30; // ~2,5 min
-    const id = setInterval(() => {
-      if (restantes-- <= 0) clearInterval(id);
-      else rever();
-    }, 5000);
+    // Mesmo ritmo em dois tempos da tela de bloqueio: 5s nos 2 primeiros minutos,
+    // depois 20s por mais ~10 min. Teto curto desistiria bem na hora em que o cliente
+    // termina de pagar.
+    const RAPIDAS = 24;
+    const TOTAL = RAPIDAS + 30;
+    let n = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const agendar = () => {
+      if (n >= TOTAL) return;
+      const intervalo = n < RAPIDAS ? 5000 : 20000;
+      n++;
+      timer = setTimeout(() => { rever(); agendar(); }, intervalo);
+    };
+    agendar();
+
     document.addEventListener('visibilitychange', rever);
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', rever); };
+    return () => { if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', rever); };
   }, [chargeId]);
 
   if (carregando) {

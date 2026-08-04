@@ -52,21 +52,36 @@ function Conteudo() {
   // lendo "falta pagar" — parecendo que o pagamento não passou.
   const chargeId = status?.pendingCharge?.paymentId ?? null;
   useEffect(() => {
-    if (liberado) { router.replace('/dashboard'); return; }
+    if (liberado) {
+      // Conta nova vem do cadastro direto para cá; o wizard fica para depois de pagar.
+      const novo = sessionStorage.getItem('onboarding_new_account') === 'true';
+      router.replace(novo ? '/onboarding' : '/dashboard');
+      return;
+    }
     if (!chargeId) return; // nada emitido ainda: não há o que esperar
 
     const rever = () => { if (!document.hidden) carregar().catch(() => undefined); };
-    // Teto de tentativas: o rate limit do backend é por IP e boleto leva dias —
-    // consultar para sempre não ajudaria e ainda queimaria a cota do cliente.
-    let restantes = 40; // ~3,5 min
-    const id = setInterval(() => {
-      if (restantes-- <= 0) clearInterval(id);
-      else rever();
-    }, 5000);
-    // Pagar em outra aba e voltar para esta é o caminho mais comum — e cobre o
-    // caso de o pagamento sair depois de o teto acima ter estourado.
+
+    // Ritmo em dois tempos: 5s nos 2 primeiros minutos (o PIX confirma em segundos),
+    // depois 20s por mais ~10 min. Pagar leva tempo — abrir o banco no celular, digitar
+    // cartão — e um teto curto faz a tela desistir bem na hora em que o cliente paga.
+    // O total (~54 consultas) cabe no rate limit do backend, que é por IP.
+    const RAPIDAS = 24;
+    const TOTAL = RAPIDAS + 30;
+    let n = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const agendar = () => {
+      if (n >= TOTAL) return; // boleto leva dias: passa a depender do visibilitychange
+      const intervalo = n < RAPIDAS ? 5000 : 20000;
+      n++;
+      timer = setTimeout(() => { rever(); agendar(); }, intervalo);
+    };
+    agendar();
+
+    // Pagar em outra aba e voltar para esta é o caminho mais comum — e é o que cobre
+    // o pagamento que sai depois de o teto acima ter estourado.
     document.addEventListener('visibilitychange', rever);
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', rever); };
+    return () => { if (timer) clearTimeout(timer); document.removeEventListener('visibilitychange', rever); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liberado, chargeId]);
 

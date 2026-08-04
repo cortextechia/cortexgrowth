@@ -199,8 +199,11 @@ function RegisterContent() {
           router.push('/dashboard');
           return;
         }
+        // A org nova nasce vencida (é assim que o gate funciona) e o wizard não consulta
+        // rota bloqueada no mount — ou seja, ele abriria normalmente para quem ainda não
+        // pagou. O pagamento vem primeiro; a flag abaixo leva ao wizard depois de liberar.
         sessionStorage.setItem('onboarding_new_account', 'true');
-        router.push('/onboarding');
+        router.push('/assinatura?motivo=EXPIRED');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar conta. Tente novamente.');
