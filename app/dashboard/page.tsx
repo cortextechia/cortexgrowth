@@ -2620,12 +2620,16 @@ export default function DashboardPage() {
         );
       })()}
 
-      {/* ── 5.2 PIPELINE EM NEGOCIAÇÃO ────────────────────────────────────────── */}
-      {hasKommo && negotiatingLeads.length > 0 && (
+      {/* ── 5.2 PIPELINE EM NEGOCIAÇÃO ──────────────────────────────────────────
+          Gate é hasCrmSource, NÃO hasKommo: o CRM Cortex projeta em KommoLeads, então
+          a org tem o dado e mesmo assim nunca via a seção. Mesma correção feita no
+          sellers-ranking em 28/07. O deep-link "abrir no Kommo" continua condicional
+          a `l.kommoUrl`, que só existe em lead vindo do Kommo. */}
+      {hasCrmSource && negotiatingLeads.length > 0 && (
         <div>
           <div className="flex items-center gap-1.5 mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>pipeline em negociação</p>
-            <InfoTip text="Todos os leads do Kommo que já receberam orçamento/proposta ou estão negociando, independente do período selecionado no filtro acima. Ordenados por valor — priorize o tempo nas oportunidades de maior orçamento." />
+            <InfoTip text={`Todos os leads do ${crmLabel} que já receberam orçamento/proposta ou estão negociando, independente do período selecionado no filtro acima. Ordenados por valor — priorize o tempo nas oportunidades de maior orçamento.`} />
           </div>
           <div className="rounded-xl" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
             <button
