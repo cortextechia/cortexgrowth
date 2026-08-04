@@ -66,6 +66,32 @@ export default function AssinaturaPage() {
       .finally(() => setCarregando(false));
   }, []);
 
+  // Mesma razão da tela de bloqueio: quem confirma o pagamento é o webhook do Asaas,
+  // segundos depois. Sem isto a tela segue mostrando "cobrança em aberto" para quem
+  // já pagou. Consulta só o status (1 request); o histórico só é recarregado quando a
+  // cobrança de fato sai, para não gastar cota do rate limit por IP à toa.
+  const chargeId = status?.pendingCharge?.paymentId ?? null;
+  useEffect(() => {
+    if (!chargeId) return;
+
+    const rever = () => {
+      if (document.hidden) return;
+      apiService.getBillingStatus()
+        .then((s) => {
+          if (s.data.pendingCharge?.paymentId === chargeId) setStatus(s.data);
+          else recarregar().catch(() => undefined); // saiu: traz o histórico junto
+        })
+        .catch(() => undefined);
+    };
+    let restantes = 30; // ~2,5 min
+    const id = setInterval(() => {
+      if (restantes-- <= 0) clearInterval(id);
+      else rever();
+    }, 5000);
+    document.addEventListener('visibilitychange', rever);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', rever); };
+  }, [chargeId]);
+
   if (carregando) {
     return <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando assinatura…</p>;
   }

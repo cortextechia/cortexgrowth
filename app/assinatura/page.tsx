@@ -41,6 +41,35 @@ function Conteudo() {
   const carregar = () => apiService.getBillingStatus().then((r) => setStatus(r.data));
   useEffect(() => { carregar().catch(() => setStatus(null)); }, []);
 
+  // Mesmas condições do checkOrgBilling no backend — é ele quem decide o 402.
+  const liberado = status !== null
+    && status.orgStatus !== 'SUSPENDED'
+    && status.orgStatus !== 'CANCELLED'
+    && !status.expired;
+
+  // Quem libera o acesso é o webhook do Asaas, segundos depois do pagamento. Sem isto
+  // a tela só lia o status no mount: o cliente pagava, voltava para esta aba e continuava
+  // lendo "falta pagar" — parecendo que o pagamento não passou.
+  const chargeId = status?.pendingCharge?.paymentId ?? null;
+  useEffect(() => {
+    if (liberado) { router.replace('/dashboard'); return; }
+    if (!chargeId) return; // nada emitido ainda: não há o que esperar
+
+    const rever = () => { if (!document.hidden) carregar().catch(() => undefined); };
+    // Teto de tentativas: o rate limit do backend é por IP e boleto leva dias —
+    // consultar para sempre não ajudaria e ainda queimaria a cota do cliente.
+    let restantes = 40; // ~3,5 min
+    const id = setInterval(() => {
+      if (restantes-- <= 0) clearInterval(id);
+      else rever();
+    }, 5000);
+    // Pagar em outra aba e voltar para esta é o caminho mais comum — e cobre o
+    // caso de o pagamento sair depois de o teto acima ter estourado.
+    document.addEventListener('visibilitychange', rever);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', rever); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liberado, chargeId]);
+
   const sair = () => {
     apiService.clearTokens();
     router.push('/auth/login');
