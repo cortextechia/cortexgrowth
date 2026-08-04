@@ -1683,9 +1683,16 @@ export default function DashboardPage() {
   const negotiatingLeads = useMemo(() => {
     const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
     const kommoUrl = (id: number) => (domain ? `https://${domain}/leads/detail/${id}` : null);
+    // Lead do CRM Cortex abre o card no NOSSO CRM (o drawer), não no Kommo. O id do
+    // cliente vem do rawData da projeção; lead antigo sem o campo fica sem link em
+    // vez de apontar para lugar nenhum.
+    const crmUrl = (l: KommoLead) => {
+      const clientId = (l.rawData as Record<string, unknown> | undefined)?.crm_client_id;
+      return typeof clientId === 'string' ? `/dashboard/crm?client=${clientId}` : null;
+    };
     return kommoLeads
       .filter((l) => PIPELINE_NEGOTIATION_STATUSES.includes(l.status))
-      .map((l) => ({ ...l, kommoUrl: kommoUrl(l.externalId) }))
+      .map((l) => ({ ...l, kommoUrl: kommoUrl(l.externalId), crmUrl: crmUrl(l) }))
       .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
   }, [kommoLeads, integrations]);
 
@@ -2656,11 +2663,17 @@ export default function DashboardPage() {
                     <span className="font-semibold tabular-nums shrink-0" style={{ color: l.price ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                       {l.price ? fmtMoney(l.price) : 'sem valor'}
                     </span>
-                    {l.kommoUrl && (
+                    {/* Kommo abre fora (outro sistema, aba nova); o CRM Cortex é aqui
+                        dentro, então navega na mesma aba e cai direto no card. */}
+                    {l.kommoUrl ? (
                       <a href={l.kommoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
                         abrir no Kommo →
                       </a>
-                    )}
+                    ) : l.crmUrl ? (
+                      <a href={l.crmUrl} className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
+                        abrir no CRM →
+                      </a>
+                    ) : null}
                   </div>
                 ))}
                 {negotiatingLeads.length > 50 && (
