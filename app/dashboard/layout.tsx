@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ProtectedRoute, PermissionGuard } from '@/components/ProtectedRoute';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import BetaBadge from '@/components/BetaBadge';
 import { apiService } from '@/lib/api';
 import { TrafficManagerClient, UserRole } from '@/types';
 
@@ -472,7 +473,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                 </svg>
               </div>
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+              <div className="flex flex-col items-start gap-0.5 min-w-0">
+                <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+                <BetaBadge />
+              </div>
             </div>
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -520,7 +524,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                   </svg>
                 </div>
-                <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+                {/* Coluna: com o chip ao lado, o nome da marca quebrava em duas linhas. */}
+                <div className="flex flex-col items-start gap-0.5 min-w-0">
+                  <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+                  <BetaBadge />
+                </div>
               </div>
             )}
             <button

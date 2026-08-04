@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import BetaBadge from '@/components/BetaBadge';
 
 function Spinner() {
   return (
@@ -84,6 +85,7 @@ export default function LoginPage() {
               </svg>
             </div>
             <span className="font-semibold text-xl" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+            <BetaBadge />
           </div>
 
           <h2 className="mt-8 text-4xl font-bold leading-[1.15]" style={{ color: 'var(--text-primary)' }}>
@@ -112,6 +114,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+          <BetaBadge />
         </div>
 
         <div className="overflow-hidden rounded-2xl" style={{
