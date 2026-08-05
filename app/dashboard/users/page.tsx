@@ -8,6 +8,7 @@ import { Plan, UserRole } from '@/types';
 import { apiService } from '@/lib/api';
 
 const PLAN_USER_LIMITS: Record<Plan, number> = {
+  [Plan.DEMO]:         1,
   [Plan.STARTER]:      1,
   [Plan.PROFESSIONAL]: 3,
   [Plan.ENTERPRISE]:   Infinity,

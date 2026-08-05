@@ -14,6 +14,8 @@ export enum UserStatus {
 }
 
 export enum Plan {
+  // Porta de entrada de R$ 10/mês, só no ciclo mensal (2026-08-05).
+  DEMO = 'DEMO',
   STARTER = 'STARTER',
   PROFESSIONAL = 'PROFESSIONAL',
   ENTERPRISE = 'ENTERPRISE',

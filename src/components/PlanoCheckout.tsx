@@ -20,6 +20,11 @@ const CICLO: Record<BillingCycle, string> = {
 // Identidade visual por plano, a mesma do cadastro — o cliente reconhece o plano
 // pela cor. As vars --plano-* existem nos dois temas.
 const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: string; publico: string; inclui: string[] }> = {
+  DEMO: {
+    cor: 'var(--plano-demo)', corSuave: 'var(--plano-demo-soft)',
+    chamada: 'Para conhecer a plataforma', publico: '1 usuário · mensal',
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+  },
   STARTER: {
     cor: 'var(--plano-starter)', corSuave: 'var(--plano-starter-soft)',
     chamada: 'Para quem toca sozinho', publico: '1 usuário',
@@ -107,7 +112,9 @@ function BannerPlano({
         </div>
       </div>
 
-      {ciclo !== 'MONTHLY' && (
+      {/* info.cycle, não `ciclo`: plano que não tem o ciclo selecionado (o DEMO é só
+          mensal) cai no que ele oferece, e o texto tem que acompanhar o preço. */}
+      {info.cycle !== 'MONTHLY' && (
         <p className="mt-2 text-[11px]" style={{ color: 'var(--badge-success-text)' }}>
           {fmtMoney(info.total)} a cada {info.months} meses · você economiza <strong>{fmtMoney(info.savings)}</strong>
         </p>
@@ -151,11 +158,15 @@ export default function PlanoCheckout({
   }, []);
 
   const opcaoSelecionada = planos.find((p) => p.plan === plano);
-  const cicloSelecionado = opcaoSelecionada?.cycles.find((c) => c.cycle === ciclo);
+  // Nem todo plano aceita todo ciclo (o DEMO é só mensal). Com o seletor em Anual e o
+  // DEMO marcado, o ciclo pedido não existe: cai no que o plano oferece, senão a tela
+  // ficaria sem preço e o checkout enviaria um ciclo que o backend recusa com 400.
+  const cicloSelecionado = opcaoSelecionada?.cycles.find((c) => c.cycle === ciclo) ?? opcaoSelecionada?.cycles[0];
+  const cicloEfetivo = cicloSelecionado?.cycle ?? ciclo;
   const precoSelecionado = cicloSelecionado?.total ?? null;
   // Compara com o que a tela ABRIU marcado, não com o plano da org: quem escolheu
   // ENTERPRISE no cadastro não está "trocando de plano" ao pagar o que escolheu.
-  const trocandoPlano = plano !== planoInicial || ciclo !== cicloInicial;
+  const trocandoPlano = plano !== planoInicial || cicloEfetivo !== cicloInicial;
   const docIncompleto = !status.hasTaxId && doc.replace(/[^0-9A-Z]/gi, '').length < 11;
 
   const gerarCobranca = async () => {
@@ -163,7 +174,7 @@ export default function PlanoCheckout({
     setErro(null);
     try {
       const r = await apiService.createCheckout({
-        plan: plano, billingCycle: ciclo,
+        plan: plano, billingCycle: cicloEfetivo,
         ...(status.hasTaxId ? {} : { taxId: doc }),
       });
       await onAtualizado?.();
@@ -275,7 +286,7 @@ export default function PlanoCheckout({
             {precoSelecionado !== null && (
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {/* "a cada {rótulo}" sai errado no anual ("a cada anual") — contar em meses */}
-                {fmtMoney(precoSelecionado)} {ciclo === 'MONTHLY' ? 'por mês' : `a cada ${cicloSelecionado?.months ?? ''} meses`}
+                {fmtMoney(precoSelecionado)} {cicloEfetivo === 'MONTHLY' ? 'por mês' : `a cada ${cicloSelecionado?.months ?? ''} meses`}
               </span>
             )}
           </div>

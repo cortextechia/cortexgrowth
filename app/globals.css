@@ -36,6 +36,8 @@
   --creative-accent-border: rgba(168,85,247,0.20);
   /* Identidade dos planos (cadastro e login). No claro elas escurecem: os tons
      vivos do dark somem sobre branco. */
+  --plano-demo:            #94a3b8;
+  --plano-demo-soft:       rgba(148,163,184,0.13);
   --plano-starter:         #22d3ee;
   --plano-starter-soft:    rgba(34,211,238,0.13);
   --plano-pro:             #a855f7;
@@ -80,6 +82,8 @@
   --creative-accent-text:   #7c3aed;
   --creative-accent-bg:     rgba(124,58,237,0.10);
   --creative-accent-border: rgba(124,58,237,0.22);
+  --plano-demo:            #64748b;
+  --plano-demo-soft:       rgba(100,116,139,0.10);
   --plano-starter:         #0891b2;
   --plano-starter-soft:    rgba(8,145,178,0.10);
   --plano-pro:             #7c3aed;

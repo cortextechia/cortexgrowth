@@ -16,6 +16,7 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 }
 
 const PLAN_BADGE_STYLE: Record<Plan, React.CSSProperties> = {
+  DEMO:         { backgroundColor: 'var(--plano-demo-soft)', color: 'var(--plano-demo)' },
   STARTER:      { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
   PROFESSIONAL: { backgroundColor: 'rgba(139,92,246,0.12)',  color: '#8b5cf6' },
   ENTERPRISE:   { backgroundColor: 'var(--badge-warn-bg)',   color: 'var(--badge-warn-text)' },

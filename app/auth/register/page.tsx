@@ -27,6 +27,13 @@ const IDENTIDADE: Record<string, {
   publico: string;
   inclui: string[];
 }> = {
+  DEMO: {
+    cor: 'var(--plano-demo)',
+    corSuave: 'var(--plano-demo-soft)',
+    chamada: 'Para conhecer a plataforma',
+    publico: '1 usuário · mensal',
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+  },
   STARTER: {
     cor: 'var(--plano-starter)',
     corSuave: 'var(--plano-starter-soft)',
@@ -115,7 +122,10 @@ function BannerPlano({
 
       {/* A economia é o argumento do ciclo longo — precisa ser legível SEM precisar
           selecionar o plano, por isso mantém o verde nos dois estados. */}
-      {ciclo !== 'MONTHLY' && (
+      {/* info.cycle, não `ciclo`: o DEMO só tem mensal, então com o seletor em Anual
+          este card cai no mensal — e dizer "a cada 1 meses · economiza R$ 0,00" seria
+          texto errado em cima de um preço certo. */}
+      {info.cycle !== 'MONTHLY' && (
         <p className="mt-2 text-[11px]" style={{ color: 'var(--badge-success-text)' }}>
           {brl(info.total)} a cada {info.months} meses · você economiza <strong>{brl(info.savings)}</strong>
         </p>
@@ -187,7 +197,7 @@ function RegisterContent() {
     try {
       const response = await register({
         ...formData,
-        ...(escolhePlano ? { plan: plano, billingCycle: ciclo } : {}),
+        ...(escolhePlano ? { plan: plano, billingCycle: cicloEfetivo } : {}),
         ...(refCode ? { ref: refCode } : {}),
         ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}),
       });
@@ -229,7 +239,9 @@ function RegisterContent() {
   };
 
   const planoAtual = planos.find((p) => p.plan === plano);
-  const infoAtual = planoAtual?.cycles.find((c) => c.cycle === ciclo);
+  // O DEMO só existe no mensal: com o seletor em Anual, cai no ciclo que o plano tem.
+  const infoAtual = planoAtual?.cycles.find((c) => c.cycle === ciclo) ?? planoAtual?.cycles[0];
+  const cicloEfetivo = infoAtual?.cycle ?? ciclo;
 
   return (
     <div className="min-h-screen relative overflow-hidden" style={{ backgroundColor: 'var(--bg-base)' }}>
@@ -320,11 +332,13 @@ function RegisterContent() {
             <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Criar conta</h2>
             {escolhePlano && infoAtual && (
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
-                {plano} · {ROTULO_CICLO[ciclo].toLowerCase()} ·{' '}
+                {/* cicloEfetivo: com DEMO marcado e o seletor em Anual, dizer "anual"
+                    aqui prometeria um ano de acesso por uma cobrança mensal. */}
+                {plano} · {ROTULO_CICLO[cicloEfetivo].toLowerCase()} ·{' '}
                 <strong style={{ color: IDENTIDADE[plano]?.cor ?? 'var(--accent)' }}>
                   {brl(infoAtual.total)}
                 </strong>
-                {ciclo !== 'MONTHLY' && <> a cada {infoAtual.months} meses</>}
+                {cicloEfetivo !== 'MONTHLY' && <> a cada {infoAtual.months} meses</>}
               </p>
             )}
 
