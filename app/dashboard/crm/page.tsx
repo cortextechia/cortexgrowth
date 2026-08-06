@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
   CrmTask, CrmTaskType, CrmReport, CrmEvent,
 } from '@/types';
 
@@ -211,6 +211,28 @@ function UnreadDot() {
       <svg viewBox="0 0 20 20" fill="#ffffff" className="h-2.5 w-2.5">
         <path d="M10 2.5c-4.4 0-8 2.8-8 6.3 0 2 1.2 3.8 3 4.9L4.4 17a.4.4 0 0 0 .6.5l3.2-1.8c.6.1 1.2.2 1.8.2 4.4 0 8-2.8 8-6.3s-3.6-6.3-8-6.3z" />
       </svg>
+    </span>
+  );
+}
+
+// Lead descartado como não qualificado, visível no card sem abrir a timeline.
+// O contador denuncia o contato que volta sempre e nunca qualifica ("faz hora",
+// "pergunta a mesma coisa"). Aceitar de volta limpa o motivo → o badge some,
+// porque o lead voltou a valer; só o contador sobrevive para o próximo descarte.
+function DiscardBadge({ client, className = '' }: {
+  client: { discardReason: string | null; discardCount: number };
+  className?: string;
+}) {
+  if (!client.discardReason) return null;
+  const times = client.discardCount > 1 ? ` ${client.discardCount}x` : '';
+  const reason = client.discardReason;
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded max-w-full truncate ${className}`}
+      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+      title={`Lead descartado${times} como não qualificado — ${reason}`}
+    >
+      🚫 Não qualificado{times} · {reason}
     </span>
   );
 }
@@ -434,6 +456,7 @@ export default function CrmPage() {
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
+  const [showDiscardReasonsEditor, setShowDiscardReasonsEditor] = useState(false);
   const [showClientTypesEditor, setShowClientTypesEditor] = useState(false);
   const [showTagsEditor, setShowTagsEditor] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -777,19 +800,35 @@ export default function CrmPage() {
     }
   };
 
-  // Triagem: aceitar põe o contato no funil (sem venda, na 1ª etapa), rejeitar
-  // arquiva. Otimista nos dois casos — o card sai da coluna na hora.
+  // Triagem: aceitar põe o contato no funil (sem venda, na 1ª etapa).
   const [triaging, setTriaging] = useState<Set<string>>(new Set());
 
-  const handleTriage = async (clientId: string, action: 'accept' | 'reject') => {
+  // Descarte: card escolhido abre o modal de motivo (obrigatório). É a saída do
+  // funil para o lead que nunca qualificou — antes disso o jeito era criar venda
+  // de R$0 e marcar como perdida, o que virava "venda perdida" no dashboard.
+  const [discardTarget, setDiscardTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const handleAccept = async (clientId: string) => {
     setTriaging((prev) => new Set(prev).add(clientId));
     try {
-      if (action === 'accept') await apiService.acceptCrmClient(clientId);
-      else await apiService.rejectCrmClient(clientId);
-      showToast('success', action === 'accept' ? 'Contato aceito no funil.' : 'Contato arquivado.');
+      await apiService.acceptCrmClient(clientId);
+      showToast('success', 'Contato aceito no funil.');
       await loadAll(searchRef.current.trim() || undefined, { force: true });
     } catch (err) {
       showToast('error', apiErrorMsg(err, 'Erro ao processar o contato.'));
+    } finally {
+      setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
+    }
+  };
+
+  const handleDiscard = async (clientId: string, reason: string) => {
+    setTriaging((prev) => new Set(prev).add(clientId));
+    try {
+      await apiService.rejectCrmClient(clientId, reason);
+      showToast('success', `Lead descartado — ${reason}.`);
+      await loadAll(searchRef.current.trim() || undefined, { force: true });
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao descartar o lead.'));
     } finally {
       setTriaging((prev) => { const next = new Set(prev); next.delete(clientId); return next; });
     }
@@ -1049,7 +1088,8 @@ export default function CrmPage() {
             label="⚙ Configurar"
             items={[
               { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
-              { label: 'Motivos de perda', onClick: () => setShowLostReasonsEditor(true) },
+              { label: 'Motivos de perda (venda)', onClick: () => setShowLostReasonsEditor(true) },
+              { label: 'Motivos de descarte (lead)', onClick: () => setShowDiscardReasonsEditor(true) },
               { label: 'Tipos de cliente', onClick: () => setShowClientTypesEditor(true) },
               { label: 'Tags', onClick: () => setShowTagsEditor(true) },
               { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
@@ -1202,10 +1242,11 @@ export default function CrmPage() {
                     <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
                       {fmtPhone(client.phone)}
                     </div>
+                    <DiscardBadge client={client} />
                   </button>
                   <div className="flex gap-1.5">
                     <button
-                      onClick={() => handleTriage(client.id, 'accept')}
+                      onClick={() => void handleAccept(client.id)}
                       disabled={triaging.has(client.id)}
                       className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
                       style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
@@ -1213,12 +1254,13 @@ export default function CrmPage() {
                       Aceitar
                     </button>
                     <button
-                      onClick={() => handleTriage(client.id, 'reject')}
+                      onClick={() => setDiscardTarget({ id: client.id, name: client.name })}
                       disabled={triaging.has(client.id)}
+                      title="Lead não qualificado — pede o motivo e não cria venda nenhuma"
                       className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
                       style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
                     >
-                      Rejeitar
+                      Descartar
                     </button>
                   </div>
                 </div>
@@ -1395,6 +1437,7 @@ export default function CrmPage() {
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
                       <OriginPill origin={client.origin} />
                       <FollowUpChip iso={client.nextFollowUpAt} />
+                      <DiscardBadge client={client} />
                       {client.tags.slice(0, 2).map((tag) => {
                         const tc = tagColor(tag);
                         return (
@@ -1542,17 +1585,13 @@ export default function CrmPage() {
           // clica ali está no meio da conversa com a pessoa, e fechar obrigava a
           // procurar o card no Novo Lead e reabrir para continuar respondendo.
           // Só refresca — o banner some sozinho e a etapa aparece atualizada.
-          // Rejeitar continua fechando: ali a intenção é tirar da frente.
+          // Descartar continua fechando: ali a intenção é tirar da frente.
           onAcceptTriage={async () => {
             if (!detail) return;
-            await handleTriage(detail.id, 'accept');
+            await handleAccept(detail.id);
             await refreshDetail();
           }}
-          onRejectTriage={async () => {
-            if (!detail) return;
-            await handleTriage(detail.id, 'reject');
-            closeClient();
-          }}
+          onDiscard={() => detail && setDiscardTarget({ id: detail.id, name: detail.name })}
           onReopen={async () => {
             if (!detail) return;
             await handleReopen(detail.id);
@@ -1670,6 +1709,20 @@ export default function CrmPage() {
         />
       )}
 
+      {discardTarget && (
+        <DiscardModal
+          clientName={discardTarget.name}
+          onClose={() => setDiscardTarget(null)}
+          onConfirm={async (reason) => {
+            const target = discardTarget;
+            setDiscardTarget(null);
+            await handleDiscard(target.id, reason);
+            // Descartou o card que está aberto → some da frente (a intenção do descarte)
+            if (detail?.id === target.id) closeClient();
+          }}
+        />
+      )}
+
       {showStagesEditor && (
         <StagesEditorModal
           stages={status.stages}
@@ -1688,6 +1741,17 @@ export default function CrmPage() {
           onClose={() => setShowLostReasonsEditor(false)}
           onSaved={(msg) => {
             setShowLostReasonsEditor(false);
+            showToast('success', msg);
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {showDiscardReasonsEditor && (
+        <DiscardReasonsEditorModal
+          onClose={() => setShowDiscardReasonsEditor(false)}
+          onSaved={(msg) => {
+            setShowDiscardReasonsEditor(false);
             showToast('success', msg);
           }}
           onError={(msg) => showToast('error', msg)}
@@ -2012,6 +2076,7 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   const t = report?.totals;
   const maxReached = Math.max(1, ...(report?.stageFlow.map((s) => s.reached) ?? [1]));
   const maxLost = Math.max(1, ...(report?.lostReasons.map((r) => r.count) ?? [1]));
+  const maxDiscard = Math.max(1, ...(report?.discards.reasons.map((r) => r.count) ?? [1]));
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/50 overflow-y-auto" onClick={onClose}>
@@ -2100,6 +2165,31 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                       <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
                       <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
                         <div className="h-full rounded-full" style={{ width: `${(r.count / maxLost) * 100}%`, backgroundColor: 'var(--badge-error-text)' }} />
+                      </div>
+                      <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Leads descartados — separado das vendas de propósito: aqui não
+                houve venda nenhuma, é o contato que nunca virou conversa. */}
+            {report.discards.total > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
+                  Leads descartados: {report.discards.total}
+                </h3>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                  Lead que não qualificou — não entra em venda perdida nem no win rate.
+                  Muito &quot;clique errado no anúncio&quot; aqui é sinal de mídia, não de vendedor.
+                </p>
+                <div className="space-y-1.5">
+                  {report.discards.reasons.map((r) => (
+                    <div key={r.reason} className="flex items-center gap-2 text-xs">
+                      <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
+                      <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${(r.count / maxDiscard) * 100}%`, backgroundColor: 'var(--badge-warn-text)' }} />
                       </div>
                       <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
                     </div>
@@ -2286,7 +2376,8 @@ function ClientDrawer(props: {
   onLose: (s: CrmSale) => void;
   onChangeClientStage: (stageId: string) => void;
   onAcceptTriage: () => Promise<void>;
-  onRejectTriage: () => Promise<void>;
+  /** Abre o modal de motivo — o descarte só acontece com motivo escolhido. */
+  onDiscard: () => void;
   onReopen: () => Promise<void>;
   onDismissReturning: () => Promise<void>;
   onTransfer: (responsibleId: string | null) => void;
@@ -2614,8 +2705,11 @@ function ClientDrawer(props: {
               <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)' }}>
                 <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>Contato novo do WhatsApp</p>
                 <p className="text-xs mt-0.5 mb-2.5" style={{ color: 'var(--text-secondary)' }}>
-                  Aceite para entrar no funil (Novo Lead) ou rejeite para arquivar o contato.
+                  Aceite para entrar no funil (Novo Lead) ou descarte informando por que o lead não qualificou.
                 </p>
+                {/* Lead que já foi descartado antes e voltou a mandar mensagem —
+                    o histórico evita gastar atendimento de novo com o mesmo caso. */}
+                <DiscardBadge client={detail} className="mb-2.5" />
                 <div className="flex gap-2">
                   <button
                     onClick={async () => { setTriageBusy(true); try { await props.onAcceptTriage(); } finally { setTriageBusy(false); } }}
@@ -2627,15 +2721,34 @@ function ClientDrawer(props: {
                     Aceitar
                   </button>
                   <button
-                    onClick={async () => { setTriageBusy(true); try { await props.onRejectTriage(); } finally { setTriageBusy(false); } }}
+                    onClick={props.onDiscard}
                     disabled={triageBusy}
                     className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
                     style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
-                    title="Arquiva o contato (o card e a conversa continuam existindo)"
+                    title="Lead não qualificado — pede o motivo e não cria venda nenhuma"
                   >
-                    Rejeitar
+                    Descartar
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Descarte do lead já aceito: até então a única saída do funil era
+                fechar uma venda, e quem nunca conversou virava venda de R$0
+                perdida — venda que não existiu, contada no dashboard. */}
+            {detail.triageStatus === 'ACCEPTED' && (
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Lead não qualificou (não responde, clique errado...)?
+                </span>
+                <button
+                  onClick={props.onDiscard}
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-md whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                  title="Tira o card do funil informando o motivo — sem criar venda, sem contar como venda perdida"
+                >
+                  Descartar lead
+                </button>
               </div>
             )}
 
@@ -4559,6 +4672,148 @@ function LoseModal({ onClose, onConfirm }: {
       >
         Confirmar perda
       </button>
+    </ModalShell>
+  );
+}
+
+// Descarte do LEAD — não confundir com perda de VENDA. Aqui não existe venda:
+// o contato não qualificou (não respondeu, clicou sem querer no anúncio...).
+// Motivo obrigatório: é ele que vira a estatística "leads descartados".
+function DiscardModal({ clientName, onClose, onConfirm }: {
+  clientName: string;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [options, setOptions] = useState<CrmDiscardReasonOption[] | null>(null);
+  const [reason, setReason] = useState('');
+
+  useEffect(() => {
+    apiService.getCrmDiscardReasons()
+      .then((res) => {
+        setOptions(res.data);
+        setReason(res.data[0]?.label ?? '');
+      })
+      .catch(() => setOptions([]));
+  }, []);
+
+  return (
+    <ModalShell title="Descartar lead" onClose={onClose}>
+      <p className="text-sm mb-3" style={{ color: 'var(--text-secondary)' }}>
+        <strong style={{ color: 'var(--text-primary)' }}>{clientName}</strong> sai do funil sem
+        virar venda — não conta como venda perdida. O motivo alimenta o relatório de leads descartados.
+      </p>
+      <label className="text-xs block mb-1" style={label}>Motivo *</label>
+      {options === null ? (
+        <p className="text-xs py-2 mb-3" style={{ color: 'var(--text-muted)' }}>Carregando motivos...</p>
+      ) : options.length === 0 ? (
+        <p className="text-xs py-2 mb-3" style={{ color: 'var(--badge-error-text)' }}>
+          Não foi possível carregar os motivos. Feche e tente novamente.
+        </p>
+      ) : (
+        <div className="mb-3">
+          <Dropdown
+            value={reason}
+            onChange={setReason}
+            options={options.map((r) => ({ value: r.label, label: r.label }))}
+          />
+        </div>
+      )}
+      <button
+        onClick={() => onConfirm(reason)}
+        disabled={!reason}
+        className="w-full py-2.5 rounded-lg text-sm font-medium disabled:opacity-60"
+        style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--border-md)' }}
+      >
+        Confirmar descarte
+      </button>
+      <p className="text-xs mt-2.5" style={{ color: 'var(--text-muted)' }}>
+        O card e a conversa continuam existindo. Se a pessoa mandar mensagem de novo,
+        ela volta para &quot;Novos contatos&quot; com esse histórico à vista.
+      </p>
+    </ModalShell>
+  );
+}
+
+function DiscardReasonsEditorModal({ onClose, onSaved, onError }: {
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getCrmDiscardReasons()
+      .then((res) => setDraft(res.data.map((o) => ({ id: o.id, label: o.label }))))
+      .catch(() => onError('Erro ao carregar os motivos de descarte.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    const valid = draft.filter((s) => s.label.trim());
+    if (valid.length === 0) { onError('Informe ao menos 1 motivo de descarte.'); return; }
+    setSaving(true);
+    try {
+      const res = await apiService.saveCrmDiscardReasons(valid);
+      onSaved(res.message);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar os motivos.'));
+      setSaving(false);
+    }
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const n = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[i], n[j]] = [n[j]!, n[i]!];
+      return n;
+    });
+  };
+
+  return (
+    <ModalShell title="Motivos de descarte" onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+        Por que um LEAD é descartado — não responde, clicou sem querer no anúncio,
+        só pergunta e não avança. Diferente dos motivos de perda, que encerram uma
+        venda. Remover um motivo não altera os descartes antigos.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-muted)' }}>Carregando...</p>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {draft.map((s, i) => (
+              <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+                <input
+                  className="flex-1 rounded-lg px-3 py-2 text-sm"
+                  style={input}
+                  value={s.label}
+                  maxLength={60}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                />
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Subir">↑</button>
+                <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-muted)' }} aria-label="Descer">↓</button>
+                <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { label: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar motivo
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar motivos'}
+          </button>
+        </>
+      )}
     </ModalShell>
   );
 }

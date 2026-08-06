@@ -932,6 +932,16 @@ class ApiService {
     return response.data;
   }
 
+  async getCrmDiscardReasons(): Promise<{ success: boolean; data: import('@/types').CrmDiscardReasonOption[] }> {
+    const response = await this.client.get('/crm/discard-reasons');
+    return response.data;
+  }
+
+  async saveCrmDiscardReasons(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmDiscardReasonOption[] }> {
+    const response = await this.client.put('/crm/discard-reasons', { options });
+    return response.data;
+  }
+
   async getCrmClientTypes(): Promise<{ success: boolean; data: import('@/types').CrmClientTypeOption[] }> {
     const response = await this.client.get('/crm/client-types');
     return response.data;
@@ -1073,8 +1083,9 @@ class ApiService {
     return response.data;
   }
 
-  async rejectCrmClient(clientId: string): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.post(`/crm/clients/${clientId}/reject`);
+  /** Descarta o lead como não qualificado — motivo obrigatório (vira estatística). */
+  async rejectCrmClient(clientId: string, reason: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/reject`, { reason });
     return response.data;
   }
 

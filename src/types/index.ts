@@ -745,6 +745,14 @@ export interface CrmLostReasonOption {
   order: number;
 }
 
+// Motivo de descarte de LEAD configurável por org (não responde, clique errado
+// no anúncio...). Não confundir com motivo de perda: perda encerra uma VENDA.
+export interface CrmDiscardReasonOption {
+  id: string;
+  label: string;
+  order: number;
+}
+
 // Tipo de cliente configurável por org (ex: Pessoa Física, Engenheiro PJ)
 export interface CrmClientTypeOption {
   id: string;
@@ -815,8 +823,12 @@ export interface CrmClientSummary {
   lastReadAt: string | null;
   nextFollowUpAt: string | null;
   waAvatarUrl: string | null;
-  /** PENDING = na coluna "Novos contatos" aguardando Aceitar/Rejeitar. */
+  /** PENDING = na coluna "Novos contatos" aguardando Aceitar/Descartar. */
   triageStatus: CrmTriageStatus;
+  /** Motivo do descarte vigente — null = lead não está descartado. */
+  discardReason: string | null;
+  /** Quantas vezes já foi descartado (histórico; não zera ao aceitar de volta). */
+  discardCount: number;
   /** Posição do card no kanban (o card é o lead; anda sem precisar de venda). */
   stageId: string | null;
   responsibleId: string | null;
@@ -942,6 +954,8 @@ export interface CrmReport {
   stageFlow: { id: string; name: string; reached: number; conversionFromPrev: number | null }[];
   stageDurations: { id: string; name: string; avgDays: number | null; samples: number }[];
   lostReasons: { reason: string; count: number }[];
+  /** Leads descartados no período — não são venda perdida, são lead que nunca qualificou. */
+  discards: { total: number; reasons: { reason: string; count: number }[] };
   sellers: { id: string | null; name: string; wonCount: number; wonValue: number; lostCount: number; winRate: number | null; avgTicket: number }[];
 }
 

@@ -282,6 +282,17 @@ export default function CrmContatosPage() {
                         <Avatar url={c.waAvatarUrl} name={c.name} />
                         {c.name}
                         {hasUnread(c) && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: '#22c55e' }} title="Mensagem não respondida" />}
+                        {/* Lead descartado como não qualificado — na tabela é onde
+                            ele fica depois de sair do funil, então o motivo precisa aparecer. */}
+                        {c.discardReason && (
+                          <span
+                            className="text-[10px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
+                            style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                            title={`Lead descartado${c.discardCount > 1 ? ` ${c.discardCount}x` : ''} como não qualificado — ${c.discardReason}`}
+                          >
+                            🚫 {c.discardReason}
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
