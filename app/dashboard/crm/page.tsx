@@ -2077,6 +2077,8 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   const maxReached = Math.max(1, ...(report?.stageFlow.map((s) => s.reached) ?? [1]));
   const maxLost = Math.max(1, ...(report?.lostReasons.map((r) => r.count) ?? [1]));
   const maxDiscard = Math.max(1, ...(report?.discards.reasons.map((r) => r.count) ?? [1]));
+  // Cidades: mostra as 10 melhores e abre a lista inteira sob demanda
+  const [cityRows, setCityRows] = useState(10);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/50 overflow-y-auto" onClick={onClose}>
@@ -2130,7 +2132,13 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                   </div>
                 ))}
                 <div className="flex items-center gap-2 text-xs pt-1" style={{ borderTop: '1px solid var(--border)' }}>
-                  <span className="w-36 truncate shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>Ganhas (da coorte)</span>
+                  <span
+                    className="w-36 shrink-0 font-semibold leading-tight"
+                    style={{ color: 'var(--badge-success-text)' }}
+                    title="Das vendas criadas no período, quantas foram ganhas. Diferente do card 'Vendas ganhas' do topo, que conta as FECHADAS no período. Pode passar do número da última etapa: ganhar não exige percorrer o funil inteiro."
+                  >
+                    Ganhas (das criadas no período)
+                  </span>
                   <ReportBar pct={(t!.cohortWon / maxReached) * 100} />
                   <span className="w-8 text-right tabular-nums shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>{t!.cohortWon}</span>
                   <span className="w-12 shrink-0" />
@@ -2195,6 +2203,49 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Por cidade — de onde vem quem chega e onde o dinheiro fecha */}
+            {report.cities.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Por cidade</h3>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+                  Leads = cards criados no período · Receita = vendas ganhas. Só conta card com cidade preenchida.
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ color: 'var(--text-muted)' }}>
+                        <th className="text-left font-medium py-1.5 pr-3">Cidade</th>
+                        <th className="text-right font-medium py-1.5 pr-3">Leads</th>
+                        <th className="text-right font-medium py-1.5 pr-3">Vendas</th>
+                        <th className="text-right font-medium py-1.5">Receita</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.cities.slice(0, cityRows).map((c) => (
+                        <tr key={c.label} style={{ borderTop: '1px solid var(--border)' }}>
+                          <td className="py-1.5 pr-3" style={{ color: 'var(--text-primary)' }}>{c.label}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
+                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
+                          <td className="py-1.5 text-right tabular-nums font-semibold" style={{ color: c.wonValue > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
+                            {fmtMoney(c.wonValue)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {report.cities.length > cityRows && (
+                  <button
+                    onClick={() => setCityRows(report.cities.length)}
+                    className="text-xs mt-2"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    ver todas as {report.cities.length} cidades
+                  </button>
+                )}
               </div>
             )}
 
@@ -2286,6 +2337,136 @@ function InlineField({ value, placeholder, maxLength, onSave }: {
       onBlur={save}
       onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
     />
+  );
+}
+
+// ─── Cidade do card ──────────────────────────────────────────────────────
+// Os 5.571 municípios do IBGE vivem em /cidades.json (164 KB). O arquivo só é
+// baixado quando alguém abre o campo, e uma vez por sessão — a página do CRM
+// já é pesada e a maioria das visitas não edita cidade.
+
+type Cidade = { n: string; u: string };
+let cidadesCache: Cidade[] | null = null;
+let cidadesReq: Promise<Cidade[]> | null = null;
+
+function loadCidades(): Promise<Cidade[]> {
+  if (cidadesCache) return Promise.resolve(cidadesCache);
+  if (!cidadesReq) {
+    cidadesReq = fetch('/cidades.json')
+      .then((r) => r.json())
+      .then((d: Cidade[]) => { cidadesCache = d; return d; })
+      .catch(() => { cidadesReq = null; return []; }); // deixa tentar de novo
+  }
+  return cidadesReq;
+}
+
+// A busca ignora acento e caixa ("sao goncalo" acha "São Gonçalo") — reusa o
+// `norm` que o import de CSV já usa para casar cabeçalho.
+
+// Campo com autocomplete. Guarda a UF junto (nunca exibida no card) porque 232
+// nomes de município se repetem em outro estado — sem ela o relatório somaria
+// "Bom Jesus" do Piauí com o da Paraíba.
+function CityField({ city, state, onSave }: {
+  city: string | null;
+  state: string | null;
+  onSave: (city: string | null, state: string | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [options, setOptions] = useState<Cidade[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const open = () => {
+    setDraft(city ?? '');
+    setEditing(true);
+    if (!cidadesCache) setLoading(true);
+    void loadCidades().then((d) => { setOptions(d); setLoading(false); });
+  };
+
+  if (!editing) {
+    return (
+      <button
+        onClick={open}
+        className="text-sm text-left truncate max-w-full"
+        style={{ color: city ? 'var(--text-primary)' : 'var(--text-muted)' }}
+        title={city && state ? `${city} · ${state}` : 'Clique para editar'}
+      >
+        {city || 'adicionar cidade'} <span style={{ color: 'var(--text-muted)' }}>✎</span>
+      </button>
+    );
+  }
+
+  const termo = norm(draft);
+  // Quem começa com o termo vem primeiro — digitar "for" mostra Fortaleza antes
+  // de Belo Horizonte. Teto de 8 para a lista não virar uma parede.
+  const matches = termo.length < 2 ? [] : (() => {
+    const comeca: Cidade[] = [];
+    const contem: Cidade[] = [];
+    for (const c of options) {
+      const nome = norm(c.n);
+      if (nome.startsWith(termo)) comeca.push(c);
+      else if (nome.includes(termo)) contem.push(c);
+      if (comeca.length >= 8) break;
+    }
+    return [...comeca, ...contem].slice(0, 8);
+  })();
+
+  const escolher = (c: Cidade) => { setEditing(false); onSave(c.n, c.u); };
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          className="rounded-md px-2 py-1 text-sm w-full"
+          style={input}
+          value={draft}
+          maxLength={80}
+          placeholder="digite a cidade..."
+          onChange={(e) => setDraft(e.target.value)}
+          // Blur atrasado: sem isso o clique na sugestão fecha a lista antes de registrar
+          onBlur={() => setTimeout(() => setEditing(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setEditing(false);
+            if (e.key === 'Enter' && matches.length > 0) escolher(matches[0]!);
+          }}
+        />
+        {city && (
+          <button
+            onMouseDown={(e) => { e.preventDefault(); setEditing(false); onSave(null, null); }}
+            className="text-xs px-1.5 shrink-0"
+            style={{ color: 'var(--badge-error-text)' }}
+            title="Limpar cidade"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+      {(loading || matches.length > 0 || termo.length >= 2) && (
+        <div
+          className="absolute z-20 mt-1 w-full rounded-lg overflow-hidden"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        >
+          {loading ? (
+            <div className="px-2.5 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>Carregando cidades...</div>
+          ) : matches.length === 0 ? (
+            <div className="px-2.5 py-2 text-xs" style={{ color: 'var(--text-muted)' }}>Nenhuma cidade encontrada.</div>
+          ) : (
+            matches.map((c) => (
+              <button
+                key={`${c.n}|${c.u}`}
+                // mouseDown vem antes do blur do input — click puro não dispararia
+                onMouseDown={(e) => { e.preventDefault(); escolher(c); }}
+                className="w-full text-left px-2.5 py-1.5 text-sm hover:opacity-80"
+                style={{ color: 'var(--text-primary)' }}
+              >
+                {c.n} <span style={{ color: 'var(--text-muted)' }}>· {c.u}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -2383,7 +2564,7 @@ function ClientDrawer(props: {
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
-  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
+  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
   onEditNote: (eventId: string, text: string) => Promise<void>;
@@ -2872,6 +3053,15 @@ function ClientDrawer(props: {
                   placeholder="adicionar empresa"
                   maxLength={120}
                   onSave={(v) => void props.onUpdateClient({ company: v })}
+                />
+              </div>
+
+              <div className="grid grid-cols-[130px_1fr] items-start gap-2">
+                <span className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>Cidade</span>
+                <CityField
+                  city={detail.city}
+                  state={detail.state}
+                  onSave={(city, state) => void props.onUpdateClient({ city, state })}
                 />
               </div>
 

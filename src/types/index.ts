@@ -818,6 +818,10 @@ export interface CrmClientSummary {
   company: string | null;
   clientType: string | null;
   email: string | null;
+  /** Cidade do contato — só o nome ("Maranguape"). A UF fica em `state`. */
+  city: string | null;
+  /** UF da cidade. Não é exibida: existe para não somar cidades homônimas. */
+  state: string | null;
   tags: string[];
   lastInboundAt: string | null;
   lastReadAt: string | null;
@@ -956,6 +960,8 @@ export interface CrmReport {
   lostReasons: { reason: string; count: number }[];
   /** Leads descartados no período — não são venda perdida, são lead que nunca qualificou. */
   discards: { total: number; reasons: { reason: string; count: number }[] };
+  /** De onde vêm os leads e onde se vende mais. `label` já traz a UF só em caso de homônimas. */
+  cities: { label: string; leads: number; wonCount: number; wonValue: number }[];
   sellers: { id: string | null; name: string; wonCount: number; wonValue: number; lostCount: number; winRate: number | null; avgTicket: number }[];
 }
 
