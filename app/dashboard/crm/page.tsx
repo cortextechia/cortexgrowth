@@ -11,7 +11,7 @@ import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
-  CrmTask, CrmTaskType, CrmReport,
+  CrmTask, CrmTaskType, CrmReport, CrmEvent,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -64,6 +64,13 @@ const EVENT_LABELS: Record<string, string> = {
   TASK_CREATED: 'Tarefa criada',
   TASK_DONE: 'Tarefa concluída',
 };
+
+// Evento de tarefa carrega o nome que a pessoa deu (payload.title) — sem ele o
+// histórico só dizia "Tarefa concluída", sem qual.
+const eventTitle = (e: CrmEvent): string =>
+  (e.type === 'TASK_CREATED' || e.type === 'TASK_DONE') && typeof e.payload.title === 'string'
+    ? `: ${e.payload.title}`
+    : '';
 
 const TASK_TYPE_OPTIONS: { key: CrmTaskType; label: string; icon: string }[] = [
   { key: 'LIGAR',    label: 'Ligar',    icon: '📞' },
@@ -1781,7 +1788,8 @@ function TaskRow({ task, showClient, onToggle, onOpenClient, onDelete }: {
         aria-label={`Concluir tarefa ${task.title}`}
       />
       <span className="text-sm shrink-0">{taskIcon(task.type)}</span>
-      <span className="text-sm truncate" style={{ color: 'var(--text-primary)' }}>{task.title}</span>
+      {/* Sem truncate: título longo quebra linha em vez de virar "verificar o orça..." */}
+      <span className="text-sm break-words" title={task.title} style={{ color: 'var(--text-primary)' }}>{task.title}</span>
       {showClient && task.client && (
         <button
           onClick={() => onOpenClient?.(task.client!.id)}
@@ -3001,7 +3009,9 @@ function ClientDrawer(props: {
                   ) : (
                     <div key={e.id} className="text-xs flex items-baseline gap-2" style={{ color: 'var(--text-muted)' }}>
                       <span className="shrink-0 tabular-nums">{fmtDate(e.createdAt)}</span>
-                      <span style={{ color: 'var(--text-secondary)' }}>{EVENT_LABELS[e.type] ?? e.type}</span>
+                      <span className="break-words" style={{ color: 'var(--text-secondary)' }}>
+                        {EVENT_LABELS[e.type] ?? e.type}{eventTitle(e)}
+                      </span>
                       {e.actor?.name && <span>· {e.actor.name}</span>}
                     </div>
                   )
@@ -3558,7 +3568,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
   const [highlightIdx, setHighlightIdx] = useState(0);
   // Mensagem sendo respondida (citação estilo WhatsApp)
   const [replyTo, setReplyTo] = useState<CrmWaMessage | null>(null);
-  const draftRef = useRef<HTMLInputElement | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Escolher "responder" leva o foco pro composer, como no WhatsApp
   useEffect(() => {
@@ -3666,7 +3676,15 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
       setReplyTo(null);
       return;
     }
-    if (!slashMatches || slashMatches.length === 0) return;
+    if (!slashMatches || slashMatches.length === 0) {
+      // Composer é textarea (aceita quebra de linha), então o Enter não envia
+      // sozinho: Enter manda, Shift+Enter quebra a linha — igual WhatsApp Web.
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        void send();
+      }
+      return;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setHighlightIdx((i) => Math.min(i + 1, slashMatches.length - 1));
@@ -3888,7 +3906,8 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
           )}
           {available && canSend && (
             <form
-              className="mt-2 flex items-center gap-2"
+              // items-end: com o textarea crescendo, os botões ficam alinhados embaixo
+              className="mt-2 flex items-end gap-2"
               onSubmit={(e) => { e.preventDefault(); void send(); }}
             >
               <input
@@ -3923,16 +3942,16 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
               >
                 {sendingFile ? '⏳' : '📎'}
               </button>
-              <input
+              <textarea
                 ref={draftRef}
-                type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={composerKeyDown}
-                placeholder={replyTo ? 'Escreva a resposta...' : 'Responder no WhatsApp... ( / = respostas rápidas)'}
+                placeholder={replyTo ? 'Escreva a resposta...' : 'Responder... ( / = respostas rápidas · Shift+Enter = nova linha)'}
                 maxLength={4096}
                 disabled={sending}
-                className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none"
+                rows={Math.min(5, draft.split('\n').length)}
+                className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none resize-none"
                 style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               />
               <button
