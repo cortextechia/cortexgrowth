@@ -199,14 +199,29 @@ function hasUnread(c: { lastInboundAt: string | null; lastReadAt: string | null 
   return !!c.lastInboundAt && (!c.lastReadAt || c.lastInboundAt > c.lastReadAt);
 }
 
-function UnreadDot() {
-  // Balão de mensagem (não bolinha — bolinha parece status "online")
+/**
+ * Há quanto tempo a pessoa espera resposta. A mesma régua do alerta
+ * CRM_UNANSWERED (12h) do Telegram, para a tela não contar história diferente
+ * do que chega no celular do gestor.
+ */
+function waitTone(lastInboundAt: string | null): { color: string; label: string } {
+  const horas = lastInboundAt ? (Date.now() - new Date(lastInboundAt).getTime()) / 3_600_000 : 0;
+  if (horas >= 12) return { color: '#ef4444', label: `esperando há ${Math.floor(horas / 24) >= 1 ? `${Math.floor(horas / 24)}d` : `${Math.floor(horas)}h`}` };
+  if (horas >= 4) return { color: '#f59e0b', label: `esperando há ${Math.floor(horas)}h` };
+  return { color: '#22c55e', label: horas >= 1 ? `esperando há ${Math.floor(horas)}h` : 'chegou agora há pouco' };
+}
+
+function UnreadDot({ lastInboundAt = null }: { lastInboundAt?: string | null }) {
+  // Balão de mensagem (não bolinha — bolinha parece status "online").
+  // A cor conta a espera: verde recente, âmbar 4h+, vermelho 12h+.
+  const tone = waitTone(lastInboundAt);
+  const titulo = `Sem resposta — ${tone.label}`;
   return (
     <span
       className="inline-flex items-center justify-center h-4 w-4 rounded-full shrink-0 animate-pulse"
-      style={{ backgroundColor: '#22c55e' }}
-      title="Mensagem não respondida no WhatsApp"
-      aria-label="Mensagem não respondida no WhatsApp"
+      style={{ backgroundColor: tone.color }}
+      title={titulo}
+      aria-label={titulo}
     >
       <svg viewBox="0 0 20 20" fill="#ffffff" className="h-2.5 w-2.5">
         <path d="M10 2.5c-4.4 0-8 2.8-8 6.3 0 2 1.2 3.8 3 4.9L4.4 17a.4.4 0 0 0 .6.5l3.2-1.8c.6.1 1.2.2 1.8.2 4.4 0 8-2.8 8-6.3s-3.6-6.3-8-6.3z" />
@@ -439,6 +454,11 @@ export default function CrmPage() {
 
   // Filtros client-side (os dados já vêm na lista)
   const [filterUnread, setFilterUnread] = useState(false);
+  // Total REAL de não respondidos (contado no banco). O número antigo saía dos
+  // 100 cards carregados: no Galpão mostrava 10 de 15, escondendo 5 pessoas.
+  const [unreadTotal, setUnreadTotal] = useState(0);
+  // Ref porque o loadAll é useCallback e não pode depender do filtro sem recriar
+  const filterUnreadRef = useRef(false);
   const [filterResponsible, setFilterResponsible] = useState('');
   const [filterTag, setFilterTag] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('');
@@ -488,15 +508,23 @@ export default function CrmPage() {
       setStatus(st.data);
       if (!st.data.enabled) { setLoading(false); return; }
 
-      const [sum, cl, tk] = await Promise.all([
+      const [sum, cl, tk, un] = await Promise.all([
         apiService.getCrmSummary(),
-        apiService.getCrmClients({ take: 100, ...(searchTerm ? { search: searchTerm } : {}) }),
+        apiService.getCrmClients({
+          take: 100,
+          ...(searchTerm ? { search: searchTerm } : {}),
+          // Filtro no servidor: os não respondidos podem estar fora dos 100
+          // cards mais recentes, e o filtro client-side não os enxergava.
+          ...(filterUnreadRef.current ? { unread: true } : {}),
+        }),
         apiService.getCrmTasks('open'),
+        apiService.getCrmUnreadCount(),
       ]);
       if (seq !== reqSeqRef.current) return; // resposta velha — chegou outra depois
       if (movingRef.current > 0 && !opts?.force) return; // drag em andamento — preserva o otimista
       if (sum.success) setSummary(sum.data);
       if (tk.success) setTasks(tk.data);
+      if (un.success) setUnreadTotal(un.data.count);
       if (cl.success) {
         setClients(cl.data.clients);
         setTotalClients(cl.data.total);
@@ -1004,7 +1032,9 @@ export default function CrmPage() {
       (filterSale === 'lost' && c.sales.some((s) => s.status === 'LOST')))
   );
   const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin || !!filterClientType || !!filterSale;
-  const unreadCount = clients.filter(hasUnread).length;
+  // Vem do banco (não de clients.filter): card não respondido pode estar fora
+  // dos 100 carregados, e o chip mostraria menos gente esperando do que existe.
+  const unreadCount = unreadTotal;
   const responsibleOptions = [...new Map(
     clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name])
   ).entries()];
@@ -1121,14 +1151,31 @@ export default function CrmPage() {
       {/* Filtros — aplicam no kanban e na tabela */}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <button
-          onClick={() => setFilterUnread((v) => !v)}
+          onClick={() => {
+            const proximo = !filterUnread;
+            setFilterUnread(proximo);
+            // O filtro é do SERVIDOR: recarrega para trazer também os não
+            // respondidos que estavam fora dos 100 cards da tela.
+            filterUnreadRef.current = proximo;
+            void loadAll(searchRef.current.trim() || undefined, { force: true });
+          }}
           className="text-xs px-3 py-1.5 rounded-full font-medium"
           style={filterUnread
             ? { backgroundColor: '#22c55e', color: '#ffffff' }
             : { ...card, color: 'var(--text-secondary)' }}
+          title="Conversas com mensagem recebida e ainda sem resposta"
         >
           💬 Não respondidos{unreadCount > 0 ? ` (${unreadCount})` : ''}
         </button>
+        {/* O contador é da org inteira, mas o funil só desenha quem está em
+            alguma etapa (ou na triagem/recorrente). Card fora do funil existe
+            só em Contatos — sem este aviso, some sem explicação. */}
+        {filterUnread && unreadCount > 0 && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            o funil mostra quem está em alguma etapa —{' '}
+            <a href="/dashboard/crm/contatos" style={{ color: 'var(--accent)' }}>ver todos em Contatos</a>
+          </span>
+        )}
         {isAdmin && (
           <Dropdown
             variant="pill"
@@ -1236,7 +1283,7 @@ export default function CrmPage() {
                       <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
                       <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
-                        {hasUnread(client) && <UnreadDot />}
+                        {hasUnread(client) && <UnreadDot lastInboundAt={client.lastInboundAt} />}
                       </div>
                     </div>
                     <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
@@ -1301,7 +1348,7 @@ export default function CrmPage() {
                       <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px]" />
                       <div className="text-sm font-medium truncate flex-1 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
-                        {hasUnread(client) && <UnreadDot />}
+                        {hasUnread(client) && <UnreadDot lastInboundAt={client.lastInboundAt} />}
                       </div>
                     </div>
                     <div className="text-xs mb-2 flex items-center justify-between gap-2" style={{ color: 'var(--text-muted)' }}>
@@ -1411,7 +1458,7 @@ export default function CrmPage() {
                       <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-6 h-6 text-[10px] shrink-0" />
                       <div className="text-sm font-medium truncate flex-1 min-w-0 flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                         <span className="truncate">{client.name}</span>
-                        {hasUnread(client) && <UnreadDot />}
+                        {hasUnread(client) && <UnreadDot lastInboundAt={client.lastInboundAt} />}
                       </div>
                       {days >= STALE_SALE_DAYS ? (
                         <span
@@ -2969,6 +3016,45 @@ function ClientDrawer(props: {
                       Dispensar
                     </button>
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* Nota fixada — no TOPO do card, não só no topo da timeline.
+                Fixar já ordenava a lista certo, mas "Notas e histórico" fica no
+                fim do drawer: conforme o atendimento gera tarefas e vendas, a
+                nota era empurrada para fora da tela e quem abria o card não a
+                via — justamente o oposto de "lembrete que não pode sumir". */}
+            {(() => {
+              const fixadas = detail.events.filter((e) => e.type === 'NOTE' && e.pinnedAt);
+              if (fixadas.length === 0) return null;
+              return (
+                <div className="mt-4 space-y-2">
+                  {fixadas.map((e) => (
+                    <div
+                      key={`pin-${e.id}`}
+                      className="rounded-lg p-3"
+                      style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)' }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm whitespace-pre-wrap flex-1" style={{ color: 'var(--text-primary)' }}>
+                          📌 {String(e.payload?.text ?? '')}
+                        </p>
+                        <button
+                          onClick={() => void props.onPinNote(e.id, false)}
+                          className="text-xs shrink-0"
+                          style={{ color: 'var(--text-muted)' }}
+                          title="Desafixar nota"
+                          aria-label="Desafixar nota"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                        {e.actor?.name ?? 'Nota'} · {fmtDate(e.createdAt)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               );
             })()}

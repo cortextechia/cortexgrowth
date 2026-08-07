@@ -94,6 +94,21 @@ function ClientSelector({ clients, selectedOrgId, onChange }: { clients: Traffic
   );
 }
 
+// Conversas sem resposta ao lado do "CRM". Vermelho e não a cor de accent: é
+// pendência de atendimento, não navegação. Some sozinho quando zera.
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="ml-auto shrink-0 text-[11px] font-bold rounded-full px-1.5 min-w-[20px] text-center leading-5"
+      style={{ backgroundColor: '#ef4444', color: '#ffffff' }}
+      title={`${count} conversa(s) sem resposta`}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
 const NAV_ITEMS = [
   {
     href: '/dashboard',
@@ -301,11 +316,41 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // CRM Cortex no menu: só para orgs SEM Kommo conectado (ativado ou disponível pra ativar)
   const [crmVisible, setCrmVisible] = useState(false);
+  const [crmEnabled, setCrmEnabled] = useState(false);
   useEffect(() => {
     apiService.getCrmStatus().then((res) => {
-      if (res.success) setCrmVisible(res.data.enabled || !res.data.kommoConnected);
+      if (res.success) {
+        setCrmVisible(res.data.enabled || !res.data.kommoConnected);
+        setCrmEnabled(res.data.enabled);
+      }
     }).catch(() => {});
   }, []);
+
+  // Conversas não respondidas: quem está esperando resposta só aparecia dentro
+  // do CRM — de qualquer outra tela ninguém ficava sabendo. O número vem do
+  // banco (GET /crm/unread-count), não da lista carregada: o contador antigo
+  // era client-side sobre 100 cards e escondia gente esperando.
+  const [unreadCrm, setUnreadCrm] = useState(0);
+  useEffect(() => {
+    if (!crmEnabled) return;
+    let vivo = true;
+    const buscar = () => {
+      apiService.getCrmUnreadCount()
+        .then((res) => { if (vivo && res.success) setUnreadCrm(res.data.count); })
+        .catch(() => {}); // silencioso: o menu não pode quebrar por causa do badge
+    };
+    buscar();
+    // 60s: o WhatsApp do vendedor é o canal urgente, aqui basta não ficar velho.
+    const t = setInterval(buscar, 60_000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [crmEnabled, pathname]);
+
+  // Título da aba: o vendedor costuma estar em outra aba. "(3) Cortex Growth"
+  // avisa sem ele precisar voltar ao sistema.
+  useEffect(() => {
+    const base = 'Cortex Growth';
+    document.title = unreadCrm > 0 ? `(${unreadCrm}) ${base}` : base;
+  }, [unreadCrm, pathname]);
 
   // Submenu do CRM (dropdown p/ Contatos): por padrão segue a rota (aberto quando
   // se está na seção CRM); ao clicar na seta, a escolha do usuário passa a valer.
@@ -373,6 +418,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 {item.icon}
                 <span>{item.label}</span>
+                {item.href === '/dashboard/crm' && <UnreadBadge count={unreadCrm} />}
               </Link>
               <button
                 onClick={() => setCrmMenuToggled(!crmMenuOpen)}
@@ -426,8 +472,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
           title={!expanded ? item.label : undefined}
         >
-          {item.icon}
+          {/* Sidebar recolhida: o número não cabe, então vira um ponto sobre o
+              ícone — o aviso não pode depender de o menu estar aberto. */}
+          {item.href === '/dashboard/crm' && !expanded && unreadCrm > 0 ? (
+            <span className="relative flex" title={`${unreadCrm} conversa(s) sem resposta`}>
+              {item.icon}
+              <span
+                className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: '#ef4444', border: '2px solid var(--bg-surface)' }}
+              />
+            </span>
+          ) : (
+            item.icon
+          )}
           {expanded && <span>{item.label}</span>}
+          {expanded && item.href === '/dashboard/crm' && <UnreadBadge count={unreadCrm} />}
         </Link>
       );
 

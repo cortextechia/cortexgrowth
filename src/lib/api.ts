@@ -887,7 +887,7 @@ class ApiService {
     return response.data;
   }
 
-  async getCrmClients(params?: { search?: string; take?: number; skip?: number }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number } }> {
+  async getCrmClients(params?: { search?: string; take?: number; skip?: number; unread?: boolean }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number } }> {
     const response = await this.client.get('/crm/clients', { params });
     return response.data;
   }
@@ -929,6 +929,12 @@ class ApiService {
 
   async saveCrmLostReasons(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmLostReasonOption[] }> {
     const response = await this.client.put('/crm/lost-reasons', { options });
+    return response.data;
+  }
+
+  /** Total REAL de conversas não respondidas (contado no banco, respeita o escopo do vendedor). */
+  async getCrmUnreadCount(): Promise<{ success: boolean; data: { count: number } }> {
+    const response = await this.client.get('/crm/unread-count');
     return response.data;
   }
 
