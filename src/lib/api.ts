@@ -882,8 +882,52 @@ class ApiService {
     return response.data;
   }
 
+  async getCrmStages(): Promise<{ success: boolean; data: import('@/types').CrmStage[] }> {
+    const response = await this.client.get('/crm/stages');
+    return response.data;
+  }
+
   async saveCrmStages(stages: { id?: string; name: string; requiresValue?: boolean; color?: string | null }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmStage[] }> {
     const response = await this.client.put('/crm/stages', { stages });
+    return response.data;
+  }
+
+  // ── Automações do CRM ────────────────────────────────────────────────
+  async getCrmAutomations(): Promise<{ success: boolean; data: import('@/types').CrmAutomation[] }> {
+    const response = await this.client.get('/crm/automations');
+    return response.data;
+  }
+
+  async getCrmAutomationRuns(id: string, take = 20): Promise<{ success: boolean; data: import('@/types').CrmAutomationRun[] }> {
+    const response = await this.client.get(`/crm/automations/${id}/runs`, { params: { take } });
+    return response.data;
+  }
+
+  async createCrmAutomation(body: {
+    name: string;
+    triggerType: string;
+    triggerConfig: Record<string, unknown>;
+    steps: import('@/types').CrmAutomationStep[];
+    stopOnReply?: boolean;
+  }): Promise<{ success: boolean; message: string; data: import('@/types').CrmAutomation }> {
+    const response = await this.client.post('/crm/automations', body);
+    return response.data;
+  }
+
+  async updateCrmAutomation(id: string, body: Partial<{
+    name: string;
+    enabled: boolean;
+    triggerType: string;
+    triggerConfig: Record<string, unknown>;
+    steps: import('@/types').CrmAutomationStep[];
+    stopOnReply: boolean;
+  }>): Promise<{ success: boolean; message: string; data: import('@/types').CrmAutomation }> {
+    const response = await this.client.put(`/crm/automations/${id}`, body);
+    return response.data;
+  }
+
+  async deleteCrmAutomation(id: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/automations/${id}`);
     return response.data;
   }
 

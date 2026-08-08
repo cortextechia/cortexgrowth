@@ -787,6 +787,55 @@ export interface CrmStage {
   requiresValue: boolean;
 }
 
+// ── Automações do CRM ──────────────────────────────────────────────────────
+// As ações só mexem no ESTADO do card. Enviar mensagem é o módulo de disparos,
+// que tem freio anti-ban próprio — os dois não se misturam.
+export type CrmAutomationTrigger =
+  | 'NEW_LEAD' | 'STAGE_ENTERED' | 'STAGE_IDLE' | 'NO_REPLY' | 'SALE_WON' | 'SALE_LOST';
+
+export type CrmAutomationStepType =
+  | 'MOVE_STAGE' | 'ASSIGN' | 'ADD_TAG' | 'CREATE_TASK'
+  | 'SET_FOLLOWUP' | 'ADD_NOTE' | 'DISCARD' | 'WAIT';
+
+export interface CrmAutomationStep {
+  type: CrmAutomationStepType;
+  stageId?: string;
+  mode?: 'ROUND_ROBIN' | 'USER';
+  userId?: string;
+  tag?: string;
+  title?: string;
+  taskType?: string;
+  dueInDays?: number;
+  days?: number;
+  text?: string;
+  reason?: string;
+}
+
+export interface CrmAutomation {
+  id: string;
+  name: string;
+  enabled: boolean;
+  triggerType: CrmAutomationTrigger;
+  triggerConfig: { stageId?: string; days?: number; hours?: number; reason?: string };
+  steps: CrmAutomationStep[];
+  stopOnReply: boolean;
+  runCount: number;
+  lastRunAt: string | null;
+  createdAt: string;
+}
+
+export interface CrmAutomationRun {
+  id: string;
+  status: 'PENDING' | 'RUNNING' | 'DONE' | 'FAILED' | 'CANCELED' | 'STOPPED_BY_REPLY';
+  stepIndex: number;
+  dueAt: string;
+  /** Motivo da falha — é aqui que aparece a trava do funil recusando o passo. */
+  error: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  client: { id: string; name: string };
+}
+
 export interface CrmSaleSegment {
   id: string;
   name: string;
