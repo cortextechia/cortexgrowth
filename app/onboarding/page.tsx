@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import { IntegrationStatus } from '@/types';
+import { IntegrationStatus, type SetupScore } from '@/types';
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
@@ -361,7 +361,8 @@ function StepOAuth({
 
 function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   const [websiteUrl, setWebsiteUrl] = useState('');
-  const [competitors, setCompetitors] = useState(['', '', '']);
+  // 5 = mesmo teto do backend (MAX_COMPETITORS) e da tela de SEO
+  const [competitors, setCompetitors] = useState(['', '', '', '', '']);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -437,7 +438,7 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-            Concorrentes <span style={{ color: 'var(--text-muted)' }}>(opcional, até 3)</span>
+            Concorrentes <span style={{ color: 'var(--text-muted)' }}>(opcional, até 5)</span>
           </label>
           <div className="space-y-2">
             {competitors.map((url, i) => (
@@ -489,10 +490,27 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
 
 // ─── Step: Done ───────────────────────────────────────────────────────────────
 
-function StepDone({ onFinish }: { onFinish: () => void }) {
+/**
+ * Passo final do wizard.
+ *
+ * NÃO diz mais "Tudo pronto!". O wizard cobre só as conexões (Meta, Google, site),
+ * que valem 40 dos 100 pontos do Setup Score — declarar a conta configurada aqui
+ * fazia a plataforma dizer "pronto" com o cliente pela metade, e o item sumia do menu.
+ * Agora mostra a nota real e entrega para o Perfil da conta, que é permanente.
+ */
+function StepDone({ onFinish }: { onFinish: (destino: string) => void }) {
   const [isFinishing, setIsFinishing] = useState(false);
+  const [score, setScore] = useState<SetupScore | null>(null);
 
-  const handleFinish = async () => {
+  useEffect(() => {
+    // Falha silenciosa: a nota é um bônus na tela, não pode segurar a saída do wizard.
+    apiService
+      .getCompanyProfile()
+      .then((r) => setScore(r.data.setupScore))
+      .catch(() => setScore(null));
+  }, []);
+
+  const handleFinish = async (destino: string) => {
     setIsFinishing(true);
     try {
       await apiService.completeOnboarding();
@@ -503,8 +521,10 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
     } catch {
       // Non-blocking — proceed even if endpoint fails
     }
-    onFinish();
+    onFinish(destino);
   };
+
+  const faltando = score ? 100 - score.score : null;
 
   return (
     <div className="text-center">
@@ -520,33 +540,36 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
       </div>
 
       <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
-        Tudo pronto!
+        Conexões prontas!
       </h1>
-      <p className="text-sm mb-8" style={{ color: 'var(--text-muted)' }}>
-        Sua conta está configurada. O diagnóstico de SEO/AIO será gerado automaticamente em breve.
+      <p className="text-sm mb-6" style={{ color: 'var(--text-muted)' }}>
+        {score
+          ? `A plataforma já consegue fazer ${score.score}% do que ela faz por você. O que falta não é técnico — é o que só você sabe sobre o seu negócio.`
+          : 'O diagnóstico de SEO/AIO será gerado automaticamente em breve.'}
       </p>
 
-      <div
-        className="rounded-xl p-4 mb-8 text-left space-y-2"
-        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-      >
-        <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Próximos passos sugeridos:</p>
-        {[
-          'Sincronize seus dados de campanha em Integrações',
-          'Gere seu primeiro relatório de IA',
-          'Configure relatórios automáticos via Telegram',
-        ].map((tip, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-muted)' }}>
-            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--accent)' }}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-            </svg>
-            {tip}
+      {score && (
+        <div
+          className="rounded-xl p-4 mb-6 text-left"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+        >
+          <div className="flex justify-between items-baseline mb-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Perfil da conta</span>
+            <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{score.score} de 100</span>
           </div>
-        ))}
-      </div>
+          <div className="h-2 rounded-full overflow-hidden mb-3" style={{ backgroundColor: 'var(--bg-surface)' }}>
+            <div style={{ width: `${score.score}%`, height: '100%', backgroundColor: 'var(--accent)' }} />
+          </div>
+          <p className="text-[11px] leading-snug" style={{ color: 'var(--text-muted)' }}>
+            Faltam <b style={{ color: 'var(--text-primary)' }}>{faltando} pontos</b> — perguntas sobre o que você
+            vende, quem compra e o que é um lead bom. São elas que a IA lê antes de escrever o seu relatório.
+            Leva uns 3 minutos e <b style={{ color: 'var(--text-primary)' }}>nada trava se você deixar para depois</b>.
+          </p>
+        </div>
+      )}
 
       <button
-        onClick={() => void handleFinish()}
+        onClick={() => void handleFinish('/dashboard/perfil')}
         disabled={isFinishing}
         className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
         style={{ backgroundColor: 'var(--accent)' }}
@@ -554,7 +577,16 @@ function StepDone({ onFinish }: { onFinish: () => void }) {
         onMouseLeave={e => { if (!isFinishing) e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
       >
         {isFinishing && <Spinner />}
-        {isFinishing ? 'Abrindo dashboard...' : 'Ir para o Dashboard'}
+        {isFinishing ? 'Abrindo...' : 'Completar meu perfil'}
+      </button>
+
+      <button
+        onClick={() => void handleFinish('/dashboard')}
+        disabled={isFinishing}
+        className="w-full mt-2 rounded-lg py-2 text-xs transition-colors disabled:opacity-60"
+        style={{ color: 'var(--text-muted)' }}
+      >
+        Ir direto para o dashboard
       </button>
     </div>
   );
@@ -574,7 +606,7 @@ function OnboardingContent() {
     }
     router.push('/dashboard');
   };
-  const finish = () => router.push('/dashboard');
+  const finish = (destino: string) => router.push(destino);
 
   const currentStep = STEPS[stepIndex].id;
 

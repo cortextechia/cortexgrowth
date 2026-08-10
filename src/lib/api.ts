@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -718,6 +718,27 @@ class ApiService {
 
   async getSeoLatest(): Promise<{ success: boolean; data: SeoAnalysis | null; meta: { canAnalyzeThisMonth: boolean; lastAnalysis: string | null } }> {
     const response = await this.client.get('/seo/latest');
+    return response.data;
+  }
+
+  // ─── Perfil da empresa + Setup Score ────────────────────────────────────────
+  // ⚠️ O path é `/profile` e não pode conter `ads`: o ad blocker cancela a requisição
+  // no browser pelo path (foi o que matou as antigas `/ads/*`). O rótulo "ADS" na tela
+  // é inofensivo — o filtro casa pelo path, não pelo texto.
+
+  async getCompanyProfile(): Promise<{ success: boolean; data: { profile: CompanyProfile; setupScore: SetupScore } }> {
+    const response = await this.client.get('/profile');
+    return response.data;
+  }
+
+  /**
+   * Salva um ou mais campos do perfil. Campo ausente do corpo NÃO é apagado.
+   * Resposta vaga volta como **422** com `data.rejected[campo]` = a repergunta.
+   */
+  async updateCompanyProfile(
+    data: Partial<Record<'productDescription' | 'idealCustomer' | 'differentiator' | 'goodLeadCriteria' | 'businessGoal' | 'serviceRegion', string>>
+  ): Promise<{ success: boolean; message: string; data: { setupScore: SetupScore } }> {
+    const response = await this.client.put('/profile', data);
     return response.data;
   }
 

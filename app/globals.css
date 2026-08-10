@@ -34,6 +34,14 @@
   --creative-accent-text:   #c084fc;
   --creative-accent-bg:     rgba(168,85,247,0.12);
   --creative-accent-border: rgba(168,85,247,0.20);
+  /* Módulos da plataforma (RADAR/ADS/CRM + núcleo de IA), usados no Setup Score.
+     Escurecem no claro pelo mesmo motivo dos planos: o tom vivo do dark some no branco. */
+  --mod-radar:      #22d3ee;
+  --mod-radar-soft: rgba(34,211,238,0.13);
+  --mod-ads:        #3b82f6;
+  --mod-ads-soft:   rgba(59,130,246,0.13);
+  --mod-crm:        #4ade80;
+  --mod-crm-soft:   rgba(74,222,128,0.13);
   /* Identidade dos planos (cadastro e login). No claro elas escurecem: os tons
      vivos do dark somem sobre branco. */
   --plano-demo:            #94a3b8;
@@ -82,6 +90,12 @@
   --creative-accent-text:   #7c3aed;
   --creative-accent-bg:     rgba(124,58,237,0.10);
   --creative-accent-border: rgba(124,58,237,0.22);
+  --mod-radar:      #0891b2;
+  --mod-radar-soft: rgba(8,145,178,0.10);
+  --mod-ads:        #2563eb;
+  --mod-ads-soft:   rgba(37,99,235,0.10);
+  --mod-crm:        #16a34a;
+  --mod-crm-soft:   rgba(22,163,74,0.10);
   --plano-demo:            #64748b;
   --plano-demo-soft:       rgba(100,116,139,0.10);
   --plano-starter:         #0891b2;

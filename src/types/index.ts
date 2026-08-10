@@ -387,6 +387,41 @@ export interface SeoConfig {
   competitorUrls: string[];
 }
 
+// ===== PERFIL DA EMPRESA + SETUP SCORE =====
+
+export type ModuleKey = 'radar' | 'ads' | 'crm' | 'ia';
+
+export interface ScoreItem {
+  key: string;
+  label: string;
+  points: number;
+  module: ModuleKey;
+  done: boolean;
+  /** O que a plataforma deixa de fazer sem este item. */
+  unlock: string;
+}
+
+export interface SetupScore {
+  score: number;
+  tier: 'incompleto' | 'bronze' | 'prata' | 'ouro';
+  modules: Record<ModuleKey, { earned: number; total: number; pct: number }>;
+  blocks: { key: string; label: string; earned: number; total: number; items: ScoreItem[] }[];
+  missing: ScoreItem[];
+}
+
+export interface CompanyProfile {
+  name: string;
+  websiteUrl: string | null;
+  competitorUrls: string[];
+  competitorPageIds: string[];
+  productDescription: string | null;
+  idealCustomer: string | null;
+  differentiator: string | null;
+  goodLeadCriteria: string | null;
+  businessGoal: string | null;
+  serviceRegion: string | null;
+}
+
 // ===== BUDGET STATUS =====
 
 export interface BudgetStatus {
