@@ -612,7 +612,12 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
               </p>
               <ul className="mt-1 space-y-0.5">
                 {consultados.map((c, i) => (
-                  <li key={i}>• {c.pagina ?? c.concorrente}: {c.anunciosAtivos} {c.anunciosAtivos === 1 ? 'anúncio ativo' : 'anúncios ativos'}</li>
+                  <li key={i}>
+                    • {c.pagina ?? c.concorrente}: {c.anunciosAtivos} {c.anunciosAtivos === 1 ? 'anúncio ativo' : 'anúncios ativos'}
+                    {/* a Meta conta anúncios; a Biblioteca agrupa os iguais num card só. Mostrar
+                        os dois evita o cliente conferir lá e achar que um dos números está errado */}
+                    {typeof c.criativosUnicos === 'number' && c.criativosUnicos < c.anunciosAtivos && ` (${c.criativosUnicos} criativos únicos)`}
+                  </li>
                 ))}
               </ul>
             </div>

@@ -607,7 +607,7 @@ export interface CompetitiveOutput {
   _fonte?: {
     origem: string;
     consultadoEm: string;
-    consultados: { concorrente: string; pagina: string | null; anunciosAtivos: number }[];
+    consultados: { concorrente: string; pagina: string | null; anunciosAtivos: number; criativosUnicos?: number }[];
     naoConsultados: { concorrente: string; motivo: string }[];
   };
 }
