@@ -521,6 +521,8 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
   };
 
   const hasCompetitors = profile && profile.competitorPageIds.length > 0;
+  const naoConsultados = result?._fonte?.naoConsultados ?? [];
+  const consultados = result?._fonte?.consultados ?? [];
 
   return (
     <AgentCard name="Inteligência Competitiva" icon={
@@ -535,7 +537,32 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
         </p>
       )}
       {weekOf && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Semana de: <span style={{ color: '#c084fc' }}>{new Date(weekOf).toLocaleDateString('pt-BR')}</span></p>}
-      {error && <ErrorMsg msg={error} />}
+      {error && (
+        <>
+          <ErrorMsg msg={error} />
+          {/* Sem esta linha a tela mostra "falhou no concorrente X" logo acima da análise antiga
+              que fala bem do mesmo X — o leitor conclui que uma das duas está mentindo */}
+          {result && (
+            <p className="text-xs -mt-1" style={{ color: 'var(--text-muted)' }}>
+              O que aparece abaixo é a <strong>última análise concluída</strong>
+              {weekOf ? ` (semana de ${new Date(weekOf).toLocaleDateString('pt-BR')})` : ''}, não o resultado desta tentativa.
+            </p>
+          )}
+        </>
+      )}
+      {/* Fica FORA do bloco expansível de propósito: se um concorrente não foi consultado, o
+          cliente precisa saber disso sem clicar em nada — senão lê a ausência como "não anuncia" */}
+      {naoConsultados.length > 0 && (
+        <div className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)', border: '1px solid var(--border)' }}>
+          <p className="font-medium mb-1">
+            {naoConsultados.length === 1 ? '1 concorrente não pôde ser consultado' : `${naoConsultados.length} concorrentes não puderam ser consultados`} na análise exibida
+          </p>
+          <ul className="space-y-0.5 mb-1">
+            {naoConsultados.map((f, i) => <li key={i}>• {f.concorrente} — {f.motivo}</li>)}
+          </ul>
+          <p>Isto é falha de consulta, <strong>não</strong> significa que eles pararam de anunciar. Eles ficaram de fora da análise.</p>
+        </div>
+      )}
       <RunButton onClick={run} loading={loading} label="Analisar concorrentes" />
       {result && (
         <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
@@ -578,6 +605,18 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
               {c.weakness && <p className="italic" style={{ color: 'var(--text-muted)' }}>Fraqueza: {c.weakness}</p>}
             </div>
           ))}
+          {consultados.length > 0 && (
+            <div className="pt-1" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>
+              <p className="pt-2">
+                Lido na Biblioteca de Anúncios em {new Date(result._fonte!.consultadoEm).toLocaleString('pt-BR')}:
+              </p>
+              <ul className="mt-1 space-y-0.5">
+                {consultados.map((c, i) => (
+                  <li key={i}>• {c.pagina ?? c.concorrente}: {c.anunciosAtivos} {c.anunciosAtivos === 1 ? 'anúncio ativo' : 'anúncios ativos'}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </AgentCard>
@@ -641,16 +680,18 @@ function ConfigPanel({ profile, onSave }: { profile: CreativeProfile | null; onS
           </div>
           <div>
             <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-              Concorrentes — Meta Ad Library (um por linha, máx 5)
+              Concorrentes — Biblioteca de Anúncios (um por linha, máx 5)
             </label>
             <textarea
               value={competitors} onChange={(e) => setCompetitors(e.target.value)}
-              placeholder={'Concorrente A\nConcorrente B\nConcorrente C'}
+              placeholder={'https://www.facebook.com/paginadoconcorrente\nhttps://www.facebook.com/outroconcorrente'}
               rows={3}
               className="w-full rounded-lg px-3 py-2 text-xs outline-none resize-none font-mono"
               style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
             />
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Use o nome da marca ou página do Facebook. A Meta Ad Library vai buscar anúncios ativos.</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+              Prefira a <strong>URL da página no Facebook</strong> — assim a busca traz só os anúncios daquele concorrente. Nome da marca também funciona, mas pode trazer anúncios de terceiros que citam o termo.
+            </p>
           </div>
           <button
             onClick={save} disabled={saving}

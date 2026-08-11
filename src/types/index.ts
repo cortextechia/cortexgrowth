@@ -602,6 +602,14 @@ export interface CompetitiveOutput {
   weeklyHighlight: string;
   recommendations: string[];
   analyzedAt: string;
+  /** Proveniência da rodada: o que foi lido de fato e o que falhou. Sem isso, o cliente não tem
+   *  como saber que um concorrente não foi consultado — e leria a ausência como "não anuncia". */
+  _fonte?: {
+    origem: string;
+    consultadoEm: string;
+    consultados: { concorrente: string; pagina: string | null; anunciosAtivos: number }[];
+    naoConsultados: { concorrente: string; motivo: string }[];
+  };
 }
 
 // ===== DADOS MANUAIS (clientes sem CRM) =====
