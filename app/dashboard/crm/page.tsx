@@ -1697,6 +1697,15 @@ export default function CrmPage() {
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao editar a nota.')); }
           }}
+          onDeleteNote={async (eventId) => {
+            // Nota apagada não volta: confirmação antes, mesmo padrão do "Ativar CRM".
+            if (!confirm('Excluir esta nota? Não dá para desfazer.')) return;
+            try {
+              await apiService.deleteCrmNote(eventId);
+              await refreshDetail();
+              showToast('success', 'Nota excluída.');
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao excluir a nota.')); }
+          }}
         />
       )}
 
@@ -2615,6 +2624,7 @@ function ClientDrawer(props: {
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
   onEditNote: (eventId: string, text: string) => Promise<void>;
+  onDeleteNote: (eventId: string) => Promise<void>;
 }) {
   const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
@@ -3040,6 +3050,17 @@ function ClientDrawer(props: {
                         <p className="text-sm whitespace-pre-wrap flex-1" style={{ color: 'var(--text-primary)' }}>
                           📌 {String(e.payload?.text ?? '')}
                         </p>
+                        {/* Excluir também aqui: a nota fixada é a mais visível do card, e sem
+                            isso apagá-la exigia desafixar, rolar até a timeline e só então excluir. */}
+                        <button
+                          onClick={() => void props.onDeleteNote(e.id)}
+                          className="text-xs shrink-0"
+                          style={{ color: 'var(--badge-error-text)' }}
+                          title="Excluir nota"
+                          aria-label="Excluir nota"
+                        >
+                          🗑
+                        </button>
                         <button
                           onClick={() => void props.onPinNote(e.id, false)}
                           className="text-xs shrink-0"
@@ -3386,6 +3407,15 @@ function ClientDrawer(props: {
                             aria-label={e.pinnedAt ? 'Desafixar nota' : 'Fixar no topo'}
                           >
                             📌
+                          </button>
+                          <button
+                            onClick={() => void props.onDeleteNote(e.id)}
+                            className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            style={{ color: 'var(--badge-error-text)' }}
+                            title="Excluir nota"
+                            aria-label="Excluir nota"
+                          >
+                            🗑
                           </button>
                         </div>
                       )}

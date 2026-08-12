@@ -1118,6 +1118,11 @@ class ApiService {
     return response.data;
   }
 
+  async deleteCrmNote(eventId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/events/${eventId}/note`);
+    return response.data;
+  }
+
   async transferCrmResponsible(clientId: string, responsibleId: string | null): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${clientId}/responsible`, { responsibleId });
     return response.data;
