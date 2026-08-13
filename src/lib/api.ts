@@ -736,7 +736,7 @@ class ApiService {
    * Resposta vaga volta como **422** com `data.rejected[campo]` = a repergunta.
    */
   async updateCompanyProfile(
-    data: Partial<Record<'productDescription' | 'idealCustomer' | 'differentiator' | 'goodLeadCriteria' | 'businessGoal' | 'serviceRegion', string>>
+    data: Partial<Record<'productDescription' | 'idealCustomer' | 'differentiator' | 'goodLeadCriteria' | 'businessGoal' | 'serviceRegion' | 'instagramUrl', string>>
   ): Promise<{ success: boolean; message: string; data: { setupScore: SetupScore } }> {
     const response = await this.client.put('/profile', data);
     return response.data;

@@ -10,11 +10,12 @@ import { IntegrationStatus, type SetupScore } from '@/types';
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: 'welcome', label: 'Bem-vindo' },
-  { id: 'meta', label: 'Meta Ads' },
-  { id: 'google', label: 'Google Ads' },
-  { id: 'website', label: 'URL do Site' },
-  { id: 'done', label: 'Concluído' },
+  { id: 'welcome', label: 'Início' },
+  { id: 'meta', label: 'Meta' },
+  { id: 'google', label: 'Google' },
+  { id: 'business', label: 'Negócio' },
+  { id: 'website', label: 'Site' },
+  { id: 'done', label: 'Fim' },
 ] as const;
 
 type StepId = (typeof STEPS)[number]['id'];
@@ -158,7 +159,8 @@ function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
         {[
           { label: 'Conectar Meta Ads', desc: 'Sincronize campanhas e gastos' },
           { label: 'Conectar Google Ads', desc: 'Unifique métricas de performance' },
-          { label: 'Informar URL do site', desc: 'Diagnóstico automático de SEO/AIO' },
+          { label: 'Contar o que sua empresa faz', desc: 'O que vende, para quem e por que te escolhem' },
+          { label: 'Informar site e Instagram', desc: 'Liga o diagnóstico de presença digital' },
         ].map((item, i) => (
           <div key={i} className="flex items-start gap-3">
             <div
@@ -357,10 +359,162 @@ function StepOAuth({
   );
 }
 
+// ─── Step: Sobre o negócio ────────────────────────────────────────────────────
+//
+// Três perguntas que só o cliente sabe responder (feedback Ruan, 12/08): antes elas
+// existiam apenas em /dashboard/perfil, e quem nunca abria aquela tela deixava a IA
+// escrevendo sobre a empresa sem saber o que ela vende. Grava nos MESMOS campos do
+// perfil (PUT /api/profile) — nada de segunda cópia do dado.
+//
+// O backend valida a resposta e devolve 422 com uma repergunta por campo; nada é gravado
+// nesse caso. A repergunta aparece embaixo do campo e o passo continua pulável: onboarding
+// que trava não é onboarding.
+
+const PERGUNTAS = [
+  {
+    campo: 'productDescription' as const,
+    label: 'O que a sua empresa vende, exatamente?',
+    placeholder: 'Ex: corte e dobra de aço para construção civil, com entrega na obra',
+  },
+  {
+    campo: 'idealCustomer' as const,
+    label: 'Quem é o cliente que mais compra de você?',
+    placeholder: 'Ex: construtoras de médio porte que tocam de 3 a 10 obras por ano',
+  },
+  {
+    campo: 'differentiator' as const,
+    label: 'Por que ele escolhe você e não o concorrente?',
+    placeholder: 'Ex: entrega em 48h e corte sob medida sem custo extra',
+  },
+];
+
+function StepBusiness({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
+  const [respostas, setRespostas] = useState<Record<string, string>>({});
+  const [rejeitados, setRejeitados] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    const preenchidos = Object.fromEntries(
+      Object.entries(respostas).filter(([, v]) => v.trim().length > 0)
+    );
+    if (Object.keys(preenchidos).length === 0) { onNext(); return; }
+
+    setError(null);
+    setRejeitados({});
+    setIsSaving(true);
+    try {
+      await apiService.updateCompanyProfile(preenchidos);
+      onNext();
+    } catch (err: unknown) {
+      const resp = (err as { response?: { status?: number; data?: { data?: { rejected?: Record<string, string> } } } }).response;
+      if (resp?.status === 422 && resp.data?.data?.rejected) {
+        setRejeitados(resp.data.data.rejected);
+      } else {
+        setError('Não consegui salvar agora. Tente de novo ou siga em frente — dá para responder depois no seu perfil.');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const inputStyle: React.CSSProperties = {
+    backgroundColor: 'var(--input-bg)',
+    border: '1px solid var(--input-border)',
+    color: 'var(--text-primary)',
+    outline: 'none',
+  };
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-center">
+        <div
+          className="h-16 w-16 rounded-2xl flex items-center justify-center"
+          style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-dim)' }}
+        >
+          <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: 'var(--accent)' }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 21v-7.5A.75.75 0 0114.25 12h3a.75.75 0 01.75.75V21m-9 0V6.75A.75.75 0 016.75 6h3a.75.75 0 01.75.75V21m-9 0h18M3 21h18M6 12h.008v.008H6V12zm0 3h.008v.008H6V15z" />
+          </svg>
+        </div>
+      </div>
+
+      <h1 className="text-xl font-bold mb-2 text-center" style={{ color: 'var(--text-primary)' }}>
+        Sobre o seu negócio
+      </h1>
+      <p className="text-sm mb-6 text-center" style={{ color: 'var(--text-muted)' }}>
+        A parte que nenhuma integração descobre sozinha. É o que a IA lê antes de escrever
+        qualquer análise ou anúncio sobre a sua empresa.
+      </p>
+
+      {error && (
+        <div className="mb-4 rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {PERGUNTAS.map(({ campo, label, placeholder }) => (
+          <div key={campo}>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+              {label}
+            </label>
+            <textarea
+              rows={2}
+              value={respostas[campo] ?? ''}
+              onChange={(e) => {
+                setRespostas((r) => ({ ...r, [campo]: e.target.value }));
+                // Digitou de novo? A repergunta daquele campo some (os outros ficam).
+                setRejeitados((r) => {
+                  if (!(campo in r)) return r;
+                  const resto = { ...r };
+                  delete resto[campo];
+                  return resto;
+                });
+              }}
+              placeholder={placeholder}
+              className="w-full rounded-lg px-3 py-2.5 text-sm placeholder-slate-600 transition-all resize-none"
+              // `border` inteiro, não `borderColor` por cima: misturar shorthand com longhand
+              // faz o React avisar no console e pode deixar a borda presa na cor de erro.
+              style={{ ...inputStyle, border: `1px solid ${rejeitados[campo] ? 'var(--badge-warn-text)' : 'var(--input-border)'}` }}
+              onFocus={e => { if (!rejeitados[campo]) { e.target.style.border = '1px solid var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-dim)'; } }}
+              onBlur={e => { if (!rejeitados[campo]) { e.target.style.border = '1px solid var(--input-border)'; } e.target.style.boxShadow = 'none'; }}
+            />
+            {rejeitados[campo] && (
+              <p className="mt-1.5 text-xs" style={{ color: 'var(--badge-warn-text)' }}>{rejeitados[campo]}</p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3 mt-6">
+        <button
+          onClick={() => void handleSave()}
+          disabled={isSaving}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent)' }}
+          onMouseEnter={e => { if (!isSaving) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+        >
+          {isSaving && <Spinner />}
+          {isSaving ? 'Salvando...' : 'Salvar e continuar'}
+        </button>
+        <button
+          onClick={onSkip}
+          className="w-full rounded-lg py-2.5 text-sm transition-all"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Pular por agora
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Step: Website URL ────────────────────────────────────────────────────────
 
 function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   const [websiteUrl, setWebsiteUrl] = useState('');
+  const [instagram, setInstagram] = useState('');
   // 5 = mesmo teto do backend (MAX_COMPETITORS) e da tela de SEO
   const [competitors, setCompetitors] = useState(['', '', '', '', '']);
   const [isSaving, setIsSaving] = useState(false);
@@ -368,19 +522,29 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
   const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
-    if (!websiteUrl.trim()) { onNext(); return; }
+    const site = websiteUrl.trim();
+    const insta = instagram.trim();
+    // Instagram vive no perfil da empresa e o site na config de SEO — quem preencheu só um
+    // dos dois salva só um dos dois, em vez de perder a resposta que deu.
+    if (!site && !insta) { onNext(); return; }
     setError(null);
     setIsSaving(true);
     try {
-      const validCompetitors = competitors.filter((u) => u.trim().length > 0);
-      await apiService.updateSeoConfig({
-        websiteUrl: websiteUrl.trim(),
-        competitorUrls: validCompetitors,
-      });
+      if (site) {
+        const validCompetitors = competitors.filter((u) => u.trim().length > 0);
+        await apiService.updateSeoConfig({
+          websiteUrl: site,
+          competitorUrls: validCompetitors,
+        });
+      }
+      if (insta) {
+        await apiService.updateCompanyProfile({ instagramUrl: insta });
+      }
       setSaved(true);
       setTimeout(onNext, 500);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } }).response?.data?.message;
+      setError(msg ?? (err instanceof Error ? err.message : 'Erro ao salvar. Tente novamente.'));
     } finally {
       setIsSaving(false);
     }
@@ -407,10 +571,11 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
       </div>
 
       <h1 className="text-xl font-bold mb-2 text-center" style={{ color: 'var(--text-primary)' }}>
-        URL do seu site
+        Onde a sua empresa está na internet
       </h1>
       <p className="text-sm mb-6 text-center" style={{ color: 'var(--text-muted)' }}>
-        Usamos para gerar seu diagnóstico de SEO, performance e visibilidade para IA.
+        Com o site geramos o diagnóstico de como você aparece no Google e para as IAs.
+        Não tem site? Deixe em branco e informe só o Instagram.
       </p>
 
       {error && (
@@ -422,13 +587,29 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
       <div className="space-y-4">
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-            URL do seu site <span style={{ color: 'var(--text-muted)' }}>(obrigatório para diagnóstico)</span>
+            URL do seu site <span style={{ color: 'var(--text-muted)' }}>(necessário para o diagnóstico)</span>
           </label>
           <input
             type="url"
             value={websiteUrl}
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder="https://www.seusite.com.br"
+            className="w-full rounded-lg px-3 py-2.5 text-sm placeholder-slate-600 transition-all"
+            style={inputStyle}
+            onFocus={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-dim)'; }}
+            onBlur={e => { e.target.style.borderColor = 'var(--input-border)'; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
+            Instagram da empresa <span style={{ color: 'var(--text-muted)' }}>(opcional)</span>
+          </label>
+          <input
+            type="text"
+            value={instagram}
+            onChange={(e) => setInstagram(e.target.value)}
+            placeholder="@suaempresa"
             className="w-full rounded-lg px-3 py-2.5 text-sm placeholder-slate-600 transition-all"
             style={inputStyle}
             onFocus={e => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px var(--accent-dim)'; }}
@@ -472,7 +653,7 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
           onMouseLeave={e => { if (!isSaving && !saved) e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
         >
           {isSaving && <Spinner />}
-          {saved ? <><CheckIcon className="h-4 w-4" /> Salvo!</> : isSaving ? 'Salvando...' : websiteUrl.trim() ? 'Salvar e continuar' : 'Continuar sem URL'}
+          {saved ? <><CheckIcon className="h-4 w-4" /> Salvo!</> : isSaving ? 'Salvando...' : (websiteUrl.trim() || instagram.trim()) ? 'Salvar e continuar' : 'Continuar sem informar'}
         </button>
         <button
           onClick={onSkip}
@@ -642,6 +823,7 @@ function OnboardingContent() {
           {currentStep === 'welcome' && <StepWelcome onNext={next} onSkip={skip} />}
           {currentStep === 'meta' && <StepOAuth provider="meta" onNext={next} onSkip={skip} />}
           {currentStep === 'google' && <StepOAuth provider="google_ads" onNext={next} onSkip={skip} />}
+          {currentStep === 'business' && <StepBusiness onNext={next} onSkip={skip} />}
           {currentStep === 'website' && <StepWebsite onNext={next} onSkip={skip} />}
           {currentStep === 'done' && <StepDone onFinish={finish} />}
         </div>

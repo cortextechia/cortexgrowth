@@ -331,6 +331,16 @@ export interface SeoOgTags {
   image: boolean;
 }
 
+/** Problema do site em duas linguagens: `titulo`/`impacto` para o cliente, `tecnico`
+ *  para quem vai corrigir (só aparece dentro do "Saiba mais"). */
+export interface SeoFinding {
+  code: string;
+  severity: 'critico' | 'atencao';
+  titulo: string;
+  impacto: string;
+  tecnico: string;
+}
+
 export interface SeoHtmlData {
   score: number;
   title: string | null;
@@ -347,6 +357,8 @@ export interface SeoHtmlData {
   hasLlmsTxt: boolean;
   isIndexable: boolean;
   issues: string[];
+  /** Ausente nos snapshots anteriores a 12/08 — a tela cai em `issues` quando não vier. */
+  findings?: SeoFinding[];
 }
 
 export interface AioData {
@@ -354,6 +366,8 @@ export interface AioData {
   criticalPoints: string[];
   recommendations: string[];
   summary: string;
+  /** Ausente nos snapshots anteriores a 12/08. */
+  technicalNotes?: string[];
 }
 
 export interface SeoCompetitorResult {
@@ -420,6 +434,7 @@ export interface CompanyProfile {
   goodLeadCriteria: string | null;
   businessGoal: string | null;
   serviceRegion: string | null;
+  instagramUrl: string | null;
 }
 
 // ===== BUDGET STATUS =====

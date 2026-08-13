@@ -77,12 +77,12 @@ const PERGUNTAS: {
  * fica olhando para uma lista de pendências sem saber onde clicar.
  */
 const DESTINOS: Record<string, { href: string; label: string }> = {
-  meta: { href: '/dashboard/integrations', label: 'Conectar em Integrações →' },
-  google: { href: '/dashboard/integrations', label: 'Conectar em Integrações →' },
-  site: { href: '/dashboard/seo', label: 'Informar o site no RADAR →' },
-  crm: { href: '/dashboard/crm', label: 'Ativar o CRM →' },
-  competitorUrls: { href: '/dashboard/seo', label: 'Cadastrar concorrentes no RADAR →' },
-  competitorPageIds: { href: '/dashboard/criativo', label: 'Cadastrar páginas na Inteligência Criativa →' },
+  meta: { href: '/dashboard/integrations', label: 'Conectar em Integrações' },
+  google: { href: '/dashboard/integrations', label: 'Conectar em Integrações' },
+  site: { href: '/dashboard/seo', label: 'Informar o site no RADAR' },
+  crm: { href: '/dashboard/crm', label: 'Ativar o CRM' },
+  competitorUrls: { href: '/dashboard/seo', label: 'Cadastrar concorrentes no RADAR' },
+  competitorPageIds: { href: '/dashboard/criativo', label: 'Cadastrar páginas na Inteligência Criativa' },
 };
 
 const OBJETIVOS = [
@@ -112,6 +112,8 @@ export default function PerfilPage() {
       setScore(res.data.setupScore);
       const inicial: Record<string, string> = {};
       for (const p of PERGUNTAS) inicial[p.key] = (res.data.profile[p.key] as string | null) ?? '';
+      // Fora de PERGUNTAS porque não é item da nota — mas precisa do mesmo rascunho.
+      inicial.instagramUrl = res.data.profile.instagramUrl ?? '';
       setRascunho(inicial);
     } catch {
       setErro('Não foi possível carregar o perfil. Tente recarregar a página.');
@@ -136,13 +138,15 @@ export default function PerfilPage() {
     } catch (err: unknown) {
       // 422 = resposta vaga. O texto NÃO é gravado (viraria frase vaga dentro do
       // prompt dos agentes), mas continua na tela para a pessoa melhorar em cima.
-      const e = err as { response?: { status?: number; data?: { data?: { rejected?: Record<string, string> } } } };
+      const e = err as { response?: { status?: number; data?: { message?: string; data?: { rejected?: Record<string, string> } } } };
       const repergunta = e.response?.data?.data?.rejected?.[campo];
       if (e.response?.status === 422 && repergunta) {
         setVeredito((v) => ({ ...v, [campo]: repergunta }));
         setEstado((s) => ({ ...s, [campo]: 'recusado' }));
       } else {
-        setVeredito((v) => ({ ...v, [campo]: 'Não foi possível salvar agora. Tente de novo.' }));
+        // Mensagem do backend quando existe (ex.: formato de Instagram inválido) — genérica
+        // esconderia o motivo e a pessoa tentaria de novo do mesmo jeito.
+        setVeredito((v) => ({ ...v, [campo]: e.response?.data?.message ?? 'Não foi possível salvar agora. Tente de novo.' }));
         setEstado((s) => ({ ...s, [campo]: 'recusado' }));
       }
     }
@@ -329,6 +333,42 @@ export default function PerfilPage() {
           </div>
         </section>
       ))}
+
+      {/* ─── Instagram ───────────────────────────────────────────────────────
+          Fora dos blocos de propósito: é perguntado no onboarding e entra no contexto
+          que os agentes leem, mas não vale ponto — mexer nos pesos mudaria a nota de
+          todas as orgs já pontuadas. Sem caixa aqui, o cliente não teria onde corrigir
+          depois o que respondeu no wizard. */}
+      <section className="rounded-xl p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+        <div className="flex justify-between items-baseline mb-3">
+          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Instagram da empresa</h2>
+          <span className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>não vale pontos</span>
+        </div>
+        <p className="text-[11px] mb-3" style={{ color: 'var(--text-muted)' }}>
+          Entra no contexto que a IA lê sobre a sua empresa. Pode ser o @ ou o link.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={rascunho.instagramUrl ?? ''}
+            onChange={(e) => setRascunho((r) => ({ ...r, instagramUrl: e.target.value }))}
+            placeholder="@suaempresa"
+            className="flex-1 min-w-[200px] rounded-lg px-3 py-2 text-sm outline-none"
+            style={{ backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)' }}
+          />
+          <button
+            onClick={() => void salvar('instagramUrl', rascunho.instagramUrl ?? '')}
+            disabled={estado.instagramUrl === 'salvando' || (rascunho.instagramUrl ?? '') === (profile.instagramUrl ?? '')}
+            className="rounded-lg px-3 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
+            style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+          >
+            {estado.instagramUrl === 'salvando' ? 'Salvando...' : estado.instagramUrl === 'ok' ? 'Salvo!' : 'Salvar'}
+          </button>
+        </div>
+        {veredito.instagramUrl && (
+          <p className="mt-2 text-xs" style={{ color: 'var(--badge-warn-text)' }}>{veredito.instagramUrl}</p>
+        )}
+      </section>
     </div>
   );
 }
@@ -381,13 +421,19 @@ function CaixaItem({
           {item.points}
         </span>
       </div>
+      {/* Botão discreto do design system, não link sublinhado azul: azul + underline + "→"
+          destoava do resto do painel (feedback Benny, 12/08). O chevron fininho basta para
+          dizer "isso leva a outra tela". */}
       {destino && (
         <button
           onClick={() => onIr!(destino.href)}
-          className="text-[11px] underline mt-1.5 ml-[26px]"
-          style={{ color: 'var(--accent)' }}
+          className="inline-flex items-center gap-1 text-[11px] font-medium rounded-md px-2 py-1 mt-2 ml-[26px] transition-colors"
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
         >
           {destino.label}
+          <span style={{ opacity: 0.5 }}>›</span>
         </button>
       )}
       {children}

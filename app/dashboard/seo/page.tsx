@@ -184,6 +184,41 @@ function SnapshotCard({ analysis, isSelected, onClick }: {
   );
 }
 
+// ─── "Saiba mais" ──────────────────────────────────────────────────────────────
+// O relatório técnico não sumiu — ele saiu da frente. O cliente lê o diagnóstico em
+// português comum; o que tem nome de tag fica um clique abaixo, pronto para ser
+// repassado a quem mexe no site (feedback Ruan, 12/08).
+
+function Expandivel({ label, children, dense = false }: {
+  label: string;
+  children: React.ReactNode;
+  dense?: boolean;
+}) {
+  return (
+    <details className="group">
+      <summary
+        className={`cursor-pointer list-none flex items-center gap-1.5 ${dense ? 'text-[10px]' : 'text-xs font-medium'}`}
+        style={{ color: 'var(--text-muted)' }}
+      >
+        <span className="transition-transform group-open:rotate-90">›</span>
+        {label}
+      </summary>
+      <div className={dense ? 'mt-1.5 pl-3' : 'mt-3'}>{children}</div>
+    </details>
+  );
+}
+
+/** Texto técnico cru — fonte monoespaçada de propósito: é para copiar e colar no chamado. */
+function BlocoTecnico({ linhas }: { linhas: string[] }) {
+  return (
+    <div className="rounded-lg p-2.5 space-y-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+      {linhas.map((l, i) => (
+        <p key={i} className="text-[11px] font-mono leading-snug" style={{ color: 'var(--text-secondary)' }}>{l}</p>
+      ))}
+    </div>
+  );
+}
+
 // ─── Detalhe de snapshot ───────────────────────────────────────────────────────
 
 function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baseline: SeoAnalysis | null }) {
@@ -236,30 +271,51 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
         })}
       </div>
 
-      {/* SEO Issues */}
-      {(analysis.seoData?.issues?.length ?? 0) > 0 && (
+      {/* O que resolver no site — linguagem do cliente, técnico atrás do "Saiba mais".
+          Snapshot antigo (sem `findings`) cai na lista técnica de sempre. */}
+      {(analysis.seoData?.findings?.length ?? 0) > 0 ? (
+        <div className="rounded-xl p-4 space-y-3" style={card}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>O que resolver no seu site</p>
+          {analysis.seoData!.findings!.map((f) => {
+            const critico = f.severity === 'critico';
+            const cor = critico ? 'var(--badge-error-text)' : 'var(--badge-warn-text)';
+            return (
+              <div key={f.code} className="flex items-start gap-2">
+                <span className="text-xs shrink-0 mt-0.5" style={{ color: cor }}>{critico ? '●' : '○'}</span>
+                <div className="min-w-0 space-y-1">
+                  <p className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{f.titulo}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.impacto}</p>
+                  <Expandivel label="Saiba mais — para quem mexe no site" dense>
+                    <p className="text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>{f.tecnico}</p>
+                  </Expandivel>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (analysis.seoData?.issues?.length ?? 0) > 0 ? (
         <div className="rounded-xl p-4 space-y-2" style={card}>
           <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Problemas SEO detectados</p>
           {analysis.seoData!.issues.map((issue, i) => (
             <div key={i} className="flex items-start gap-2">
-              <span style={{ color: '#f59e0b' }}>⚠</span>
+              <span style={{ color: 'var(--badge-warn-text)' }}>⚠</span>
               <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{issue}</span>
             </div>
           ))}
         </div>
-      )}
+      ) : null}
 
       {/* AIO */}
       {analysis.aioData && (
         <div className="rounded-xl p-4 space-y-3" style={card}>
-          <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Análise AIO (visibilidade para agentes de IA)</p>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Como o ChatGPT e outras IAs enxergam seu site</p>
           <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{analysis.aioData.summary}</p>
           {analysis.aioData.criticalPoints.length > 0 && (
             <div>
-              <p className="text-[10px] font-medium mb-1.5" style={{ color: '#ef4444' }}>Pontos críticos</p>
+              <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--badge-error-text)' }}>O que atrapalha hoje</p>
               {analysis.aioData.criticalPoints.map((p, i) => (
                 <div key={i} className="flex items-start gap-2 mb-1">
-                  <span className="text-xs shrink-0" style={{ color: '#ef4444' }}>✕</span>
+                  <span className="text-xs shrink-0" style={{ color: 'var(--badge-error-text)' }}>✕</span>
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{p}</span>
                 </div>
               ))}
@@ -267,14 +323,19 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
           )}
           {analysis.aioData.recommendations.length > 0 && (
             <div>
-              <p className="text-[10px] font-medium mb-1.5" style={{ color: '#22c55e' }}>Recomendações</p>
+              <p className="text-[10px] font-medium mb-1.5" style={{ color: 'var(--badge-success-text)' }}>O que fazer</p>
               {analysis.aioData.recommendations.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 mb-1">
-                  <span className="text-xs shrink-0" style={{ color: '#22c55e' }}>→</span>
+                  <span className="text-xs shrink-0" style={{ color: 'var(--badge-success-text)' }}>→</span>
                   <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{r}</span>
                 </div>
               ))}
             </div>
+          )}
+          {(analysis.aioData.technicalNotes?.length ?? 0) > 0 && (
+            <Expandivel label="Saiba mais — o mesmo diagnóstico para o dev">
+              <BlocoTecnico linhas={analysis.aioData.technicalNotes!} />
+            </Expandivel>
           )}
         </div>
       )}
@@ -305,9 +366,15 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
         </div>
       )}
 
+      {/* Relatório técnico — o mesmo conteúdo de sempre, um clique abaixo */}
+      {(analysis.seoData || analysis.pageSpeedData) && (
+        <div className="rounded-xl p-4" style={card}>
+          <Expandivel label="Saiba mais — relatório técnico completo (para quem mexe no site)">
+            <div className="space-y-4">
+
       {/* Infraestrutura para IA */}
       {analysis.seoData && (
-        <div className="rounded-xl p-4 space-y-3" style={card}>
+        <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
           <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>Infraestrutura para agentes de IA</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2">
             {[
@@ -391,7 +458,7 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
 
       {/* PageSpeed técnico */}
       {analysis.pageSpeedData && (
-        <div className="rounded-xl p-4 space-y-2" style={card}>
+        <div className="rounded-xl p-4 space-y-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
           <p className="text-xs font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Core Web Vitals (mobile)</p>
           <div className="grid grid-cols-2 gap-x-6 gap-y-2">
             {[
@@ -408,6 +475,11 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+            </div>
+          </Expandivel>
         </div>
       )}
     </div>
@@ -504,7 +576,7 @@ export default function SeoPage() {
         <div>
           <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>SEO / AIO</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Diagnóstico de presença digital — performance, SEO técnico e visibilidade para agentes de IA
+            Como seu site aparece para quem procura no Google e para as IAs que recomendam fornecedores
           </p>
           {lastAnalysis && (
             <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>

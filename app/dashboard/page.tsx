@@ -2983,20 +2983,10 @@ export default function DashboardPage() {
                     </div>
                   );
                 })}
-                {attributionSummary.roasMeta != null && attributionSummary.roasMeta > 5 && (
-                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)' }}>
-                    <p className="text-xs" style={{ color: 'var(--badge-success-text)' }}>
-                      ✦ Meta com ROAS {attributionSummary.roasMeta.toFixed(1).replace('.', ',')}x — considerar escalar verba
-                    </p>
-                  </div>
-                )}
-                {attributionSummary.roasGoogle != null && attributionSummary.roasGoogle > 5 && (
-                  <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)' }}>
-                    <p className="text-xs" style={{ color: 'var(--badge-success-text)' }}>
-                      ✦ Google com ROAS {attributionSummary.roasGoogle.toFixed(1).replace('.', ',')}x — considerar aumentar verba
-                    </p>
-                  </div>
-                )}
+                {/* Os avisos "considerar escalar/aumentar verba" saíram daqui (feedback Ruan, 12/08):
+                    a plataforma não conhece o objetivo de cada campanha e decisão de mídia é do
+                    gestor. O número fica, o palpite sai — mesma regra aplicada aos prompts dos
+                    agentes em aiInsightsService.ts. */}
               </div>
             </div>
           </div>
