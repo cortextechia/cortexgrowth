@@ -37,15 +37,18 @@ function AgentSection({ label, data }: { label: string; data: AgentOutput }) {
         <ScoreBadge score={data.score} size="sm" />
       </div>
       {data.summary && (
-        <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-muted)' }}>{data.summary}</p>
+        <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--text-secondary)' }}>{data.summary}</p>
       )}
       {data.alerts.length > 0 && (
         <div className="mb-2">
-          <p className="text-xs font-medium mb-1" style={{ color: '#f59e0b' }}>Alertas</p>
+          {/* O rótulo vai em texto normal, não em âmbar: `--badge-warn-text` é feito para chip
+              com fundo tingido e, solto sobre `--bg-elevated` no tema claro, dá 2,8:1 — medido
+              no browser em 13/08. A cor de alerta fica no marcador, que é decoração. */}
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Alertas</p>
           <ul className="space-y-1">
             {data.alerts.map((a, i) => (
-              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-                <span style={{ color: '#f59e0b' }}>•</span>{a}
+              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                <span style={{ color: 'var(--badge-warn-text)' }}>•</span>{a}
               </li>
             ))}
           </ul>
@@ -53,11 +56,11 @@ function AgentSection({ label, data }: { label: string; data: AgentOutput }) {
       )}
       {data.recommendations.length > 0 && (
         <div>
-          <p className="text-xs font-medium mb-1" style={{ color: '#3b82f6' }}>Recomendações</p>
+          <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Recomendações</p>
           <ul className="space-y-1">
             {data.recommendations.map((r, i) => (
-              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-                <span style={{ color: '#3b82f6' }}>→</span>{r}
+              <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                <span style={{ color: 'var(--accent)' }}>→</span>{r}
               </li>
             ))}
           </ul>
@@ -139,11 +142,11 @@ function ReportCard({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {content.orchestrator.priorityAlerts.length > 0 && (
                 <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
-                  <p className="text-xs font-medium mb-2" style={{ color: '#ef4444' }}>Alertas prioritários</p>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--badge-error-text)' }}>Alertas prioritários</p>
                   <ul className="space-y-1">
                     {content.orchestrator.priorityAlerts.map((a, i) => (
-                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-                        <span style={{ color: '#ef4444' }}>!</span>{a}
+                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                        <span style={{ color: 'var(--badge-error-text)' }}>!</span>{a}
                       </li>
                     ))}
                   </ul>
@@ -151,11 +154,11 @@ function ReportCard({
               )}
               {content.orchestrator.topRecommendations.length > 0 && (
                 <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
-                  <p className="text-xs font-medium mb-2" style={{ color: '#60a5fa' }}>Top recomendações</p>
+                  <p className="text-xs font-medium mb-2" style={{ color: 'var(--accent)' }}>Top recomendações</p>
                   <ul className="space-y-1">
                     {content.orchestrator.topRecommendations.map((r, i) => (
-                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-                        <span style={{ color: '#60a5fa' }}>{i + 1}.</span>{r}
+                      <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                        <span style={{ color: 'var(--accent)' }}>{i + 1}.</span>{r}
                       </li>
                     ))}
                   </ul>

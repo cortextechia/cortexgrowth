@@ -1511,6 +1511,15 @@ export default function DashboardPage() {
       .slice(0, 6);
   }, [metaCur, googleCur, kommoCur]);
 
+  // Cobertura da atribuição por CAMPANHA. A coluna "Leads" acima só conta lead que diz de
+  // qual campanha veio — e a maioria não diz: do anúncio até o WhatsApp só atravessa o
+  // anúncio (quando atravessa), nunca a campanha. Sem esta linha, campanha com "—" é lida
+  // como campanha que não trouxe ninguém, que foi exatamente a confusão do relatório 13/08.
+  const campanhaCobertura = useMemo(() => {
+    const pagos = kommoCur.filter((l) => l.utmSource === 'meta' || l.utmSource === 'google');
+    return { pagos: pagos.length, comCampanha: pagos.filter((l) => !!l.utmCampaign).length };
+  }, [kommoCur]);
+
   // ── LTV & projection ──────────────────────────────────────────────────────
   const ltvData = useMemo(() => {
     // Todos os canais, independente da aba do funil. Vendas contadas por data de
@@ -2824,6 +2833,14 @@ export default function DashboardPage() {
                       })}
                     </tbody>
                   </table>
+                  {campanhaCobertura.pagos > 0 && campanhaCobertura.comCampanha < campanhaCobertura.pagos && (
+                    <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)' }}>
+                      <strong>{campanhaCobertura.comCampanha} de {campanhaCobertura.pagos}</strong> leads de anúncio dizem de qual campanha vieram.
+                      Os outros {campanhaCobertura.pagos - campanhaCobertura.comCampanha} chegaram sem essa identificação: ou o anúncio não foi reconhecido
+                      na conversa, ou a pessoa entrou por um caminho que só mostra o canal — número digitado, indicação, clique do Google.
+                      A coluna <strong>Leads</strong> é um piso: campanha com “—” pode ter trazido gente sem que dê para provar.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
