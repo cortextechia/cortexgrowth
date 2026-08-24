@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { AiAnalysis, AttributionSummary, HistoricoData } from '@/types';
+import type { AiAnalysis, AttributionSummary, FunnelSummary, HistoricoData } from '@/types';
 
 // Hook para gerenciar usuários
 export function useUsers() {
@@ -192,6 +192,8 @@ export function useDashboard() {
   const [kommoLeads, setKommoLeads] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [attributionSummary, setAttributionSummary] = useState<AttributionSummary | null>(null);
+  const [funnelSummary, setFunnelSummary] = useState<FunnelSummary | null>(null);
+  const funnelReqId = useRef(0);
   const attributionReqId = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -265,9 +267,24 @@ export function useDashboard() {
     }
   }, [isAuthenticated]);
 
+  const fetchFunnelSummary = useCallback(async (days: number, start?: string, end?: string) => {
+    if (!isAuthenticated) return;
+    const reqId = ++funnelReqId.current;
+    try {
+      const response = await apiService.getFunnelSummary(days, start, end);
+      // descarta resposta se uma requisição mais recente já foi disparada
+      if (reqId === funnelReqId.current && response.success) {
+        setFunnelSummary(response.data);
+      }
+    } catch {
+      // silêncio proposital: a cadeia depende do CRM Cortex. Sem ele a faixa não aparece,
+      // e isso não é erro — é org que não tem camada de contato.
+    }
+  }, [isAuthenticated]);
+
   const fetchAllDashboardData = useCallback(async (days = 30) => {
-    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats(), fetchKommoLeads(), fetchAttributionSummary(days)]);
-  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats, fetchKommoLeads, fetchAttributionSummary]);
+    await Promise.all([fetchMetaInsights(), fetchGoogleAdsMetrics(), fetchStats(), fetchKommoLeads(), fetchAttributionSummary(days), fetchFunnelSummary(days)]);
+  }, [fetchMetaInsights, fetchGoogleAdsMetrics, fetchStats, fetchKommoLeads, fetchAttributionSummary, fetchFunnelSummary]);
 
   return {
     metaInsights,
@@ -275,8 +292,10 @@ export function useDashboard() {
     kommoLeads,
     stats,
     attributionSummary,
+    funnelSummary,
     isLoading,
     error,
+    fetchFunnelSummary,
     fetchMetaInsights,
     fetchGoogleAdsMetrics,
     fetchKommoLeads,

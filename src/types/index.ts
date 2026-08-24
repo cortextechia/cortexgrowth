@@ -195,6 +195,40 @@ export interface AttributionSummary {
   recurringLeads: number;
 }
 
+// ===== CADEIA DO FUNIL =====
+// contato → lead → oportunidade → venda.
+//
+// `KommoLeads` sempre foi OPORTUNIDADE (o card só ganha venda a partir do marco
+// `requiresValue` do CRM), mas a tela chamava isso de "Lead" e o CPL dividia o gasto por
+// esse número — inflando o CPL do Meta ~6x na Galpão. Ver `lib/leadCounts.ts` no backend.
+export interface FunnelChannelCounts {
+  meta: number;
+  google: number;
+  total: number;
+}
+
+export interface FunnelSummary {
+  period: { start: string; end: string };
+  /** `null` quando a org não tem camada de contato na janela — a faixa some. */
+  contacts: FunnelChannelCounts | null;
+  leads: FunnelChannelCounts | null;
+  opportunities: FunnelChannelCounts;
+  won: number;
+  /** LEAD = dividiu por lead · OPPORTUNITY/PLATFORM_CONVERSION = base antiga. */
+  cplBasis: 'LEAD' | 'OPPORTUNITY' | 'PLATFORM_CONVERSION';
+  /** Desde quando existe contato — usado para explicar a faixa ausente. */
+  contactLayerStartsAt: string | null;
+  cpl: number | null;
+  cplMeta: number | null;
+  cplGoogle: number | null;
+  costPerOpportunity: number | null;
+  costPerOpportunityMeta: number | null;
+  costPerOpportunityGoogle: number | null;
+  spend: number;
+  spendMeta: number;
+  spendGoogle: number;
+}
+
 // ===== EVOLUÇÃO HISTÓRICA =====
 export interface HistoricoPoint {
   m: string;

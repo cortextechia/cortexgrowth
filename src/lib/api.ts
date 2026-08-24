@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -425,6 +425,14 @@ class ApiService {
     // start/end (YYYY-MM-DD) definem janela explícita no range personalizado; sem eles o backend usa "últimos N dias"
     const params = start && end ? { days, start, end } : { days };
     const response = await this.client.get('/platforms/attribution/summary', { params });
+    return response.data;
+  }
+
+  async getFunnelSummary(days: number, start?: string, end?: string): Promise<{ success: boolean; data: FunnelSummary }> {
+    // Mesma assinatura do attribution/summary: start/end (YYYY-MM-DD) mandam no range
+    // personalizado, senão o backend usa "últimos N dias".
+    const params = start && end ? { days, start, end } : { days };
+    const response = await this.client.get('/platforms/funnel/summary', { params });
     return response.data;
   }
 

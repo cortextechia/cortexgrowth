@@ -902,7 +902,8 @@ export default function DashboardPage() {
   const { integrations, fetchIntegrations } = useIntegrations();
   const {
     metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads,
-    attributionSummary, fetchAllDashboardData, fetchAttributionSummary, isLoading: dashLoading,
+    attributionSummary, fetchAllDashboardData, fetchAttributionSummary,
+    funnelSummary, fetchFunnelSummary, isLoading: dashLoading,
   } = useDashboard();
   const kommoLeads = rawKommoLeads as KommoLead[];
   const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
@@ -954,11 +955,11 @@ export default function DashboardPage() {
 
   const BOTTOM_KPI_OPTIONS = [
     { key: 'roas',      label: 'ROAS atribuído'  },
-    { key: 'cac',       label: 'CPL'             },
+    { key: 'cac',       label: 'CPL'             },  // gasto ÷ LEAD (ver leadCounts.ts)
     { key: 'receita',   label: 'Receita fechada' },
     { key: 'pipeline',  label: 'Pipeline'        },
     { key: 'leads',     label: 'Leads'           },
-    { key: 'cpl',       label: 'CPL geral'       },
+    { key: 'cpl',       label: 'Custo por oportunidade' },
     { key: 'conversao', label: 'Conversão'       },
     { key: 'ticket',    label: 'Ticket médio'    },
   ] as const;
@@ -1120,8 +1121,10 @@ export default function DashboardPage() {
     // calcular "últimos N dias" e ignorar as datas escolhidas
     if (range === 'CUSTOM' && customStart && customEnd) {
       fetchAttributionSummary(activeDays, customStart, customEnd);
+      fetchFunnelSummary(activeDays, customStart, customEnd);
     } else {
       fetchAttributionSummary(activeDays);
+      fetchFunnelSummary(activeDays);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDays, range, customStart, customEnd]);
@@ -1740,6 +1743,51 @@ export default function DashboardPage() {
                       : mktTab === 'google' ? `${canalComparativo.google.leads} leads Google`
                       : `${attributionSummary?.attributedLeads ?? 0} leads atribuídos`;
   const mktCpl      = funnelCounts.generated > 0 && mktSpend > 0 ? mktSpend / funnelCounts.generated : null;
+
+  // ── Cadeia do funil (contato → lead → oportunidade → venda) ────────────────
+  // `KommoLeads` sempre foi OPORTUNIDADE: o card do CRM só ganha venda a partir do marco
+  // `requiresValue` ("Orçamento Enviado"). Dividir o gasto por ele inflava o CPL do Meta ~6x
+  // (R$ 105,02 contra R$ 21,62 na Galpão, medido 24/08). O backend resolve em `leadCounts.ts`.
+  //
+  // `temCadeia` exige a janela INTEIRA coberta pela camada de contato. Com cobertura parcial
+  // o funil CRESCE — no filtro 90D dava "342 contatos → 250 leads → 642 oportunidades",
+  // porque contato existe desde 16/07 e oportunidade vem da era Kommo. Nesse caso a faixa
+  // some e tudo volta ao cálculo antigo, que é comparável com o histórico do cliente.
+  const temCadeia = funnelSummary?.cplBasis === 'LEAD' && !!funnelSummary.contacts && !!funnelSummary.leads;
+  const cplPorLead = !temCadeia ? mktCac
+                   : mktTab === 'meta'   ? funnelSummary!.cplMeta
+                   : mktTab === 'google' ? funnelSummary!.cplGoogle
+                   : funnelSummary!.cpl;
+  const custoPorOportunidade = !temCadeia ? mktCpl
+                   : mktTab === 'meta'   ? funnelSummary!.costPerOpportunityMeta
+                   : mktTab === 'google' ? funnelSummary!.costPerOpportunityGoogle
+                   : funnelSummary!.costPerOpportunity;
+  // Denominadores respeitam a aba de canal selecionada, igual ao `mktCac`.
+  const qtdLeadsCpl = !temCadeia ? 0
+                   : mktTab === 'meta'   ? funnelSummary!.leads!.meta
+                   : mktTab === 'google' ? funnelSummary!.leads!.google
+                   : funnelSummary!.leads!.meta + funnelSummary!.leads!.google;
+  const qtdOportunidades = !temCadeia ? 0
+                   : mktTab === 'meta'   ? funnelSummary!.opportunities.meta
+                   : mktTab === 'google' ? funnelSummary!.opportunities.google
+                   : funnelSummary!.opportunities.meta + funnelSummary!.opportunities.google;
+  // Cartões por canal: o nome sempre disse "Leads" — agora o número passa a bater com o nome.
+  // Sem cadeia na janela, caem no valor antigo (oportunidade), que é o histórico do cliente.
+  const leadsMetaCard   = temCadeia ? funnelSummary!.leads!.meta   : topoKpis.metaLeads;
+  const leadsGoogleCard = temCadeia ? funnelSummary!.leads!.google : topoKpis.googleLeads;
+  const cplMetaCard     = temCadeia ? funnelSummary!.cplMeta       : topoKpis.cplMeta;
+  const cplGoogleCard   = temCadeia ? funnelSummary!.cplGoogle     : topoKpis.cplGoogle;
+
+  // Etapas da faixa. A taxa mostrada é a passagem de uma etapa para a seguinte — é onde o
+  // funil afunila, que é a pergunta que o cliente faz olhando o dashboard.
+  const etapasCadeia = temCadeia
+    ? [
+        { label: 'contatos',      value: funnelSummary!.contacts!.total,      cor: 'var(--text-secondary)' },
+        { label: 'leads',         value: funnelSummary!.leads!.total,         cor: '#60a5fa' },
+        { label: 'oportunidades', value: funnelSummary!.opportunities.total,  cor: '#a78bfa' },
+        { label: 'vendas',        value: funnelSummary!.won,                  cor: '#34d399' },
+      ]
+    : [];
   const mktConvRate = funnelCounts.generated > 0 ? (funnelCounts.won / funnelCounts.generated) * 100 : null;
   const mktTicket   = mktWonCount > 0 ? mktClosedValue / mktWonCount : null;
   // Cobertura de atribuição: % dos leads do período com UTM de canal pago — contexto
@@ -1916,16 +1964,16 @@ export default function DashboardPage() {
                 <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="#60a5fa" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
               )}
               {visibleTopoKpis.includes('leads_meta') && (
-                <BottomKpiCard title="Leads Meta (CRM)" value={topoKpis.metaLeads > 0 ? fmtNum(topoKpis.metaLeads) : '—'} sub={`Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
+                <BottomKpiCard title="Leads Meta (CRM)" value={leadsMetaCard > 0 ? fmtNum(leadsMetaCard) : '—'} sub={temCadeia ? 'Contatos do Meta que passaram na triagem' : `Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
               )}
               {visibleTopoKpis.includes('leads_google') && (
-                <BottomKpiCard title="Leads Google (CRM)" value={topoKpis.googleLeads > 0 ? fmtNum(topoKpis.googleLeads) : '—'} sub={`Com utm_source=google no ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Leads no ${crmLabel} com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
+                <BottomKpiCard title="Leads Google (CRM)" value={leadsGoogleCard > 0 ? fmtNum(leadsGoogleCard) : '—'} sub={temCadeia ? 'Contatos do Google que passaram na triagem' : `Com utm_source=google no ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Leads no ${crmLabel} com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
               )}
               {visibleTopoKpis.includes('cpl_meta') && (
-                <BottomKpiCard title="CPL Meta" value={topoKpis.cplMeta != null ? fmtMoney(topoKpis.cplMeta) : '—'} sub={`${topoKpis.metaLeads} leads ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Gasto no Meta Ads ÷ leads com origem Meta no ${crmLabel}. Diferente do CPL da própria Meta, que usa o pixel — este usa os leads reais no CRM.`} />
+                <BottomKpiCard title="CPL Meta" value={cplMetaCard != null ? fmtMoney(cplMetaCard) : '—'} sub={`${leadsMetaCard} leads ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Gasto no Meta Ads ÷ leads com origem Meta no ${crmLabel}. Diferente do CPL da própria Meta, que usa o pixel — este usa os leads reais no CRM.`} />
               )}
               {visibleTopoKpis.includes('cpl_google') && (
-                <BottomKpiCard title="CPL Google" value={topoKpis.cplGoogle != null ? fmtMoney(topoKpis.cplGoogle) : '—'} sub={`${topoKpis.googleLeads} leads ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Gasto no Google Ads ÷ leads com origem Google no ${crmLabel}. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM.`} />
+                <BottomKpiCard title="CPL Google" value={cplGoogleCard != null ? fmtMoney(cplGoogleCard) : '—'} sub={`${leadsGoogleCard} leads ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Gasto no Google Ads ÷ leads com origem Google no ${crmLabel}. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM.`} />
               )}
               {visibleTopoKpis.includes('cpm') && (
                 <BottomKpiCard title="CPM" value={topoKpis.cpm != null ? fmtMoney(topoKpis.cpm) : '—'} sub="Custo por mil impressões" accent="#60a5fa" info="Custo por mil impressões: gasto ÷ impressões × 1000. Mede o custo de alcançar audiência — sobe quando a competição pelo público aumenta." />
@@ -2090,6 +2138,41 @@ export default function DashboardPage() {
         </>
       )}
 
+      {/* ── 3.5 CADEIA DO FUNIL ──────────────────────────────────────────────── */}
+      {/* Só aparece com a janela inteira coberta pela camada de contato: com cobertura
+          parcial o funil CRESCE (mais oportunidade que contato) e o número vira mentira. */}
+      {temCadeia && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>
+            cadeia do funil — do contato à venda
+          </p>
+          <div className="rounded-xl px-4 py-4 overflow-x-auto" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-1 min-w-max">
+              {etapasCadeia.map((etapa, i) => {
+                const anterior = i > 0 ? etapasCadeia[i - 1]!.value : null;
+                const taxa = anterior && anterior > 0 ? (etapa.value / anterior) * 100 : null;
+                return (
+                  <div key={etapa.label} className="flex items-center gap-1">
+                    {i > 0 && (
+                      <div className="flex flex-col items-center px-2 sm:px-3">
+                        <span className="text-[11px] font-semibold leading-none" style={{ color: 'var(--text-muted)' }}>
+                          {taxa != null ? `${taxa.toFixed(0)}%` : '—'}
+                        </span>
+                        <span className="text-base leading-none mt-0.5" style={{ color: 'var(--border)' }}>&rarr;</span>
+                      </div>
+                    )}
+                    <div className="text-center px-2 sm:px-3">
+                      <p className="text-2xl font-bold leading-none" style={{ color: etapa.cor }}>{fmtNum(etapa.value)}</p>
+                      <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>{etapa.label}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 4. KPIs FUNDO DE FUNIL ────────────────────────────────────────────── */}
       {/* Fundo de funil (ROAS/CPL/receita/pipeline) precisa de receita — oculta sem CRM/dados manuais */}
       {attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
@@ -2154,12 +2237,14 @@ export default function DashboardPage() {
             {visibleBottomKpis.includes('cac') && (
               <BottomKpiCard
                 title="CPL"
-                value={mktCac != null ? fmtBRL(mktCac) : '—'}
+                value={cplPorLead != null ? fmtBRL(cplPorLead) : '—'}
                 badge={mktLeadsBadge}
                 badgeColor="#60a5fa"
-                sub="Custo por lead no período"
+                sub={temCadeia ? `Gasto / ${qtdLeadsCpl} leads de anúncio` : 'Custo por lead no período'}
                 accent="#60a5fa"
-                info="Custo por lead: gasto em anúncios ÷ leads atribuídos a canais pagos. Não confundir com CAC (custo por cliente conquistado) — esse está em Saúde Financeira como CAC real."
+                info={temCadeia
+                  ? 'Gasto em anúncios ÷ LEADS de canal pago (contato que passou na triagem). Antes este número dividia por OPORTUNIDADE — lead que já chegou em orçamento — e por isso saía várias vezes maior do que o custo real de trazer um lead.'
+                  : 'Custo por lead: gasto em anúncios ÷ leads atribuídos a canais pagos. Não confundir com CAC (custo por cliente conquistado) — esse está em Saúde Financeira como CAC real.'}
               />
             )}
             {visibleBottomKpis.includes('receita') && (
@@ -2196,11 +2281,11 @@ export default function DashboardPage() {
             )}
             {visibleBottomKpis.includes('cpl') && (
               <BottomKpiCard
-                title="CPL geral"
-                value={mktCpl != null ? fmtBRL(mktCpl) : '—'}
-                sub={`Gasto / ${funnelCounts.generated} leads`}
+                title="Custo por oportunidade"
+                value={custoPorOportunidade != null ? fmtBRL(custoPorOportunidade) : '—'}
+                sub={temCadeia ? `Gasto / ${qtdOportunidades} oportunidades` : `Gasto / ${funnelCounts.generated} leads`}
                 accent="#60a5fa"
-                info="Gasto em anúncios ÷ todos os leads do período, inclusive os sem origem identificada. Tende a ser menor que o CPL atribuído."
+                info="Gasto em anúncios ÷ OPORTUNIDADES: o lead que já chegou em orçamento e tem valor. É sempre maior que o CPL, e é o número comparável com o histórico anterior ao CRM Cortex."
               />
             )}
             {visibleBottomKpis.includes('conversao') && (
