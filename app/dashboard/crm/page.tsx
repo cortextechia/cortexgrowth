@@ -4275,7 +4275,21 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
                     {((!m.mediaType && !m.location) || !isMediaPlaceholder(m.text)) && (
                       <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
                     )}
-                    <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{fmtTs(m.timestamp)}</p>
+                    {/* Reação fica pendurada no rodapé da bolha, como no WhatsApp */}
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      {m.reactions?.length ? (
+                        <span
+                          className="text-[11px] leading-none rounded-full px-1.5 py-0.5"
+                          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                          title={`Reagiu: ${m.reactions.map((r) => (r.fromMe ? 'Você' : clientName)).join(', ')}`}
+                        >
+                          {m.reactions.map((r) => r.emoji).join(' ')}
+                        </span>
+                      ) : (
+                        <span />
+                      )}
+                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{fmtTs(m.timestamp)}</span>
+                    </div>
                   </div>
                   {canSend && !m.fromMe && <WaReplyButton onClick={() => setReplyTo(m)} />}
                 </div>

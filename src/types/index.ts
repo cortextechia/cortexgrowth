@@ -1128,6 +1128,8 @@ export interface CrmWaMessage {
   location?: { lat: number; lng: number; name?: string; address?: string; live?: boolean };
   /** Preenchido quando esta mensagem é resposta a outra */
   quoted?: { id: string; text: string; fromMe: boolean };
+  /** Reações recebidas por esta mensagem — no máximo uma por lado da conversa */
+  reactions?: { emoji: string; fromMe: boolean }[];
 }
 
 export interface CreativeBriefing {
