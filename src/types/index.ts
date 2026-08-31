@@ -1124,6 +1124,8 @@ export interface CrmWaMessage {
   mediaType?: CrmWaMediaType;
   mimetype?: string;
   fileName?: string; // só documentos
+  /** Localização enviada pelo contato (name/address quase sempre vazios — é o pin do mapa) */
+  location?: { lat: number; lng: number; name?: string; address?: string; live?: boolean };
   /** Preenchido quando esta mensagem é resposta a outra */
   quoted?: { id: string; text: string; fromMe: boolean };
 }

@@ -3633,6 +3633,41 @@ const MEDIA_BUTTON_LABEL: Record<NonNullable<CrmWaMessage['mediaType']>, string>
   sticker: '📷 Ver figurinha',
 };
 
+// Localização recebida: o WhatsApp manda só lat/lng (nome/endereço quase nunca
+// vêm), então o que resolve pro vendedor é o link do mapa + a coordenada pra
+// copiar. Sem mapa embutido: exigiria chave de API e uma chamada a terceiro
+// direto do navegador do cliente.
+function WaLocationBubble({ location }: { location: NonNullable<CrmWaMessage['location']> }) {
+  const coords = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+  const mapa = `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+        📍 {location.live ? 'Localização em tempo real' : 'Localização'}
+      </span>
+      {location.name && (
+        <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{location.name}</span>
+      )}
+      {location.address && (
+        <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>{location.address}</span>
+      )}
+      {/* --text-secondary, não --text-muted: medido na tela, muted dá 2.06:1 na bolha
+          enviada em dark (é cinza ESCURO sobre fundo escuro). A coordenada existe
+          pra ser lida e copiada — não é enfeite como o horário. */}
+      <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-secondary)' }}>{coords}</span>
+      <a
+        href={mapa}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center rounded-md px-2 py-1 text-[11px] font-medium no-underline"
+        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+      >
+        Abrir no mapa
+      </a>
+    </div>
+  );
+}
+
 // Extensão pelo mimetype quando o nome do arquivo vem sem ela — sem isso o
 // Windows não sabe abrir o download
 const EXT_BY_MIME: Record<string, string> = {
@@ -4236,7 +4271,8 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
                       </button>
                     )}
                     {m.mediaType && <WaMediaBubble clientId={clientId} msg={m} />}
-                    {(!m.mediaType || !isMediaPlaceholder(m.text)) && (
+                    {m.location && <WaLocationBubble location={m.location} />}
+                    {((!m.mediaType && !m.location) || !isMediaPlaceholder(m.text)) && (
                       <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
                     )}
                     <p className="text-[10px] mt-0.5 text-right" style={{ color: 'var(--text-muted)' }}>{fmtTs(m.timestamp)}</p>
