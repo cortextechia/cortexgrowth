@@ -3488,65 +3488,101 @@ function ClientDrawer(props: {
 
 // ─── WhatsApp do vendedor ─────────────────────────────────────────────────────
 
+// Só ADMIN/SUPER_ADMIN conectam o número da organização — TRAFFIC_MANAGER está
+// no ADMIN_ROLES da página mas o backend recusa, então teria botão dando 403.
+const WA_ORG_ROLES = ['ADMIN', 'SUPER_ADMIN'];
+
 function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'error', msg: string) => void }) {
+  const { user } = useAuth();
+  const podeGerirOrg = WA_ORG_ROLES.includes(user?.role ?? '');
+
   const [waStatus, setWaStatus] = useState<CrmWaStatus | null>(null);
+  const [orgStatus, setOrgStatus] = useState<CrmWaStatus | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
+  // Qual número está sendo pareado agora — null = ninguém, só mostrando o estado
+  const [pareando, setPareando] = useState<'user' | 'org' | null>(null);
   const [working, setWorking] = useState(false);
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (scope?: 'org') => {
     try {
-      const res = await apiService.getCrmWhatsappStatus();
-      if (res.success) setWaStatus(res.data);
+      const res = await apiService.getCrmWhatsappStatus(scope);
+      if (res.success) (scope === 'org' ? setOrgStatus : setWaStatus)(res.data);
       return res.data;
     } catch { return null; }
   }, []);
 
-  useEffect(() => { void refreshStatus(); }, [refreshStatus]);
+  useEffect(() => {
+    void refreshStatus();
+    // O número da empresa é informação de todo mundo: o vendedor sem número
+    // próprio precisa saber por qual número os cards dele são respondidos.
+    void refreshStatus('org');
+  }, [refreshStatus]);
 
   // Pareamento: renova o QR a cada 25s e verifica conexão a cada 3s
   useEffect(() => {
-    if (!showModal || waStatus?.connected) return;
+    if (!showModal || !pareando) return;
+    const scope = pareando === 'org' ? ('org' as const) : undefined;
     const poll = setInterval(async () => {
-      const st = await refreshStatus();
+      const st = await refreshStatus(scope);
       if (st?.connected) {
         setQr(null);
+        setPareando(null);
         showToast('success', `WhatsApp conectado${st.phone ? ` (${fmtPhone(st.phone)})` : ''}.`);
       }
     }, 3000);
     const renewQr = setInterval(async () => {
       try {
-        const res = await apiService.connectCrmWhatsapp();
+        const res = await apiService.connectCrmWhatsapp(scope);
         if (res.data.qrcode) setQr(res.data.qrcode);
       } catch { /* mantém o QR atual */ }
     }, 25000);
     return () => { clearInterval(poll); clearInterval(renewQr); };
-  }, [showModal, waStatus?.connected, refreshStatus, showToast]);
+  }, [showModal, pareando, refreshStatus, showToast]);
 
-  const handleOpen = async () => {
-    setShowModal(true);
-    if (waStatus?.connected) return;
+  const iniciarPareamento = async (alvo: 'user' | 'org') => {
+    const scope = alvo === 'org' ? ('org' as const) : undefined;
     setWorking(true);
+    setQr(null);
     try {
-      const res = await apiService.connectCrmWhatsapp();
-      if (res.data.connected) { await refreshStatus(); }
-      else setQr(res.data.qrcode);
+      const res = await apiService.connectCrmWhatsapp(scope);
+      if (res.data.connected) {
+        await refreshStatus(scope);
+        setPareando(null);
+      } else {
+        setQr(res.data.qrcode);
+        setPareando(alvo);
+      }
     } catch (err) {
       showToast('error', apiErrorMsg(err, 'Erro ao iniciar conexão do WhatsApp.'));
-      setShowModal(false);
+      setPareando(null);
     } finally {
       setWorking(false);
     }
   };
 
-  const handleDisconnect = async () => {
-    if (!confirm('Desconectar seu WhatsApp do CRM? O rastreio de conversas para.')) return;
+  const handleOpen = async () => {
+    setShowModal(true);
+    setQr(null);
+    setPareando(null);
+    void refreshStatus();
+    void refreshStatus('org');
+    // Vendedor sem número próprio: o caminho é sempre parear o dele, então já
+    // abre no QR — é o fluxo que a operação usa hoje, sem clique a mais.
+    if (!podeGerirOrg && !waStatus?.connected) await iniciarPareamento('user');
+  };
+
+  const handleDisconnect = async (alvo: 'user' | 'org') => {
+    const msg = alvo === 'org'
+      ? 'Desconectar o WhatsApp da EMPRESA? As conversas que saem por ele param de ser rastreadas.'
+      : 'Desconectar seu WhatsApp do CRM? O rastreio de conversas para.';
+    if (!confirm(msg)) return;
     setWorking(true);
     try {
-      await apiService.disconnectCrmWhatsapp();
-      setWaStatus({ configured: false, connected: false });
+      await apiService.disconnectCrmWhatsapp(alvo === 'org' ? 'org' : undefined);
+      (alvo === 'org' ? setOrgStatus : setWaStatus)({ configured: false, connected: false });
       setQr(null);
-      setShowModal(false);
+      setPareando(null);
       showToast('success', 'WhatsApp desconectado.');
     } catch (err) {
       showToast('error', apiErrorMsg(err, 'Erro ao desconectar.'));
@@ -3556,44 +3592,35 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
   };
 
   const connected = waStatus?.connected ?? false;
+  const orgConectado = orgStatus?.connected ?? false;
 
   return (
     <>
+      {/* Verde quando HÁ um número atendendo — o próprio ou o da empresa: com o
+          número da empresa conectado o CRM já funciona para quem não tem o seu. */}
       <button
         onClick={handleOpen}
         className="px-3 py-2 rounded-lg text-sm flex items-center gap-1.5"
-        style={connected
+        style={connected || orgConectado
           ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }
           : { ...card, color: 'var(--text-secondary)' }}
-        title={connected ? `WhatsApp conectado${waStatus?.phone ? `: ${fmtPhone(waStatus.phone)}` : ''}` : 'Conectar seu WhatsApp ao CRM'}
+        title={
+          connected
+            ? `Seu WhatsApp conectado${waStatus?.phone ? `: ${fmtPhone(waStatus.phone)}` : ''}`
+            : orgConectado
+              ? `Atendendo pelo número da empresa${orgStatus?.phone ? `: ${fmtPhone(orgStatus.phone)}` : ''}`
+              : 'Conectar um WhatsApp ao CRM'
+        }
       >
-        {connected ? '✓ WhatsApp' : 'Conectar WhatsApp'}
+        {connected || orgConectado ? '✓ WhatsApp' : 'Conectar WhatsApp'}
       </button>
 
       {showModal && (
-        <ModalShell title="WhatsApp do vendedor" onClose={() => setShowModal(false)}>
-          {connected ? (
-            <div className="space-y-4">
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Conectado{waStatus?.phone ? ` como ${fmtPhone(waStatus.phone)}` : ''}. Mensagens recebidas de
-                números novos criam cards automaticamente atribuídos a você, e as conversas aparecem no card do cliente.
-              </p>
-              <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
-                Nos primeiros minutos após conectar, o WhatsApp sincroniza seus dados em segundo plano —
-                o rastreio de mensagens novas já está ativo desde agora.
-              </p>
-              <button
-                onClick={handleDisconnect}
-                disabled={working}
-                className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-                style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
-              >
-                {working ? 'Desconectando...' : 'Desconectar'}
-              </button>
-            </div>
-          ) : (
+        <ModalShell title="WhatsApp do CRM" onClose={() => setShowModal(false)}>
+          {pareando ? (
             <div className="space-y-3 text-center">
               <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                {pareando === 'org' ? 'Número da empresa. ' : ''}
                 Abra o WhatsApp no celular → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong> e escaneie:
               </p>
               {working && <p className="text-sm py-10" style={{ color: 'var(--text-muted)' }}>Gerando QR code...</p>}
@@ -3612,6 +3639,79 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
               )}
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                 O QR renova sozinho. Assim que o pareamento concluir, esta janela confirma.
+              </p>
+              <button
+                onClick={() => { setPareando(null); setQr(null); }}
+                className="text-xs underline-offset-2"
+                style={{ color: 'var(--text-muted)' }}
+              >
+                Voltar
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Meu número */}
+              <section className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Meu número</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {connected
+                        ? `Conectado${waStatus?.phone ? ` como ${fmtPhone(waStatus.phone)}` : ''} — seus cards são respondidos por ele.`
+                        : 'Não conectado. Contato novo vira card atribuído a você.'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => (connected ? handleDisconnect('user') : iniciarPareamento('user'))}
+                    disabled={working}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
+                    style={connected
+                      ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
+                      : { backgroundColor: 'var(--accent)', color: '#fff' }}
+                  >
+                    {connected ? 'Desconectar' : 'Conectar'}
+                  </button>
+                </div>
+              </section>
+
+              {/* Número da empresa (compartilhado) */}
+              <section className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Número da empresa</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                      {orgConectado
+                        ? `Conectado${orgStatus?.phone ? ` (${fmtPhone(orgStatus.phone)})` : ''} — atende quem não tem número próprio.`
+                        : 'Não conectado. Um número só para a equipe inteira: quem atende muda trocando o responsável do card.'}
+                    </p>
+                  </div>
+                  {podeGerirOrg ? (
+                    <button
+                      onClick={() => (orgConectado ? handleDisconnect('org') : iniciarPareamento('org'))}
+                      disabled={working}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
+                      style={orgConectado
+                        ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
+                        : { backgroundColor: 'var(--accent)', color: '#fff' }}
+                    >
+                      {orgConectado ? 'Desconectar' : 'Conectar'}
+                    </button>
+                  ) : (
+                    <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                      Só administrador
+                    </span>
+                  )}
+                </div>
+              </section>
+
+              {connected && orgConectado && (
+                <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                  Os dois estão conectados: seus cards saem pelo <strong>seu</strong> número; os demais, pelo número da empresa.
+                </p>
+              )}
+              <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)' }}>
+                Nos primeiros minutos após conectar, o WhatsApp sincroniza os dados em segundo plano —
+                o rastreio de mensagens novas já está ativo desde agora.
               </p>
             </div>
           )}

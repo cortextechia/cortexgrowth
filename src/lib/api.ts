@@ -1224,18 +1224,20 @@ class ApiService {
 
   // ─── CRM — WhatsApp do vendedor (Evolution API) ─────────────────────────────
 
-  async connectCrmWhatsapp(): Promise<{ success: boolean; message: string; data: { connected: boolean; qrcode: string | null } }> {
-    const response = await this.client.post('/crm/whatsapp/connect');
+  // `scope: 'org'` opera o número da ORGANIZAÇÃO (compartilhado) em vez do número
+  // do próprio usuário. Conectar/desconectar o da org exige ADMIN no backend.
+  async connectCrmWhatsapp(scope?: 'org'): Promise<{ success: boolean; message: string; data: { connected: boolean; qrcode: string | null } }> {
+    const response = await this.client.post('/crm/whatsapp/connect', scope ? { scope } : {});
     return response.data;
   }
 
-  async getCrmWhatsappStatus(): Promise<{ success: boolean; data: import('@/types').CrmWaStatus }> {
-    const response = await this.client.get('/crm/whatsapp/status');
+  async getCrmWhatsappStatus(scope?: 'org'): Promise<{ success: boolean; data: import('@/types').CrmWaStatus }> {
+    const response = await this.client.get('/crm/whatsapp/status', scope ? { params: { scope } } : undefined);
     return response.data;
   }
 
-  async disconnectCrmWhatsapp(): Promise<{ success: boolean; message: string }> {
-    const response = await this.client.delete('/crm/whatsapp/disconnect');
+  async disconnectCrmWhatsapp(scope?: 'org'): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/crm/whatsapp/disconnect', scope ? { params: { scope } } : undefined);
     return response.data;
   }
 
