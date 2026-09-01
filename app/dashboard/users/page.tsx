@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useUsers } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { PermissionGuard } from '@/components/ProtectedRoute';
-import { UserRole } from '@/types';
+import { User, UserRole } from '@/types';
 import { apiService } from '@/lib/api';
 import { userLimitOf, fmtUserLimit, MAX_ADMINS_POR_ORG } from '@/lib/planLimits';
 
@@ -45,7 +45,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function UsersPage() {
   const { user: currentUser, organization } = useAuth();
-  const { users, isLoading, error, fetchUsers, createUser, deleteUser } = useUsers();
+  const { users, isLoading, error, fetchUsers, createUser, updateUser, deleteUser } = useUsers();
   const userLimit = userLimitOf(organization?.plan);
   const atLimit = userLimit !== Infinity && users.length >= userLimit;
   // O backend recusa o 3º admin; sem isto a opção ficaria no formulário só para dar erro.
@@ -53,6 +53,7 @@ export default function UsersPage() {
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'USER' });
 
@@ -140,6 +141,56 @@ export default function UsersPage() {
     } finally {
       setDeletingId(null);
     }
+  };
+
+  const handleRoleChange = async (userId: string, role: string) => {
+    setSavingRoleId(userId);
+    try {
+      await updateUser(userId, { role });
+      showToast('Papel atualizado.');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Erro ao alterar papel', 'error');
+      void fetchUsers(); // o select ja mudou na tela; recarrega para nao mentir
+    } finally {
+      setSavingRoleId(null);
+    }
+  };
+
+  // Espelha as regras do backend. Fora delas o papel continua sendo so um selo.
+  //  - ninguem muda o proprio papel (a API recusa)
+  //  - SUPER_ADMIN nao se edita por aqui
+  //  - "Admin" fecha quando a org ja tem 2 e o alvo nao e um deles
+  const renderPapel = (user: User) => {
+    const editavel = isAdmin && user.id !== currentUser?.id && user.role !== UserRole.SUPER_ADMIN;
+    if (!editavel) {
+      return (
+        <span
+          className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
+          style={ROLE_BADGE_STYLE[user.role] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+        >
+          {ROLE_LABEL[user.role] ?? user.role}
+        </span>
+      );
+    }
+    const semVagaDeAdmin = adminsNoLimite && user.role !== UserRole.ADMIN;
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <select
+          value={user.role}
+          disabled={savingRoleId === user.id}
+          onChange={(e) => handleRoleChange(user.id, e.target.value)}
+          className="rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 disabled:opacity-50"
+          style={inputStyle}
+        >
+          <option value="USER">Usuário</option>
+          <option value="ADMIN" disabled={semVagaDeAdmin}>
+            {semVagaDeAdmin ? `Admin — limite de ${MAX_ADMINS_POR_ORG}` : 'Admin'}
+          </option>
+          <option value="VIEWER">Viewer</option>
+        </select>
+        {savingRoleId === user.id && <Spinner className="h-3 w-3" />}
+      </span>
+    );
   };
 
   const inputStyle = {
@@ -302,12 +353,7 @@ export default function UsersPage() {
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{user.name}</p>
                     <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>{user.email}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span
-                        className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
-                        style={ROLE_BADGE_STYLE[user.role] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
-                      >
-                        {ROLE_LABEL[user.role] ?? user.role}
-                      </span>
+                      {renderPapel(user)}
                       <span
                         className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
                         style={STATUS_BADGE_STYLE[user.status] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
@@ -355,12 +401,7 @@ export default function UsersPage() {
                       <td className="px-6 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{user.name}</td>
                       <td className="px-6 py-3" style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
                       <td className="px-6 py-3">
-                        <span
-                          className="inline-flex px-2 py-0.5 rounded text-xs font-medium"
-                          style={ROLE_BADGE_STYLE[user.role] ?? { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
-                        >
-                          {ROLE_LABEL[user.role] ?? user.role}
-                        </span>
+                        {renderPapel(user)}
                       </td>
                       <td className="px-6 py-3">
                         <span
