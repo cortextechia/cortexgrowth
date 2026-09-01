@@ -3446,6 +3446,7 @@ function ClientDrawer(props: {
                 canEdit={isAdmin}
                 canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
+                onAssumir={() => props.onTransfer(props.currentUserId)}
                 refreshSignal={waRefresh}
               />
             )}
@@ -3473,6 +3474,7 @@ function ClientDrawer(props: {
                 canEdit={isAdmin}
                 canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
+                onAssumir={() => props.onTransfer(props.currentUserId)}
                 refreshSignal={waRefresh}
                 variant="panel"
               />
@@ -4094,12 +4096,15 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   );
 }
 
-function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, refreshSignal = 0, variant = 'inline' }: {
+function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, onAssumir, refreshSignal = 0, variant = 'inline' }: {
   clientId: string;
   clientName: string;
   canEdit: boolean;
   canSend: boolean;      // só o responsável do card responde (regra 16/07)
   responsibleName: string | null;
+  /** Assume o card (vira responsável) e libera o composer — sem isso o lead novo
+   *  do número da empresa exige passar pelo seletor de responsável antes de responder. */
+  onAssumir?: () => void | Promise<void>;
   refreshSignal?: number; // incrementa quando o stream SSE avisa mensagem deste cliente
   variant?: 'inline' | 'panel';
 }) {
@@ -4442,10 +4447,23 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
             </div>
           )}
           {available && !canSend && (
-            <p className="text-xs mt-2 rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              Só o responsável pelo card responde esta conversa
-              {responsibleName ? ` (${responsibleName})` : ''}. Para assumir, transfira o responsável para você.
-            </p>
+            <div className="text-xs mt-2 rounded-lg px-2.5 py-2 flex items-center justify-between gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              <span>
+                Só o responsável pelo card responde esta conversa
+                {responsibleName ? ` (${responsibleName})` : ''}.
+                {!onAssumir && ' Para assumir, transfira o responsável para você.'}
+              </span>
+              {onAssumir && (
+                <button
+                  onClick={() => { void onAssumir(); }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
+                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                  title={responsibleName ? `Assumir de ${responsibleName} e responder` : 'Assumir este card e responder'}
+                >
+                  Assumir e responder
+                </button>
+              )}
+            </div>
           )}
           {/* Barra de citação — aparece acima do composer, como no WhatsApp */}
           {available && canSend && replyTo && (
