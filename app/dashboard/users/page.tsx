@@ -7,8 +7,10 @@ import { PermissionGuard } from '@/components/ProtectedRoute';
 import { Plan, UserRole } from '@/types';
 import { apiService } from '@/lib/api';
 
+// ⚠️ Cópia da tabela do backend (src/lib/planLimits.ts). Quem barra de verdade é a API;
+// isto só desabilita o botão antes do 403. Mudou lá, muda aqui.
 const PLAN_USER_LIMITS: Record<Plan, number> = {
-  [Plan.DEMO]:         1,
+  [Plan.DEMO]:         4,
   [Plan.STARTER]:      1,
   [Plan.PROFESSIONAL]: 3,
   [Plan.ENTERPRISE]:   Infinity,

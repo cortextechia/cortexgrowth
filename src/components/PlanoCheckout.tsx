@@ -22,7 +22,7 @@ const CICLO: Record<BillingCycle, string> = {
 const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: string; publico: string; inclui: string[] }> = {
   DEMO: {
     cor: 'var(--plano-demo)', corSuave: 'var(--plano-demo-soft)',
-    chamada: 'Para conhecer a plataforma', publico: '1 usuário · mensal',
+    chamada: 'Para conhecer a plataforma', publico: 'até 4 usuários · mensal',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
   },
   STARTER: {
