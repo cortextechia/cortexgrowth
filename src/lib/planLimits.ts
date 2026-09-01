@@ -15,3 +15,7 @@ export const userLimitOf = (plan?: Plan | null): number =>
   plan ? (PLAN_USER_LIMITS[plan] ?? Infinity) : Infinity;
 
 export const fmtUserLimit = (limit: number): string => (limit === Infinity ? '∞' : String(limit));
+
+// Teto de ADMINs por org — espelho de MAX_ADMINS_POR_ORG do backend.
+// Vale para o autoatendimento; o SUPER_ADMIN passa por cima pela aba Organizações.
+export const MAX_ADMINS_POR_ORG = 2;

@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PermissionGuard } from '@/components/ProtectedRoute';
 import { UserRole } from '@/types';
 import { apiService } from '@/lib/api';
-import { userLimitOf, fmtUserLimit } from '@/lib/planLimits';
+import { userLimitOf, fmtUserLimit, MAX_ADMINS_POR_ORG } from '@/lib/planLimits';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -48,6 +48,8 @@ export default function UsersPage() {
   const { users, isLoading, error, fetchUsers, createUser, deleteUser } = useUsers();
   const userLimit = userLimitOf(organization?.plan);
   const atLimit = userLimit !== Infinity && users.length >= userLimit;
+  // O backend recusa o 3º admin; sem isto a opção ficaria no formulário só para dar erro.
+  const adminsNoLimite = users.filter((u) => u.role === UserRole.ADMIN).length >= MAX_ADMINS_POR_ORG;
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -255,7 +257,11 @@ export default function UsersPage() {
                   style={inputStyle}
                 >
                   <option value="USER">Usuário — acesso ao dashboard</option>
-                  <option value="ADMIN">Admin — gerencia usuários e integrações</option>
+                  <option value="ADMIN" disabled={adminsNoLimite}>
+                    {adminsNoLimite
+                      ? `Admin — limite de ${MAX_ADMINS_POR_ORG} atingido`
+                      : 'Admin — gerencia usuários e integrações'}
+                  </option>
                   <option value="VIEWER">Viewer — somente leitura</option>
                 </select>
               </div>
