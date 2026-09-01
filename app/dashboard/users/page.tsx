@@ -4,17 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { useUsers } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { PermissionGuard } from '@/components/ProtectedRoute';
-import { Plan, UserRole } from '@/types';
+import { UserRole } from '@/types';
 import { apiService } from '@/lib/api';
-
-// ⚠️ Cópia da tabela do backend (src/lib/planLimits.ts). Quem barra de verdade é a API;
-// isto só desabilita o botão antes do 403. Mudou lá, muda aqui.
-const PLAN_USER_LIMITS: Record<Plan, number> = {
-  [Plan.DEMO]:         4,
-  [Plan.STARTER]:      1,
-  [Plan.PROFESSIONAL]: 3,
-  [Plan.ENTERPRISE]:   Infinity,
-};
+import { userLimitOf, fmtUserLimit } from '@/lib/planLimits';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -54,7 +46,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function UsersPage() {
   const { user: currentUser, organization } = useAuth();
   const { users, isLoading, error, fetchUsers, createUser, deleteUser } = useUsers();
-  const userLimit = organization?.plan ? (PLAN_USER_LIMITS[organization.plan] ?? Infinity) : Infinity;
+  const userLimit = userLimitOf(organization?.plan);
   const atLimit = userLimit !== Infinity && users.length >= userLimit;
   const [showForm, setShowForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,7 +156,7 @@ export default function UsersPage() {
             Gerencie os membros da equipe.
             {userLimit !== Infinity && (
               <span className="ml-2 font-medium" style={{ color: atLimit ? 'var(--badge-error-text)' : 'var(--text-muted)' }}>
-                {users.length}/{userLimit} usuários
+                {users.length}/{fmtUserLimit(userLimit)} usuários
               </span>
             )}
           </p>
@@ -173,7 +165,7 @@ export default function UsersPage() {
           <button
             onClick={() => !atLimit && setShowForm(!showForm)}
             disabled={atLimit && !showForm}
-            title={atLimit ? `Limite de ${userLimit} usuário(s) atingido. Faça upgrade do plano.` : undefined}
+            title={atLimit ? `Limite de ${fmtUserLimit(userLimit)} usuário(s) atingido. Faça upgrade do plano.` : undefined}
             className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ backgroundColor: 'var(--accent)' }}
           >
@@ -201,7 +193,7 @@ export default function UsersPage() {
           <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
-          Limite de <strong className="mx-1">{userLimit} usuário(s)</strong> atingido no plano {organization?.plan}. Entre em contato para fazer upgrade.
+          Limite de <strong className="mx-1">{fmtUserLimit(userLimit)} usuário(s)</strong> atingido no plano {organization?.plan}. Entre em contato para fazer upgrade.
         </div>
       )}
 

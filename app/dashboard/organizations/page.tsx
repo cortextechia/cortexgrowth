@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients } from '@/types';
+import { userLimitOf, fmtUserLimit } from '@/lib/planLimits';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -502,7 +503,7 @@ export default function OrganizationsPage() {
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={PLAN_BADGE_STYLE[org.plan]}>{org.plan}</span>
                         <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={STATUS_BADGE_STYLE[org.status]}>{STATUS_LABEL[org.status]}</span>
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{org._count?.users ?? 0} usuários</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{org._count?.users ?? 0}/{fmtUserLimit(userLimitOf(org.plan))} usuários</span>
                       </div>
                       {org.subscriptionEnds && (
                         <p className="text-xs mt-1">
@@ -552,6 +553,7 @@ export default function OrganizationsPage() {
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Plano</th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Status</th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Usuários</th>
+                    <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Integrações</th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Expira em</th>
                     <th className="px-5 py-3 text-left text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>Criada em</th>
                     <th className="px-5 py-3" />
@@ -571,7 +573,12 @@ export default function OrganizationsPage() {
                         <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium" style={STATUS_BADGE_STYLE[org.status]}>{STATUS_LABEL[org.status]}</span>
                       </td>
                       <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>
-                        {org._count?.users ?? 0} / {org._count?.integrations ?? 0} int.
+                        <span style={{ color: (org._count?.users ?? 0) >= userLimitOf(org.plan) ? 'var(--badge-error-text)' : undefined }}>
+                          {org._count?.users ?? 0} / {fmtUserLimit(userLimitOf(org.plan))}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3" style={{ color: 'var(--text-secondary)' }}>
+                        {org._count?.integrations ?? 0}
                       </td>
                       <td className="px-5 py-3 text-sm">
                         <SubscriptionEndsCell value={org.subscriptionEnds} />
@@ -762,7 +769,10 @@ export default function OrganizationsPage() {
       )}
 
       {/* Users Modal */}
-      {usersModal && (
+      {usersModal && (() => {
+      const modalLimit = userLimitOf(usersModal.org.plan);
+      const modalAtLimit = usersModal.users.length >= modalLimit;
+      return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div
             className="w-full max-w-lg rounded-2xl shadow-xl flex flex-col max-h-[85vh]"
@@ -888,11 +898,15 @@ export default function OrganizationsPage() {
             </div>
 
             <div className="px-6 py-4 flex justify-between items-center" style={{ borderTop: '1px solid var(--border)' }}>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{usersModal.users.length} usuário(s)</span>
+              <span className="text-xs" style={{ color: modalAtLimit ? 'var(--badge-error-text)' : 'var(--text-muted)' }}>
+                {usersModal.users.length} de {fmtUserLimit(modalLimit)} usuário(s) — plano {usersModal.org.plan}
+              </span>
               {!usersModal.showCreate && (
                 <button
-                  onClick={() => setUsersModal((p) => p ? { ...p, showCreate: true } : p)}
-                  className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-80"
+                  onClick={() => !modalAtLimit && setUsersModal((p) => p ? { ...p, showCreate: true } : p)}
+                  disabled={modalAtLimit}
+                  title={modalAtLimit ? `Limite de ${fmtUserLimit(modalLimit)} usuário(s) do plano ${usersModal.org.plan} atingido.` : undefined}
+                  className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ backgroundColor: 'var(--accent)' }}
                 >
                   + Adicionar usuário
@@ -901,7 +915,8 @@ export default function OrganizationsPage() {
             </div>
           </div>
         </div>
-      )}
+      );
+      })()}
       </> }
 
       {/* ===== ABA: GESTORES DE TRÁFEGO ===== */}
