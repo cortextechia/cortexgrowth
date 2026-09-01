@@ -1112,6 +1112,10 @@ export interface CrmWaStatus {
   connected: boolean;
   phone?: string;
   stale?: boolean; // Evolution fora do ar — último estado conhecido
+  /** Os dois modos são exclusivos: preenchido quando o OUTRO modo impede este.
+   *  'org' = a empresa usa número único · 'individual' = há número de vendedor. */
+  blockedBy?: 'org' | 'individual';
+  blockedNames?: string[];
 }
 
 export type CrmWaMediaType = 'image' | 'video' | 'audio' | 'document' | 'sticker';

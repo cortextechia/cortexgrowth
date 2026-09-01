@@ -3595,6 +3595,10 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
 
   const connected = waStatus?.connected ?? false;
   const orgConectado = orgStatus?.connected ?? false;
+  // Modos exclusivos: o backend recusa com 409, então a tela desabilita antes e diz o motivo
+  const orgBloqueado = !orgConectado && orgStatus?.blockedBy === 'individual';
+  const meuBloqueado = !connected && waStatus?.blockedBy === 'org';
+  const quemTrava = orgStatus?.blockedNames ?? [];
 
   return (
     <>
@@ -3660,12 +3664,15 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {connected
                         ? `Conectado${waStatus?.phone ? ` como ${fmtPhone(waStatus.phone)}` : ''} — seus cards são respondidos por ele.`
-                        : 'Não conectado. Contato novo vira card atribuído a você.'}
+                        : meuBloqueado
+                          ? 'A empresa atende por um número único. Peça a um administrador para desconectá-lo antes de conectar o seu.'
+                          : 'Não conectado. Contato novo vira card atribuído a você.'}
                     </p>
                   </div>
                   <button
                     onClick={() => (connected ? handleDisconnect('user') : iniciarPareamento('user'))}
-                    disabled={working}
+                    disabled={working || meuBloqueado}
+                    title={meuBloqueado ? 'A empresa usa um número único' : undefined}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
                     style={connected
                       ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
@@ -3684,13 +3691,16 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
                     <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
                       {orgConectado
                         ? `Conectado${orgStatus?.phone ? ` (${fmtPhone(orgStatus.phone)})` : ''} — atende quem não tem número próprio.`
-                        : 'Não conectado. Um número só para a equipe inteira: quem atende muda trocando o responsável do card.'}
+                        : orgBloqueado
+                          ? `Desconecte primeiro o WhatsApp de ${quemTrava.slice(0, 3).join(', ')}${quemTrava.length > 3 ? ` e mais ${quemTrava.length - 3}` : ''} — é um número único OU números por vendedor, nunca os dois.`
+                          : 'Não conectado. Um número só para a equipe inteira: quem atende muda trocando o responsável do card.'}
                     </p>
                   </div>
                   {podeGerirOrg ? (
                     <button
                       onClick={() => (orgConectado ? handleDisconnect('org') : iniciarPareamento('org'))}
-                      disabled={working}
+                      disabled={working || orgBloqueado}
+                      title={orgBloqueado ? 'Desconecte os números individuais antes' : undefined}
                       className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
                       style={orgConectado
                         ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
