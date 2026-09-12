@@ -1084,6 +1084,23 @@ export interface CrmTask {
   createdAt: string;
 }
 
+/**
+ * Mensagem individual agendada no card. É um CrmBroadcast com targetClientId
+ * preenchido — mesmo motor de envio dos disparos em massa, alvo único.
+ */
+export interface CardMessage {
+  id: string;
+  message: string;
+  status: 'SCHEDULED' | 'QUEUED' | 'SENDING' | 'DONE' | 'CANCELED';
+  scheduledAt: string | null;
+  sentCount: number;
+  failedCount: number;
+  skippedCount: number;
+  createdAt: string;
+  finishedAt: string | null;
+  recipients?: { status: string; error: string | null; sentAt: string | null }[];
+}
+
 export interface CrmReport {
   period: { months: number; since: string };
   totals: {

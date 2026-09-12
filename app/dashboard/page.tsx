@@ -1001,6 +1001,10 @@ export default function DashboardPage() {
 
   const TOPO_KPI_OPTIONS = [
     { key: 'reach',        label: 'Alcance (Meta)'       },
+    { key: 'reach_google', label: 'Alcance (Google)'      },
+    { key: 'ig_visits',    label: 'Visitas ao perfil IG'  },
+    { key: 'resultado',    label: 'Resultado (Meta)'      },
+    { key: 'custo_result', label: 'Custo por resultado'   },
     { key: 'frequency',    label: 'Frequência (Meta)'     },
     { key: 'conv_meta',    label: 'Conversões Meta'       },
     { key: 'conv_google',  label: 'Conversões Google'     },
@@ -1215,14 +1219,36 @@ export default function DashboardPage() {
     const totalImpr    = metaImpr + googleImpr;
     const totalClicks  = metaClicks + googleClicks;
     const reach        = mktMetaCur.reduce((s, d) => s + (d.reach ?? 0), 0);
+    const reachGoogle  = mktGoogleCur.reduce((s, d) => s + (d.uniqueUsers ?? 0), 0);
     const frequency    = reach > 0 ? metaImpr / reach : null;
+    const igVisits     = mktMetaCur.reduce((s, d) => s + (d.igProfileVisits ?? 0), 0);
     const metaConv     = mktMetaCur.reduce((s, d) => s + (d.conversions ?? 0), 0);
     const googleConv   = mktGoogleCur.reduce((s, d) => s + (d.conversions ?? 0), 0);
     const totalConv    = metaConv + googleConv;
+
+    // "Resultado" da Meta: o tipo predominante no período, NUNCA a soma dos três
+    // (compra e conversa iniciada não são a mesma unidade). A classificação vem do
+    // backend (lib/metaResults.ts); aqui só somamos por tipo e escolhemos o maior.
+    const rb = mktMetaCur.reduce(
+      (acc, d) => ({
+        compras:   acc.compras   + (d.resultBreakdown?.compras   ?? 0),
+        leads:     acc.leads     + (d.resultBreakdown?.leads     ?? 0),
+        conversas: acc.conversas + (d.resultBreakdown?.conversas ?? 0),
+      }),
+      { compras: 0, leads: 0, conversas: 0 },
+    );
+    const RESULT_LABELS: [keyof typeof rb, string][] = [['compras', 'compras'], ['leads', 'leads'], ['conversas', 'conversas iniciadas']];
+    const melhorResultado = RESULT_LABELS
+      .map(([k, label]) => ({ label, count: rb[k] }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count)[0] ?? null;
+
     const metaLeads    = kommoCur.filter((l) => l.utmSource === 'meta').length;
     const googleLeads  = kommoCur.filter((l) => l.utmSource === 'google').length;
     return {
-      reach, frequency,
+      reach, reachGoogle, frequency, igVisits,
+      resultado: melhorResultado,
+      custoResultado: melhorResultado && melhorResultado.count > 0 ? metaSpend / melhorResultado.count : null,
       metaConv, googleConv, totalConv,
       cpa:       totalConv  > 0 ? totalSpend  / totalConv   : null,
       cpm:       totalImpr  > 0 ? (totalSpend / totalImpr)  * 1000 : null,
@@ -1949,7 +1975,19 @@ export default function DashboardPage() {
           {visibleTopoKpis.length > 0 && (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
               {visibleTopoKpis.includes('reach') && (
-                <BottomKpiCard title="Alcance" value={topoKpis.reach > 0 ? fmtNum(topoKpis.reach) : '—'} sub="Pessoas únicas · Meta Ads" accent={PLATFORM_COLORS.Meta.text} info="Número de pessoas únicas que viram pelo menos um anúncio no período. Disponível apenas para Meta Ads." />
+                <BottomKpiCard title="Alcance (Meta)" value={topoKpis.reach > 0 ? fmtNum(topoKpis.reach) : '—'} sub="Soma do alcance diário · Meta" accent={PLATFORM_COLORS.Meta.text} info="Soma do alcance de cada dia do período. Atenção: quem viu o anúncio em dois dias diferentes conta duas vezes — a Meta só remove a duplicidade dentro de um mesmo dia. Portanto é um TETO do número de pessoas, não o número exato." />
+              )}
+              {visibleTopoKpis.includes('reach_google') && (
+                <BottomKpiCard title="Alcance (Google)" value={topoKpis.reachGoogle > 0 ? fmtNum(topoKpis.reachGoogle) : '—'} sub="Soma do alcance diário · Google" accent={PLATFORM_COLORS.Google.text} info="Usuários únicos alcançados (metrics.unique_users do Google Ads), somando cada dia do período. Mesma ressalva do Meta: a mesma pessoa em dois dias conta duas vezes, então é um teto. Campanha sem impressão no período não reporta alcance." />
+              )}
+              {visibleTopoKpis.includes('ig_visits') && (
+                <BottomKpiCard title="Visitas ao perfil IG" value={topoKpis.igVisits > 0 ? fmtNum(topoKpis.igVisits) : '—'} sub="Vindas dos anúncios · Meta" accent={PLATFORM_COLORS.Meta.text} info="Quantas vezes alguém abriu seu perfil do Instagram depois de interagir com um anúncio, dentro da janela de atribuição da conta. Não inclui visitas orgânicas (quem achou seu perfil pela busca ou por indicação) — a Meta descontinuou essa métrica orgânica em 2025." />
+              )}
+              {visibleTopoKpis.includes('resultado') && (
+                <BottomKpiCard title="Resultado (Meta)" value={topoKpis.resultado ? fmtNum(Math.round(topoKpis.resultado.count)) : '—'} sub={topoKpis.resultado ? topoKpis.resultado.label : 'Meta não reportou resultado'} accent={PLATFORM_COLORS.Meta.text} info="A ação que suas campanhas perseguem, do jeito que a Meta conta (compras, leads ou conversas iniciadas). Mostra só o tipo predominante no período: somar compras com conversas daria um número sem significado. Quando aparece '—', a Meta não reportou resultado — não significa zero." />
+              )}
+              {visibleTopoKpis.includes('custo_result') && (
+                <BottomKpiCard title="Custo por resultado" value={topoKpis.custoResultado != null ? fmtMoney(topoKpis.custoResultado) : '—'} sub={topoKpis.resultado ? `${fmtNum(Math.round(topoKpis.resultado.count))} ${topoKpis.resultado.label}` : 'Sem resultado reportado'} accent={PLATFORM_COLORS.Meta.text} info="Gasto no Meta ÷ resultados do tipo predominante. É o equivalente à coluna 'Custo por resultado' do Gerenciador de Anúncios. Só considera Meta, porque o Google conta conversões por outra régua." />
               )}
               {visibleTopoKpis.includes('frequency') && (
                 <BottomKpiCard title="Frequência" value={topoKpis.frequency != null ? topoKpis.frequency.toFixed(1).replace('.', ',') : '—'} sub="Impressões ÷ Alcance · Meta" accent={topoKpis.frequency != null && topoKpis.frequency > 3 ? 'var(--badge-warn-text)' : PLATFORM_COLORS.Meta.text} info="Média de vezes que cada pessoa viu seus anúncios. Acima de 3–4 costuma indicar fadiga criativa — hora de renovar os criativos." />

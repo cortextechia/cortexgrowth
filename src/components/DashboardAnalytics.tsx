@@ -17,7 +17,15 @@ export interface MetaInsight {
   clicks: number;
   spend: number;
   reach?: number;
+  /** instagram_profile_visits da Insights API — campo de topo, não action_type. */
+  igProfileVisits?: number;
   conversions?: number;
+  /**
+   * Resultado da Meta por tipo, calculado no backend (lib/metaResults.ts — ponto único
+   * compartilhado com o relatório de IA). Vem por LINHA para ser somável no período.
+   * Os três NUNCA se somam entre si: compra e conversa não são a mesma unidade.
+   */
+  resultBreakdown?: { compras: number; leads: number; conversas: number };
   organizationId: string;
 }
 
@@ -29,6 +37,8 @@ export interface GoogleAdsMetric {
   clicks: number;
   cost: number;
   conversions?: number;
+  /** metrics.unique_users — alcance do Google (dedup só dentro do dia). */
+  uniqueUsers?: number;
   organizationId: string;
 }
 

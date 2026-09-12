@@ -1210,6 +1210,25 @@ class ApiService {
     return response.data;
   }
 
+  // ─── CRM — Mensagem individual agendada no card ─────────────────────────────
+  // Motor é o mesmo dos Disparos (CrmBroadcast + dispatcher do cron); aqui o alvo
+  // é um cliente só. scheduledAt vazio = entra na fila para sair agora.
+
+  async getCardMessages(clientId: string): Promise<{ success: boolean; data: import('@/types').CardMessage[] }> {
+    const response = await this.client.get(`/crm/clients/${clientId}/messages-agendadas`);
+    return response.data;
+  }
+
+  async createCardMessage(clientId: string, data: { message: string; scheduledAt?: string | null }): Promise<{ success: boolean; message: string; data: import('@/types').CardMessage }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/messages-agendadas`, data);
+    return response.data;
+  }
+
+  async cancelCardMessage(clientId: string, messageId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/crm/clients/${clientId}/messages-agendadas/${messageId}`);
+    return response.data;
+  }
+
   // ─── CRM — Relatório e export ───────────────────────────────────────────────
 
   async getCrmReport(months?: number): Promise<{ success: boolean; data: import('@/types').CrmReport }> {

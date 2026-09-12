@@ -11,7 +11,7 @@ import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
-  CrmTask, CrmTaskType, CrmReport, CrmEvent,
+  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -2526,6 +2526,206 @@ function CityField({ city, state, onSave }: {
   );
 }
 
+// ─── Mensagem individual agendada no card ─────────────────────────────────────
+// Pedido do Ruan (11/09). O envio sai pelo mesmo motor dos Disparos em massa
+// (CrmBroadcast + dispatcher do cron, com o espaçamento anti-ban), mas com alvo
+// único. Busca o próprio dado: é uma seção autocontida, não precisa subir estado
+// para o drawer (que já tem props de sobra).
+const CARD_MSG_STATUS: Record<string, { label: string; tone: 'warn' | 'success' | 'error' | 'muted' }> = {
+  SCHEDULED: { label: 'Agendada',  tone: 'warn'    },
+  QUEUED:    { label: 'Na fila',   tone: 'warn'    },
+  SENDING:   { label: 'Enviando',  tone: 'warn'    },
+  DONE:      { label: 'Enviada',   tone: 'success' },
+  CANCELED:  { label: 'Cancelada', tone: 'muted'   },
+};
+
+function DrawerScheduledMessages({ clientId, clientName, refreshKey }: {
+  clientId: string;
+  clientName: string;
+  refreshKey: number;
+}) {
+  const [messages, setMessages] = useState<CardMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [composing, setComposing] = useState(false);
+  const [text, setText] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('09:00');
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await apiService.getCardMessages(clientId);
+      setMessages(res.data ?? []);
+    } catch {
+      // Falha ao listar não pode derrubar o card inteiro — a seção só fica vazia.
+      setMessages([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => { void load(); }, [load, refreshKey]);
+
+  const submit = async (agora: boolean) => {
+    const msg = text.trim();
+    if (!msg) return;
+    // Data sem hora não existe aqui: mensagem tem hora de saída, diferente de
+    // tarefa/follow-up (que valem "até o fim do dia").
+    if (!agora && !date) { setErro('Escolha a data do agendamento.'); return; }
+    setSaving(true);
+    setErro(null);
+    try {
+      await apiService.createCardMessage(clientId, {
+        message: msg,
+        scheduledAt: agora ? null : new Date(`${date}T${time}:00`).toISOString(),
+      });
+      setText('');
+      setDate('');
+      setComposing(false);
+      await load();
+    } catch (e: unknown) {
+      const resp = (e as { response?: { data?: { message?: string } } }).response;
+      setErro(resp?.data?.message ?? 'Não foi possível agendar a mensagem.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancel = async (messageId: string) => {
+    try {
+      await apiService.cancelCardMessage(clientId, messageId);
+      await load();
+    } catch (e: unknown) {
+      const resp = (e as { response?: { data?: { message?: string } } }).response;
+      setErro(resp?.data?.message ?? 'Não foi possível cancelar.');
+    }
+  };
+
+  const pendentes = messages.filter((m) => ['SCHEDULED', 'QUEUED', 'SENDING'].includes(m.status));
+
+  return (
+    <div className="mt-6">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          Mensagens agendadas{pendentes.length > 0 ? ` (${pendentes.length})` : ''}
+        </h3>
+        <button
+          onClick={() => { setComposing((v) => !v); setErro(null); }}
+          className="text-xs px-2.5 py-1.5 rounded-md font-medium"
+          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+        >
+          {composing ? 'Cancelar' : '+ Agendar mensagem'}
+        </button>
+      </div>
+
+      {composing && (
+        <div className="rounded-lg p-2.5 mb-2 space-y-2" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+          <textarea
+            autoFocus
+            rows={3}
+            className="rounded-md px-2.5 py-1.5 text-sm w-full resize-y"
+            style={input}
+            maxLength={4000}
+            placeholder={`Mensagem para ${clientName.split(' ')[0]}… use {nome} para o primeiro nome`}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="date"
+              className="rounded-md px-2 py-1.5 text-sm"
+              style={input}
+              value={date}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <input
+              type="time"
+              className="rounded-md px-2 py-1.5 text-sm"
+              style={input}
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+            <span className="flex-1" />
+            <button
+              onClick={() => void submit(true)}
+              disabled={saving || !text.trim()}
+              className="text-xs px-3 py-1.5 rounded-md font-medium disabled:opacity-60"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+              title="Entra na fila de envio agora (respeita o espaçamento anti-ban)"
+            >
+              Enviar agora
+            </button>
+            <button
+              onClick={() => void submit(false)}
+              disabled={saving || !text.trim() || !date}
+              className="text-xs px-3 py-1.5 rounded-md font-medium text-white disabled:opacity-60"
+              style={{ backgroundColor: 'var(--accent)' }}
+            >
+              {saving ? '...' : 'Agendar'}
+            </button>
+          </div>
+          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+            Sai pelo WhatsApp do responsável do card (ou pelo número da empresa, quando houver).
+          </p>
+        </div>
+      )}
+
+      {erro && (
+        <p className="text-xs mb-2 px-2 py-1.5 rounded-md" style={{ color: 'var(--badge-error-text)', backgroundColor: 'var(--badge-error-bg)' }}>
+          {erro}
+        </p>
+      )}
+
+      {loading ? (
+        <p className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>Carregando…</p>
+      ) : messages.length === 0 ? (
+        !composing && <p className="text-xs py-1" style={{ color: 'var(--text-muted)' }}>Nenhuma mensagem agendada.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {messages.map((m) => {
+            const st = CARD_MSG_STATUS[m.status] ?? { label: m.status, tone: 'muted' as const };
+            const cor =
+              st.tone === 'success' ? 'var(--badge-success-text)'
+              : st.tone === 'warn' ? 'var(--badge-warn-text)'
+              : st.tone === 'error' ? 'var(--badge-error-text)'
+              : 'var(--text-muted)';
+            const falhou = m.failedCount > 0 || m.skippedCount > 0;
+            const erroEnvio = m.recipients?.find((r: { error: string | null }) => r.error)?.error ?? null;
+            const cancelavel = ['SCHEDULED', 'QUEUED'].includes(m.status);
+            return (
+              <div key={m.id} className="rounded-md px-2.5 py-2 text-xs" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.message}</p>
+                    <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: cor, fontWeight: 600 }}>{st.label}</span>
+                      {m.scheduledAt && ` · ${new Date(m.scheduledAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+                      {m.status === 'DONE' && m.sentCount > 0 && ' · entregue ao WhatsApp'}
+                      {falhou && erroEnvio && ` · ${erroEnvio}`}
+                    </p>
+                  </div>
+                  {cancelavel && (
+                    <button
+                      onClick={() => void cancel(m.id)}
+                      className="shrink-0 px-2 py-1 rounded-md"
+                      style={{ color: 'var(--badge-error-text)', border: '1px solid var(--border)' }}
+                      title="Cancelar esta mensagem"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Follow-up do card: data agendada com atalhos (padrão "Próximo agendamento" do
 // Kommo). Guarda 23:59 local do dia escolhido — só vence quando o dia passa.
 function FollowUpField({ value, onSave }: {
@@ -3203,6 +3403,13 @@ function ClientDrawer(props: {
               onAdd={props.onAddTask}
               onToggle={props.onToggleTask}
               onDelete={props.onDeleteTask}
+            />
+
+            {/* Mensagens agendadas deste contato (motor dos Disparos, alvo único) */}
+            <DrawerScheduledMessages
+              clientId={detail.id}
+              clientName={detail.name}
+              refreshKey={waRefresh}
             />
 
             {/* Vendas */}
