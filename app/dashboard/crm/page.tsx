@@ -63,14 +63,20 @@ const EVENT_LABELS: Record<string, string> = {
   FOLLOWUP_CLEARED: 'Follow-up removido',
   TASK_CREATED: 'Tarefa criada',
   TASK_DONE: 'Tarefa concluída',
+  WA_SENT_ON_BEHALF: 'Mensagem enviada pelo WhatsApp de',
 };
 
 // Evento de tarefa carrega o nome que a pessoa deu (payload.title) — sem ele o
 // histórico só dizia "Tarefa concluída", sem qual.
-const eventTitle = (e: CrmEvent): string =>
-  (e.type === 'TASK_CREATED' || e.type === 'TASK_DONE') && typeof e.payload.title === 'string'
+const eventTitle = (e: CrmEvent): string => {
+  if (e.type === 'WA_SENT_ON_BEHALF') {
+    const nome = typeof e.payload.responsibleName === 'string' ? e.payload.responsibleName : 'outro vendedor';
+    return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : ''}`;
+  }
+  return (e.type === 'TASK_CREATED' || e.type === 'TASK_DONE') && typeof e.payload.title === 'string'
     ? `: ${e.payload.title}`
     : '';
+};
 
 const TASK_TYPE_OPTIONS: { key: CrmTaskType; label: string; icon: string }[] = [
   { key: 'LIGAR',    label: 'Ligar',    icon: '📞' },
@@ -1608,6 +1614,7 @@ export default function CrmPage() {
           clientTypes={clientTypes}
           crmTags={crmTags}
           isAdmin={isAdmin}
+          canSendOnBehalf={WA_ORG_ROLES.includes(user?.role ?? '')}
           currentUserId={user?.id ?? null}
           liveSignal={waSignal}
           orgUsers={orgUsers}
@@ -2799,6 +2806,7 @@ function ClientDrawer(props: {
   clientTypes: CrmClientTypeOption[];
   crmTags: CrmTagOption[];
   isAdmin: boolean;
+  canSendOnBehalf: boolean; // ADMIN/SUPER_ADMIN respondem card alheio pelo número do responsável
   currentUserId: string | null;
   liveSignal: { clientId: string; seq: number } | null;
   orgUsers: User[];
@@ -3651,7 +3659,8 @@ function ClientDrawer(props: {
                 clientId={detail.id}
                 clientName={detail.name}
                 canEdit={isAdmin}
-                canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
+                canSend={detail.responsibleId !== null && (detail.responsibleId === props.currentUserId || props.canSendOnBehalf)}
+                sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
                 onAssumir={() => props.onTransfer(props.currentUserId)}
                 refreshSignal={waRefresh}
@@ -3679,7 +3688,8 @@ function ClientDrawer(props: {
                 clientId={detail.id}
                 clientName={detail.name}
                 canEdit={isAdmin}
-                canSend={detail.responsibleId !== null && detail.responsibleId === props.currentUserId}
+                canSend={detail.responsibleId !== null && (detail.responsibleId === props.currentUserId || props.canSendOnBehalf)}
+                sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
                 onAssumir={() => props.onTransfer(props.currentUserId)}
                 refreshSignal={waRefresh}
@@ -3697,8 +3707,8 @@ function ClientDrawer(props: {
 
 // ─── WhatsApp do vendedor ─────────────────────────────────────────────────────
 
-// Só ADMIN/SUPER_ADMIN conectam o número da organização — TRAFFIC_MANAGER está
-// no ADMIN_ROLES da página mas o backend recusa, então teria botão dando 403.
+// Só ADMIN/SUPER_ADMIN conectam o número da organização e respondem card alheio —
+// TRAFFIC_MANAGER está no ADMIN_ROLES da página mas o backend recusa (403).
 const WA_ORG_ROLES = ['ADMIN', 'SUPER_ADMIN'];
 
 function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'error', msg: string) => void }) {
@@ -4313,11 +4323,12 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
   );
 }
 
-function WaConversation({ clientId, clientName, canEdit, canSend, responsibleName, onAssumir, refreshSignal = 0, variant = 'inline' }: {
+function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehalf = false, responsibleName, onAssumir, refreshSignal = 0, variant = 'inline' }: {
   clientId: string;
   clientName: string;
   canEdit: boolean;
-  canSend: boolean;      // só o responsável do card responde (regra 16/07)
+  canSend: boolean;      // responsável do card, ou admin em nome dele (17/09)
+  sendingOnBehalf?: boolean; // envio sai pelo número do responsável, não do usuário logado
   responsibleName: string | null;
   /** Assume o card (vira responsável) e libera o composer — sem isso o lead novo
    *  do número da empresa exige passar pelo seletor de responsável antes de responder. */
@@ -4683,6 +4694,11 @@ function WaConversation({ clientId, clientName, canEdit, canSend, responsibleNam
             </div>
           )}
           {/* Barra de citação — aparece acima do composer, como no WhatsApp */}
+          {available && canSend && sendingOnBehalf && (
+            <div className="text-xs mt-2 rounded-lg px-2.5 py-1.5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+              Você está respondendo pelo WhatsApp de {responsibleName ?? 'outro vendedor'}. O cliente recebe como se fosse dele; fica registrado no histórico do card.
+            </div>
+          )}
           {available && canSend && replyTo && (
             <div
               className="mt-2 flex items-start gap-2 rounded-lg px-2.5 py-1.5"
