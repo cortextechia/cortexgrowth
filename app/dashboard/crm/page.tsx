@@ -64,6 +64,8 @@ const EVENT_LABELS: Record<string, string> = {
   TASK_CREATED: 'Tarefa criada',
   TASK_DONE: 'Tarefa concluída',
   WA_SENT_ON_BEHALF: 'Mensagem enviada pelo WhatsApp de',
+  AUTO_MESSAGE_QUEUED: 'Mensagem automática na fila',
+  AUTO_MESSAGE_SKIPPED: 'Mensagem automática não enviada',
 };
 
 // Evento de tarefa carrega o nome que a pessoa deu (payload.title) — sem ele o
@@ -73,6 +75,7 @@ const eventTitle = (e: CrmEvent): string => {
     const nome = typeof e.payload.responsibleName === 'string' ? e.payload.responsibleName : 'outro vendedor';
     return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : ''}`;
   }
+  if (e.type === 'AUTO_MESSAGE_SKIPPED' && typeof e.payload.reason === 'string') return `: ${e.payload.reason}`;
   return (e.type === 'TASK_CREATED' || e.type === 'TASK_DONE') && typeof e.payload.title === 'string'
     ? `: ${e.payload.title}`
     : '';
@@ -2708,6 +2711,7 @@ function DrawerScheduledMessages({ clientId, clientName, refreshKey }: {
                     <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.message}</p>
                     <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>
                       <span style={{ color: cor, fontWeight: 600 }}>{st.label}</span>
+                      {m.automation && ` · automação "${m.automation.name}"`}
                       {m.scheduledAt && ` · ${new Date(m.scheduledAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
                       {m.status === 'DONE' && m.sentCount > 0 && ' · entregue ao WhatsApp'}
                       {falhou && erroEnvio && ` · ${erroEnvio}`}

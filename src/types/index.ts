@@ -880,14 +880,15 @@ export interface CrmStage {
 }
 
 // ── Automações do CRM ──────────────────────────────────────────────────────
-// As ações só mexem no ESTADO do card. Enviar mensagem é o módulo de disparos,
-// que tem freio anti-ban próprio — os dois não se misturam.
+// As ações mexem no ESTADO do card. A exceção é SEND_MESSAGE, que não envia
+// sozinha: põe a mensagem na mesma fila dos disparos (freio anti-ban) e só vale
+// em NEW_LEAD e LEAD_SILENT.
 export type CrmAutomationTrigger =
-  | 'NEW_LEAD' | 'STAGE_ENTERED' | 'STAGE_IDLE' | 'NO_REPLY' | 'SALE_WON' | 'SALE_LOST';
+  | 'NEW_LEAD' | 'STAGE_ENTERED' | 'STAGE_IDLE' | 'NO_REPLY' | 'LEAD_SILENT' | 'SALE_WON' | 'SALE_LOST';
 
 export type CrmAutomationStepType =
   | 'MOVE_STAGE' | 'ASSIGN' | 'ADD_TAG' | 'CREATE_TASK'
-  | 'SET_FOLLOWUP' | 'ADD_NOTE' | 'DISCARD' | 'WAIT';
+  | 'SET_FOLLOWUP' | 'ADD_NOTE' | 'DISCARD' | 'WAIT' | 'SEND_MESSAGE';
 
 export interface CrmAutomationStep {
   type: CrmAutomationStepType;
@@ -901,6 +902,8 @@ export interface CrmAutomationStep {
   days?: number;
   text?: string;
   reason?: string;
+  /** SEND_MESSAGE: aceita {nome} e {vendedor}. */
+  message?: string;
 }
 
 export interface CrmAutomation {
@@ -908,7 +911,7 @@ export interface CrmAutomation {
   name: string;
   enabled: boolean;
   triggerType: CrmAutomationTrigger;
-  triggerConfig: { stageId?: string; days?: number; hours?: number; reason?: string };
+  triggerConfig: { stageId?: string; days?: number; hours?: number; reason?: string; includeReturning?: boolean };
   steps: CrmAutomationStep[];
   stopOnReply: boolean;
   runCount: number;
@@ -1099,6 +1102,8 @@ export interface CardMessage {
   createdAt: string;
   finishedAt: string | null;
   recipients?: { status: string; error: string | null; sentAt: string | null }[];
+  /** Preenchido quando quem pôs a mensagem na fila foi uma automação. */
+  automation?: { name: string } | null;
 }
 
 export interface CrmReport {

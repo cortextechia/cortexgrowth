@@ -6,9 +6,9 @@
 // tráfego e dono de loja, não engenheiro — "quando isto, faça aquilo" numa
 // coluna só é o que eles leem sem treinamento.
 //
-// As ações só mexem no estado do card (mover, atribuir, tag, tarefa, follow-up,
-// descartar). Enviar mensagem é o módulo de Disparos, que tem freio anti-ban
-// próprio — juntar os dois exigiria uma fila única de saída por instância.
+// As ações mexem no estado do card (mover, atribuir, tag, tarefa, follow-up,
+// descartar). A exceção é "Enviar mensagem": ela põe a mensagem na mesma fila
+// dos Disparos (freio anti-ban) e só vale em "Lead novo" e "Lead não respondeu".
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -39,6 +39,8 @@ const ICON: Record<string, string> = {
   grip:  'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
   x:     'M6 6l12 12M18 6L6 18',
   bolt:  'M13 3L5 14h6l-1 7 8-11h-6z',
+  send:  'M21 3L10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z',
+  quiet: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12zM9 12h.01M12 12h.01M15 12h.01',
 };
 const CIRCLED = new Set(['plus', 'clock', 'check', 'cross', 'ban']);
 
@@ -65,6 +67,7 @@ const BLOCKS: Record<string, BlockDef> = {
   STAGE_ENTERED: { kind: 'trigger', icon: 'arrow', label: 'Entrou numa etapa',    color: 'var(--auto-blue)' },
   STAGE_IDLE:    { kind: 'trigger', icon: 'clock', label: 'Parado numa etapa',    color: 'var(--auto-amber)' },
   NO_REPLY:      { kind: 'trigger', icon: 'mute',  label: 'Sem resposta',         color: 'var(--auto-rose)' },
+  LEAD_SILENT:   { kind: 'trigger', icon: 'quiet', label: 'Lead não respondeu',   color: 'var(--auto-amber)' },
   SALE_WON:      { kind: 'trigger', icon: 'check', label: 'Venda ganha',          color: 'var(--auto-green)' },
   SALE_LOST:     { kind: 'trigger', icon: 'cross', label: 'Venda perdida',        color: 'var(--auto-red)' },
 
@@ -75,13 +78,17 @@ const BLOCKS: Record<string, BlockDef> = {
   SET_FOLLOWUP:  { kind: 'action',  icon: 'cal',   label: 'Marcar follow-up',     color: 'var(--auto-cyan)' },
   ADD_NOTE:      { kind: 'action',  icon: 'note',  label: 'Registrar nota',       color: 'var(--auto-slate)' },
   DISCARD:       { kind: 'action',  icon: 'ban',   label: 'Descartar lead',       color: 'var(--auto-red)' },
+  SEND_MESSAGE:  { kind: 'action',  icon: 'send',  label: 'Enviar mensagem',      color: 'var(--auto-green)' },
 
   WAIT:          { kind: 'control', icon: 'hour',  label: 'Esperar',              color: 'var(--auto-purple)' },
 };
 const KIND_LABEL: Record<Kind, string> = { trigger: 'QUANDO', action: 'FAÇA', control: 'CONTROLE' };
 
-const TRIGGER_IDS: CrmAutomationTrigger[] = ['NEW_LEAD', 'STAGE_ENTERED', 'STAGE_IDLE', 'NO_REPLY', 'SALE_WON', 'SALE_LOST'];
-const ACTION_IDS: CrmAutomationStepType[] = ['MOVE_STAGE', 'ASSIGN', 'ADD_TAG', 'CREATE_TASK', 'SET_FOLLOWUP', 'ADD_NOTE', 'DISCARD'];
+const TRIGGER_IDS: CrmAutomationTrigger[] = ['NEW_LEAD', 'STAGE_ENTERED', 'STAGE_IDLE', 'NO_REPLY', 'LEAD_SILENT', 'SALE_WON', 'SALE_LOST'];
+const ACTION_IDS: CrmAutomationStepType[] = ['SEND_MESSAGE', 'MOVE_STAGE', 'ASSIGN', 'ADD_TAG', 'CREATE_TASK', 'SET_FOLLOWUP', 'ADD_NOTE', 'DISCARD'];
+// Mesma regra do backend: nos outros gatilhos o robô falaria no meio de uma
+// conversa que um vendedor está tocando.
+const MESSAGE_TRIGGERS: CrmAutomationTrigger[] = ['NEW_LEAD', 'LEAD_SILENT'];
 
 // ── Receitas prontas ───────────────────────────────────────────────────────
 
@@ -94,6 +101,26 @@ interface Receita {
 }
 
 const RECEITAS: Receita[] = [
+  {
+    nome: 'Boas-vindas no WhatsApp',
+    descricao: 'Quem chega (ou volta a falar) recebe resposta na hora, com o nome do vendedor que vai atender.',
+    trigger: 'NEW_LEAD',
+    cfg: () => ({ includeReturning: true }),
+    steps: () => [
+      { type: 'ASSIGN', mode: 'ROUND_ROBIN' },
+      { type: 'SEND_MESSAGE', message: 'Oi {nome}, aqui é {vendedor}! Recebi sua mensagem e já te respondo.' },
+      { type: 'CREATE_TASK', title: 'Atender lead', dueInDays: 0, taskType: 'WHATSAPP' },
+    ],
+  },
+  {
+    nome: 'Cobrança de lead que sumiu',
+    descricao: 'Lead não respondeu em 24h: uma mensagem de retomada, uma vez só até ele voltar a falar.',
+    trigger: 'LEAD_SILENT',
+    cfg: () => ({ hours: 24 }),
+    steps: () => [
+      { type: 'SEND_MESSAGE', message: 'Oi {nome}, conseguiu ver minha mensagem? Fico à disposição.' },
+    ],
+  },
   {
     nome: 'Esfriamento automático',
     descricao: 'Card parado no meio do funil sai da frente do vendedor e vira tarefa de resgate.',
@@ -292,8 +319,9 @@ export default function AutomacoesPage() {
         <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Automações do CRM</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)', maxWidth: '78ch' }}>
           O CRM faz sozinho o que hoje depende de alguém lembrar: mover card parado, distribuir lead novo,
-          cobrar follow-up. <b style={{ color: 'var(--text-primary)' }}>Não envia mensagem</b> — para isso existe
-          Disparos, que tem controle de envio próprio.
+          cobrar follow-up. Mensagem automática só existe em duas situações —{' '}
+          <b style={{ color: 'var(--text-primary)' }}>boas-vindas</b> e <b style={{ color: 'var(--text-primary)' }}>lead que não respondeu</b> —
+          e sai pela mesma fila dos Disparos, com o mesmo controle de envio.
         </p>
       </header>
 
@@ -517,6 +545,24 @@ function Construtor({ editor, setEditor, stages, motivos, salvando, onSalvar, on
     if ((editor.steps.some((s) => s.type === 'WAIT') || editor.trigger === 'STAGE_IDLE') && !editor.stopOnReply) {
       out.push({ nivel: 'info', texto: 'A sequência vai continuar mesmo se o cliente já tiver voltado a falar. Ligue "parar se o lead responder".' });
     }
+    const msgs = editor.steps.filter((s) => s.type === 'SEND_MESSAGE');
+    if (msgs.length > 0 && !MESSAGE_TRIGGERS.includes(editor.trigger)) out.push({
+      nivel: 'err',
+      texto: 'Enviar mensagem só vale nos gatilhos "Lead novo chegou" e "Lead não respondeu". Nos outros, o robô falaria no meio de uma conversa que um vendedor está tocando.',
+    });
+    if (msgs.length > 1) out.push({
+      nivel: 'err',
+      texto: 'Uma mensagem por automação. Para outra mensagem, crie outra automação (ex.: "Lead não respondeu em 24h").',
+    });
+    if (msgs.some((s) => !s.message?.trim())) out.push({ nivel: 'err', texto: 'Escreva o texto da mensagem.' });
+    if (msgs.length > 0 && editor.trigger === 'NEW_LEAD') out.push({
+      nivel: 'info',
+      texto: 'Não sai se alguém responder o contato antes, nem para card criado à mão (o contato nunca escreveu). O motivo fica no histórico do card.',
+    });
+    if (msgs.length > 0 && editor.trigger === 'LEAD_SILENT') out.push({
+      nivel: 'info',
+      texto: 'Uma cobrança por vez: depois de enviada, só volta a cobrar quando o lead falar de novo. Promoção de Disparos não conta como conversa.',
+    });
     if (editor.steps.some((s) => s.type === 'DISCARD' && !s.reason)) {
       out.push({ nivel: 'err', texto: 'O descarte exige um motivo — escolha na lista da sua organização.' });
     }
@@ -739,6 +785,18 @@ function ParamsGatilho({ trigger, cfg, stages, onChange }: {
             onChange={(e) => set({ hours: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
         </Campo>
       )}
+      {trigger === 'LEAD_SILENT' && (
+        <Campo rotulo="horas sem o lead responder">
+          <input type="number" min={1} max={720} value={Number(cfg.hours ?? 24)}
+            onChange={(e) => set({ hours: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
+        </Campo>
+      )}
+      {trigger === 'NEW_LEAD' && (
+        <label className="inline-flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+          <Switch on={cfg.includeReturning === true} onClick={() => set({ includeReturning: cfg.includeReturning !== true })} />
+          também quem volta a falar (fora do funil, 7+ dias calado)
+        </label>
+      )}
       {trigger === 'SALE_LOST' && (
         <Campo rotulo="motivo (vazio = qualquer)">
           <input type="text" value={(cfg.reason as string) ?? ''} maxLength={60}
@@ -812,6 +870,19 @@ function ParamsPasso({ passo, stages, motivos, onChange }: {
             style={{ ...inputStyle, width: 320 }} />
         </Campo>
       );
+    case 'SEND_MESSAGE':
+      return (
+        <div className="w-full">
+          <textarea value={passo.message ?? ''} maxLength={4000} rows={3}
+            onChange={(e) => onChange({ message: e.target.value })}
+            className="w-full resize-y rounded-md px-2 py-1.5 text-xs"
+            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', color: 'var(--text-primary)', outline: 'none' }} />
+          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+            {'{nome}'} = primeiro nome do contato · {'{vendedor}'} = responsável pelo card (sem responsável: &quot;nossa equipe&quot;)
+            <span className="float-right tabular-nums">{(passo.message ?? '').length}/4000</span>
+          </p>
+        </div>
+      );
     case 'DISCARD':
       return (
         <Campo rotulo="motivo">
@@ -838,6 +909,7 @@ function novoPasso(tipo: CrmAutomationStepType, stages: CrmStage[], motivos: str
     case 'ADD_NOTE':     return { type: tipo, text: '' };
     case 'DISCARD':      return { type: tipo, reason: motivos[0] ?? '' };
     case 'WAIT':         return { type: tipo, days: 3 };
+    case 'SEND_MESSAGE': return { type: tipo, message: 'Oi {nome}, aqui é {vendedor}! ' };
   }
 }
 
@@ -845,6 +917,7 @@ function cfgPadrao(t: CrmAutomationTrigger, stages: CrmStage[]): Record<string, 
   if (t === 'STAGE_ENTERED') return { stageId: stages[0]?.id };
   if (t === 'STAGE_IDLE') return { stageId: stages[0]?.id, days: 7 };
   if (t === 'NO_REPLY') return { hours: 4 };
+  if (t === 'LEAD_SILENT') return { hours: 24 };
   return {};
 }
 
@@ -852,10 +925,11 @@ const nomeEtapa = (id: string | undefined, stages: CrmStage[]) => stages.find((s
 
 function fraseGatilho(t: CrmAutomationTrigger, cfg: Record<string, unknown>, stages: CrmStage[]): string {
   switch (t) {
-    case 'NEW_LEAD':      return 'um lead novo chegar';
+    case 'NEW_LEAD':      return cfg.includeReturning ? 'um lead novo chegar (ou um contato voltar a falar)' : 'um lead novo chegar';
     case 'STAGE_ENTERED': return `um card entrar em ${nomeEtapa(cfg.stageId as string, stages)}`;
     case 'STAGE_IDLE':    return `um card ficar ${Number(cfg.days ?? 7)} dia(s) parado em ${nomeEtapa(cfg.stageId as string, stages)}`;
     case 'NO_REPLY':      return `um lead ficar ${Number(cfg.hours ?? 4)}h sem resposta`;
+    case 'LEAD_SILENT':   return `o lead ficar ${Number(cfg.hours ?? 24)}h sem responder a nossa mensagem`;
     case 'SALE_WON':      return 'uma venda for ganha';
     case 'SALE_LOST':     return cfg.reason ? `uma venda for perdida por ${cfg.reason}` : 'uma venda for perdida';
   }
@@ -871,6 +945,7 @@ function frasePasso(s: CrmAutomationStep, stages: CrmStage[]): string {
     case 'ADD_NOTE':     return `registrar a nota "${s.text}"`;
     case 'DISCARD':      return `descartar o lead com o motivo ${s.reason || '…'}`;
     case 'WAIT':         return `esperar ${s.days} dias`;
+    case 'SEND_MESSAGE': return `enviar pelo WhatsApp "${(s.message ?? '').trim() || '…'}"`;
   }
 }
 
