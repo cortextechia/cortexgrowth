@@ -446,6 +446,32 @@ const input = {
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'];
 
+// Som de mensagem nova: dois bipes curtos gerados no Web Audio (sem arquivo).
+// O navegador só libera áudio depois que a pessoa interagiu com a página — até
+// o primeiro clique o som fica mudo, e isso é do navegador, não um erro.
+const SOUND_PREF_KEY = 'crm_sound';
+let dingCtx: AudioContext | null = null;
+function playDing() {
+  try {
+    dingCtx ??= new AudioContext();
+    if (dingCtx.state === 'suspended') void dingCtx.resume();
+    const t0 = dingCtx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const osc = dingCtx!.createOscillator();
+      const gain = dingCtx!.createGain();
+      const start = t0 + i * 0.12;
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(0.25, start + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.18);
+      osc.connect(gain).connect(dingCtx!.destination);
+      osc.start(start);
+      osc.stop(start + 0.2);
+    });
+  } catch { /* navegador sem Web Audio — fica sem som, o resto segue */ }
+}
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function CrmPage() {
@@ -607,6 +633,23 @@ export default function CrmPage() {
   // fetch. fetch manual (não EventSource) p/ mandar o Authorization no header.
   const [waSignal, setWaSignal] = useState<{ clientId: string; seq: number } | null>(null);
 
+  // Som de mensagem do cliente. Toca para quem enxerga o card: admin/gestor
+  // (todos) ou o vendedor responsável — mesma regra do scopeFilter do backend.
+  // Preferência por navegador; começa ligado.
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => {
+    try { if (localStorage.getItem(SOUND_PREF_KEY) === 'off') setSoundOn(false); } catch { /* sem storage: fica ligado */ }
+  }, []);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    try { localStorage.setItem(SOUND_PREF_KEY, next ? 'on' : 'off'); } catch { /* vale só nesta aba */ }
+    if (next) playDing(); // confirma que o som funciona (e o clique destrava o áudio)
+  };
+  const soundRef = useRef({ on: true, isAdmin, userId: user?.id });
+  soundRef.current = { on: soundOn, isAdmin, userId: user?.id };
+  const lastDingRef = useRef(0);
+
   useEffect(() => {
     if (!status?.enabled) return;
     let stopped = false;
@@ -615,9 +658,16 @@ export default function CrmPage() {
 
     const handleEvent = (data: string) => {
       try {
-        const ev = JSON.parse(data) as { type?: string; clientId?: string };
+        const ev = JSON.parse(data) as { type?: string; clientId?: string; inbound?: boolean; responsibleId?: string | null };
         if (ev.type !== 'wa_message' || !ev.clientId) return;
         const clientId = ev.clientId;
+        const snd = soundRef.current;
+        // Rajada (várias mensagens seguidas) toca uma vez só
+        if (ev.inbound && snd.on && (snd.isAdmin || (!!snd.userId && ev.responsibleId === snd.userId))
+          && Date.now() - lastDingRef.current > 2000) {
+          lastDingRef.current = Date.now();
+          playDing();
+        }
         setWaSignal((prev) => ({ clientId, seq: (prev?.seq ?? 0) + 1 }));
         // Coalesce: rajada de mensagens gera UM reload da lista
         if (listTimer) clearTimeout(listTimer);
@@ -1115,6 +1165,16 @@ export default function CrmPage() {
           style={input}
         />
         <WhatsappConnectButton showToast={showToast} />
+        <button
+          onClick={toggleSound}
+          title={soundOn ? 'Som de mensagem nova ligado — clique para silenciar' : 'Som de mensagem nova desligado — clique para ligar'}
+          aria-label={soundOn ? 'Silenciar som de mensagem nova' : 'Ligar som de mensagem nova'}
+          aria-pressed={soundOn}
+          className="px-3 py-2 rounded-lg text-sm font-medium"
+          style={{ ...card, color: 'var(--text-secondary)' }}
+        >
+          {soundOn ? '🔔' : '🔕'}
+        </button>
         <button
           onClick={() => setShowReport(true)}
           className="px-3 py-2 rounded-lg text-sm font-medium"
