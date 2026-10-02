@@ -1230,6 +1230,8 @@ export interface ReportConfig {
   includeConv?: boolean;
   includeImpressions?: boolean;
   notes?: string;
+  /** Texto livre com variáveis — preenchido, substitui o modelo padrão. */
+  template?: string;
 }
 
 export interface ReportSchedule {

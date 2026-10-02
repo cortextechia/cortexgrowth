@@ -9,19 +9,9 @@ import type { ReportSchedule, ReportConfig, ChannelType, ReportFrequency, AlertC
 
 // ─── WhatsApp status badge ────────────────────────────────────────────────────
 
-function WhatsAppStatusBadge() {
-  const [status, setStatus] = useState<'loading' | 'connected' | 'disconnected'>('loading');
-  const [phone, setPhone] = useState('');
+type WaStatus = 'loading' | 'connected' | 'disconnected';
 
-  useEffect(() => {
-    apiService.getWhatsAppStatus()
-      .then(({ data }) => {
-        setStatus(data.connected ? 'connected' : 'disconnected');
-        if (data.phone) setPhone(data.phone);
-      })
-      .catch(() => setStatus('disconnected'));
-  }, []);
-
+function WhatsAppStatusBadge({ status, phone }: { status: WaStatus; phone: string }) {
   if (status === 'loading') return (
     <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
       <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
@@ -34,18 +24,305 @@ function WhatsAppStatusBadge() {
 
   if (status === 'connected') return (
     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
-      style={{ backgroundColor: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.25)' }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#4ade80' }} />
+      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--text-primary)' }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--badge-success-text)' }} />
       Conectado{phone ? ` · ${phone}` : ''}
     </span>
   );
 
   return (
     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
-      style={{ backgroundColor: 'rgba(248,113,113,0.1)', color: '#f87171', border: '1px solid rgba(248,113,113,0.2)' }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f87171' }} />
+      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--text-primary)' }}>
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--badge-error-text)' }} />
       Desconectado
     </span>
+  );
+}
+
+/** Status do WhatsApp de relatórios da org (um número por empresa). */
+function useReportWaStatus() {
+  const [status, setStatus] = useState<WaStatus>('loading');
+  const [phone, setPhone] = useState('');
+  const refresh = useCallback(async () => {
+    try {
+      const { data } = await apiService.getWhatsAppStatus();
+      setStatus(data.connected ? 'connected' : 'disconnected');
+      setPhone(data.phone ?? '');
+      return data.connected;
+    } catch {
+      setStatus('disconnected');
+      return false;
+    }
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { status, phone, refresh, setStatus };
+}
+
+// ─── Modal QR Code WhatsApp (número de relatórios da empresa) ─────────────────
+
+function ReportWaQrModal({ onConnected, onClose }: { onConnected: () => void; onClose: () => void }) {
+  const [phase, setPhase] = useState<'loading' | 'qr' | 'connected' | 'error'>('loading');
+  const [qr, setQr] = useState<string | null>(null);
+
+  const gerar = useCallback(async () => {
+    try {
+      const { data } = await apiService.connectReportWhatsapp();
+      if (data.connected) { setPhase('connected'); return; }
+      if (!data.qrcode) { setPhase('error'); return; }
+      setQr(data.qrcode);
+      setPhase('qr');
+    } catch { setPhase('error'); }
+  }, []);
+
+  useEffect(() => { void gerar(); }, [gerar]);
+
+  // Pareamento: confere a conexão a cada 3s e renova o QR a cada 25s
+  useEffect(() => {
+    if (phase !== 'qr') return;
+    const poll = setInterval(async () => {
+      try {
+        const { data } = await apiService.getWhatsAppStatus();
+        if (data.connected) setPhase('connected');
+      } catch { /* ignora falhas de polling */ }
+    }, 3000);
+    const renew = setInterval(async () => {
+      try {
+        const { data } = await apiService.connectReportWhatsapp();
+        if (data.qrcode) setQr(data.qrcode);
+      } catch { /* mantém o QR atual */ }
+    }, 25000);
+    return () => { clearInterval(poll); clearInterval(renew); };
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'connected') return;
+    const t = setTimeout(onConnected, 1200);
+    return () => clearTimeout(t);
+  }, [phase, onConnected]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
+      <div className="w-full max-w-sm rounded-2xl p-6 text-center space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
+        <div className="flex items-center justify-between mb-1">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conectar WhatsApp de relatórios</p>
+          <button onClick={onClose} aria-label="Fechar" style={{ color: 'var(--text-secondary)' }}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {phase === 'loading' && (
+          <p className="text-xs py-12" style={{ color: 'var(--text-secondary)' }}>Gerando QR code...</p>
+        )}
+
+        {phase === 'qr' && qr && (
+          <>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              No celular que está nos grupos: WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong> e escaneie.
+            </p>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`}
+              alt="QR code do WhatsApp"
+              className="mx-auto rounded-lg"
+              style={{ width: 240, height: 240, backgroundColor: '#fff', padding: 8 }}
+            />
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              O QR renova sozinho. Este número só envia relatórios — as conversas dele não entram no CRM.
+            </p>
+          </>
+        )}
+
+        {phase === 'connected' && (
+          <p className="text-sm font-medium py-12" style={{ color: 'var(--badge-success-text)' }}>✓ WhatsApp conectado!</p>
+        )}
+
+        {phase === 'error' && (
+          <div className="py-8 flex flex-col items-center gap-3">
+            <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Não foi possível gerar o QR code.</p>
+            <button onClick={() => { setPhase('loading'); void gerar(); }} className="text-xs px-4 py-2 rounded-lg font-medium text-white"
+              style={{ backgroundColor: 'var(--accent)' }}>
+              Tentar de novo
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Bloco "WhatsApp" das instruções: status + conectar/desconectar o número da empresa
+function ReportWhatsappPanel({ showToast, refreshSignal }: { showToast: (msg: string, ok?: boolean) => void; refreshSignal: boolean }) {
+  const { status, phone, refresh, setStatus } = useReportWaStatus();
+  const [showQr, setShowQr] = useState(false);
+  const [working, setWorking] = useState(false);
+  // O número também pode ser conectado de dentro do "Novo agendamento" — ao fechar, reconfere
+  useEffect(() => { if (!refreshSignal) void refresh(); }, [refreshSignal, refresh]);
+
+  const handleDisconnect = async () => {
+    if (!confirm('Desconectar o WhatsApp de relatórios? Os agendamentos por WhatsApp param de ser enviados até conectar de novo.')) return;
+    setWorking(true);
+    try {
+      await apiService.disconnectReportWhatsapp();
+      setStatus('disconnected');
+      showToast('WhatsApp de relatórios desconectado.');
+    } catch { showToast('Erro ao desconectar o WhatsApp.', false); }
+    finally { setWorking(false); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp</p>
+        <WhatsAppStatusBadge status={status} phone={phone} />
+      </div>
+      <ol className="space-y-0.5 list-decimal list-inside mb-2" style={{ color: 'var(--text-secondary)' }}>
+        <li>Conecte <strong style={{ color: 'var(--text-primary)' }}>um número da empresa</strong> pelo QR Code (uma vez só)</li>
+        <li>Ao criar um agendamento, escolha o grupo na lista ou informe um número</li>
+        <li>Esse número envia todos os relatórios por WhatsApp desta empresa</li>
+      </ol>
+      {status === 'connected' ? (
+        <button onClick={handleDisconnect} disabled={working}
+          className="text-xs px-3 py-1.5 rounded-lg"
+          style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', opacity: working ? 0.6 : 1 }}>
+          Desconectar
+        </button>
+      ) : status === 'disconnected' ? (
+        <button onClick={() => setShowQr(true)}
+          className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
+          style={{ backgroundColor: 'var(--accent)' }}>
+          Conectar via QR Code
+        </button>
+      ) : null}
+      {showQr && (
+        <ReportWaQrModal
+          onConnected={() => { setShowQr(false); void refresh(); showToast('WhatsApp de relatórios conectado.'); }}
+          onClose={() => { setShowQr(false); void refresh(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Destino do agendamento por WhatsApp: grupo da lista (padrão) ou número avulso
+function WhatsappDestination({ destination, destinationName, onChange, inputStyle, labelStyle }: {
+  destination: string;
+  destinationName: string;
+  onChange: (destination: string, destinationName: string) => void;
+  inputStyle: React.CSSProperties;
+  labelStyle: React.CSSProperties;
+}) {
+  const { status, refresh } = useReportWaStatus();
+  const [showQr, setShowQr] = useState(false);
+  const [mode, setMode] = useState<'group' | 'number'>('group');
+  const [groups, setGroups] = useState<{ id: string; name: string; size?: number }[] | null>(null);
+  const [groupsError, setGroupsError] = useState(false);
+  const [search, setSearch] = useState('');
+
+  const loadGroups = useCallback(async () => {
+    setGroups(null); setGroupsError(false);
+    try {
+      const { data } = await apiService.getReportWhatsappGroups();
+      setGroups(data);
+    } catch { setGroupsError(true); }
+  }, []);
+
+  useEffect(() => {
+    if (status === 'connected' && mode === 'group') void loadGroups();
+  }, [status, mode, loadGroups]);
+
+  if (status === 'loading') {
+    return <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Verificando o WhatsApp da empresa...</p>;
+  }
+
+  if (status === 'disconnected') {
+    return (
+      <div className="space-y-2">
+        <span style={labelStyle}>WhatsApp de relatórios da empresa</span>
+        <button onClick={() => setShowQr(true)}
+          className="w-full py-3 rounded-lg text-xs font-medium"
+          style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px dashed var(--accent)' }}>
+          Conectar via QR Code
+        </button>
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Conecte o número que está no grupo. Depois é só escolher o grupo na lista.
+        </p>
+        {showQr && (
+          <ReportWaQrModal
+            onConnected={() => { setShowQr(false); void refresh(); }}
+            onClose={() => { setShowQr(false); void refresh(); }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const isGroup = destination.endsWith('@g.us');
+  const termo = search.trim().toLowerCase();
+  const filtrados = (groups ?? []).filter((g) => g.name.toLowerCase().includes(termo));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span style={{ ...labelStyle, marginBottom: 0 }}>{mode === 'group' ? 'Grupo do WhatsApp' : 'Número do WhatsApp'}</span>
+        <button
+          onClick={() => { setMode(mode === 'group' ? 'number' : 'group'); onChange('', ''); }}
+          className="text-xs"
+          style={{ color: 'var(--accent)' }}
+        >
+          {mode === 'group' ? 'Enviar para um número' : 'Escolher um grupo'}
+        </button>
+      </div>
+
+      {mode === 'group' && isGroup && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--badge-success-bg)' }}>
+          <span className="text-xs flex-1 truncate" style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--badge-success-text)' }}>✓</span> {destinationName}</span>
+          <button onClick={() => onChange('', '')} className="text-xs" style={{ color: 'var(--text-secondary)' }}>Trocar</button>
+        </div>
+      )}
+
+      {mode === 'group' && !isGroup && (
+        <>
+          {groups === null && !groupsError && (
+            <p className="text-xs py-3" style={{ color: 'var(--text-secondary)' }}>Carregando os grupos... (pode levar alguns segundos)</p>
+          )}
+          {groupsError && (
+            <div className="flex items-center gap-3">
+              <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>Não foi possível listar os grupos.</p>
+              <button onClick={() => void loadGroups()} className="text-xs" style={{ color: 'var(--accent)' }}>Tentar de novo</button>
+            </div>
+          )}
+          {groups !== null && groups.length === 0 && (
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Este número não participa de nenhum grupo.</p>
+          )}
+          {groups !== null && groups.length > 0 && (
+            <>
+              <input style={inputStyle} placeholder={`Buscar entre ${groups.length} grupos`} value={search} onChange={(e) => setSearch(e.target.value)} />
+              <div className="rounded-lg overflow-y-auto" style={{ maxHeight: 180, border: '1px solid var(--border)' }}>
+                {filtrados.length === 0 && (
+                  <p className="text-xs px-3 py-3" style={{ color: 'var(--text-secondary)' }}>Nenhum grupo com esse nome.</p>
+                )}
+                {filtrados.slice(0, 100).map((g) => (
+                  <button key={g.id} onClick={() => onChange(g.id, g.name)}
+                    className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2"
+                    style={{ color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
+                    <span className="truncate">{g.name}</span>
+                    {g.size != null && <span className="shrink-0" style={{ color: 'var(--text-secondary)' }}>{g.size} pessoas</span>}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {mode === 'number' && (
+        <>
+          <input style={inputStyle} placeholder="Ex: 5511999999999" inputMode="numeric" value={destination}
+            onChange={(e) => onChange(e.target.value.replace(/\D/g, ''), destinationName)} />
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Formato: DDI + DDD + número, só dígitos</p>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -90,6 +367,333 @@ const CONFIG_FIELD_LABELS: { key: keyof ReportConfig; label: string }[] = [
   { key: 'includeRoas',        label: 'ROAS Meta' },
   { key: 'includeConv',        label: 'Taxa de conversão' },
 ];
+
+const errMsg = (err: unknown, fallback: string) =>
+  (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+// WhatsApp: id de grupo termina em @g.us. Telegram: chat de grupo tem id negativo.
+function destinationKind(s: Pick<ReportSchedule, 'channelType' | 'destination'>): 'Grupo' | 'Individual' {
+  const grupo = s.channelType === 'WHATSAPP' ? s.destination.endsWith('@g.us') : s.destination.startsWith('-');
+  return grupo ? 'Grupo' : 'Individual';
+}
+
+/** Mesma regra do agendador (`shouldRunNow` em reportScheduler.ts) — se mudar lá, muda aqui. */
+function runsOnDay(s: ReportSchedule, d: Date): boolean {
+  switch (s.frequency) {
+    case 'DAILY': return true;
+    case 'WEEKLY': return d.getDay() === (s.dayOfWeek ?? 1);
+    case 'BIWEEKLY': {
+      const a = s.dayOfMonth ?? 1;
+      const b = a + 15 > 28 ? 28 : a + 15;
+      return d.getDate() === a || d.getDate() === b;
+    }
+    case 'MONTHLY': return d.getDate() === (s.dayOfMonth ?? 1);
+    default: return false;
+  }
+}
+
+// ─── Calendário dos envios ────────────────────────────────────────────────────
+
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MAX_CHIPS_PER_DAY = 3;
+
+function ScheduleCalendar({ schedules }: { schedules: ReportSchedule[] }) {
+  const today = new Date();
+  const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+
+  // 6 semanas fixas a partir do domingo anterior ao dia 1 — a grade não pula de altura entre meses
+  const first = new Date(month.getFullYear(), month.getMonth(), 1 - month.getDay());
+  const days = Array.from({ length: 42 }, (_, i) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + i));
+  const ordered = [...schedules].sort((a, b) => a.hour - b.hour);
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const navBtn = { color: 'var(--text-secondary)', border: '1px solid var(--border)' };
+
+  return (
+    <div className="rounded-xl p-4" style={card}>
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {MONTH_NAMES[month.getMonth()]} de {month.getFullYear()}
+        </p>
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))} className="text-xs px-3 py-1 rounded-lg" style={navBtn}>Hoje</button>
+          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mês anterior" className="text-xs px-2.5 py-1 rounded-lg" style={navBtn}>‹</button>
+          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Próximo mês" className="text-xs px-2.5 py-1 rounded-lg" style={navBtn}>›</button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: 640 }}>
+          <div className="grid grid-cols-7">
+            {DAY_NAMES.map((d) => (
+              <div key={d} className="text-[11px] font-medium text-center pb-1.5" style={{ color: 'var(--text-secondary)' }}>{d}</div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7" style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }}>
+            {days.map((d) => {
+              const inMonth = d.getMonth() === month.getMonth();
+              const isToday = sameDay(d, today);
+              const events = ordered.filter((s) => runsOnDay(s, d));
+              return (
+                <div key={d.toISOString()} className="p-1 space-y-0.5"
+                  style={{ minHeight: 86, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', opacity: inMonth ? 1 : 0.4 }}>
+                  <div className="flex justify-center">
+                    <span className="text-[11px] flex items-center justify-center rounded-full"
+                      style={{ width: 20, height: 20, ...(isToday ? { backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700 } : { color: 'var(--text-secondary)' }) }}>
+                      {d.getDate()}
+                    </span>
+                  </div>
+                  {events.slice(0, MAX_CHIPS_PER_DAY).map((s) => {
+                    const wa = s.channelType === 'WHATSAPP';
+                    const hora = `${String(s.hour).padStart(2, '0')}:00`;
+                    return (
+                      <div key={s.id}
+                        title={`${hora} · ${s.destinationName} · ${destinationKind(s)} · ${wa ? 'WhatsApp' : 'Telegram'} · ${FREQ_LABELS[s.frequency]}${s.isActive ? '' : ' · pausado'}`}
+                        className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate"
+                        style={{
+                          // Verde/azul do canal não dá contraste de leitura em letra de 10px:
+                          // a cor vai na barra lateral e o texto fica na cor de leitura.
+                          backgroundColor: wa ? 'var(--badge-success-bg)' : 'var(--accent-dim)',
+                          borderLeft: `3px solid ${wa ? 'var(--badge-success-text)' : 'var(--accent)'}`,
+                          color: 'var(--text-primary)',
+                          ...(s.isActive ? {} : { opacity: 0.6, textDecoration: 'line-through' }),
+                        }}>
+                        <strong>{hora}</strong> {s.destinationName}
+                      </div>
+                    );
+                  })}
+                  {events.length > MAX_CHIPS_PER_DAY && (
+                    <div className="text-[10px] px-1.5" style={{ color: 'var(--text-secondary)' }}
+                      title={events.slice(MAX_CHIPS_PER_DAY).map((s) => `${String(s.hour).padStart(2, '0')}:00 ${s.destinationName}`).join('\n')}>
+                      +{events.length - MAX_CHIPS_PER_DAY} mais
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 mt-3 text-[11px] flex-wrap" style={{ color: 'var(--text-secondary)' }}>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: 'var(--accent)' }} /> Telegram</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: 'var(--badge-success-text)' }} /> WhatsApp</span>
+        <span><span style={{ textDecoration: 'line-through' }}>riscado</span> = agendamento pausado</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Editor da mensagem ───────────────────────────────────────────────────────
+
+const TEMPLATE_VAR_RE = /\{([^{}\s]+)\}/g;
+const TEMPLATE_MAX = 3000;
+
+// *negrito* e _itálico_ como o WhatsApp mostra — em nós React, sem innerHTML
+function WaText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split('\n').map((line, i) => (
+        <div key={i} style={{ minHeight: '1.45em' }}>
+          {line.split(/(\*[^*\n]+\*|_[^_\n]+_)/g).map((part, j) => {
+            if (/^\*[^*]+\*$/.test(part)) return <strong key={j}>{part.slice(1, -1)}</strong>;
+            if (/^_[^_]+_$/.test(part)) return <em key={j}>{part.slice(1, -1)}</em>;
+            return <span key={j}>{part}</span>;
+          })}
+        </div>
+      ))}
+    </>
+  );
+}
+
+function MessageEditor({ frequency, config, onChange, wide = false }: {
+  frequency: ReportFrequency;
+  config: ReportConfig;
+  onChange: (config: ReportConfig) => void;
+  wide?: boolean;
+}) {
+  const [meta, setMeta] = useState<{ preset: string; variables: { key: string; label: string; value: string }[] } | null>(null);
+  const [stdPreview, setStdPreview] = useState<string | null>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  // Texto digitado sobrevive à ida e volta entre "padrão" e "personalizado"
+  const lastCustom = useRef<string | null>(null);
+
+  const custom = typeof config.template === 'string';
+  const template = config.template ?? '';
+
+  useEffect(() => {
+    let alive = true;
+    apiService.getReportMessageTemplate(frequency)
+      .then(({ data }) => { if (alive) setMeta(data); })
+      .catch(() => { /* sem as variáveis o modelo padrão continua funcionando */ });
+    return () => { alive = false; };
+  }, [frequency]);
+
+  // Modelo padrão: quem monta o texto é o backend — prévia com espera curta entre cliques
+  const stdKey = custom ? '' : JSON.stringify(config);
+  useEffect(() => {
+    if (!stdKey) return;
+    let alive = true;
+    const t = setTimeout(() => {
+      apiService.getReportPreviewWithConfig(frequency, JSON.parse(stdKey) as ReportConfig)
+        .then(({ data }) => { if (alive) setStdPreview(data.text); })
+        .catch(() => { if (alive) setStdPreview('Não foi possível gerar a prévia.'); });
+    }, 400);
+    return () => { alive = false; clearTimeout(t); };
+  }, [stdKey, frequency]);
+
+  const values = new Map((meta?.variables ?? []).map((v) => [v.key, v.value]));
+  const unknown = meta
+    ? [...new Set([...template.matchAll(TEMPLATE_VAR_RE)].map((m) => m[1]!).filter((k) => !values.has(k)))]
+    : [];
+  const previewText = custom
+    ? template.replace(TEMPLATE_VAR_RE, (whole, key: string) => values.get(key) ?? whole)
+    : stdPreview;
+
+  const setMode = (toCustom: boolean) => {
+    if (toCustom === custom) return;
+    if (toCustom) {
+      onChange({ ...config, template: lastCustom.current ?? meta?.preset ?? '' });
+    } else {
+      lastCustom.current = template;
+      const rest = { ...config };
+      delete rest.template;
+      onChange(rest);
+    }
+  };
+
+  const insertVar = (key: string) => {
+    const ta = taRef.current;
+    const start = ta?.selectionStart ?? template.length;
+    const end = ta?.selectionEnd ?? template.length;
+    const token = `{${key}}`;
+    onChange({ ...config, template: template.slice(0, start) + token + template.slice(end) });
+    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(start + token.length, start + token.length); });
+  };
+
+  const usePreset = () => {
+    if (!meta) return;
+    if (template.trim() && template !== meta.preset && !confirm('Trocar o texto atual pelo texto pronto?')) return;
+    onChange({ ...config, template: meta.preset });
+  };
+
+  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
+  const labelStyle = { color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4, display: 'block' as const };
+  const modeBtn = (active: boolean) => ({
+    backgroundColor: active ? 'var(--accent-dim)' : 'transparent',
+    color: active ? 'var(--accent)' : 'var(--text-secondary)',
+    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+  });
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <span style={labelStyle}>Mensagem do relatório</span>
+        <div className="flex gap-2">
+          <button onClick={() => setMode(false)} className="flex-1 py-2 rounded-lg text-xs font-medium" style={modeBtn(!custom)}>Modelo padrão</button>
+          <button onClick={() => setMode(true)} disabled={!meta && !custom} className="flex-1 py-2 rounded-lg text-xs font-medium disabled:opacity-60" style={modeBtn(custom)}>{!meta && !custom ? 'Texto personalizado (carregando...)' : 'Texto personalizado'}</button>
+        </div>
+      </div>
+
+      <div className={wide ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-3'}>
+        <div className="space-y-3 min-w-0">
+          {!custom && (
+            <>
+              <div>
+                <span style={labelStyle}>Campos incluídos</span>
+                <div className="grid grid-cols-2 gap-1.5 mt-1">
+                  {CONFIG_FIELD_LABELS.map(({ key, label }) => (
+                    <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!config[key]}
+                        onChange={(e) => onChange({ ...config, [key]: e.target.checked })}
+                        style={{ accentColor: 'var(--accent)', width: 13, height: 13 }}
+                      />
+                      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span style={labelStyle}>Observações (opcional)</span>
+                <textarea
+                  style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
+                  placeholder="Texto extra ao final do relatório..."
+                  maxLength={300}
+                  value={config.notes ?? ''}
+                  onChange={(e) => onChange({ ...config, notes: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+
+          {custom && (
+            <>
+              <div>
+                <div className="flex items-center justify-between">
+                  <span style={labelStyle}>Seu texto</span>
+                  <button onClick={usePreset} disabled={!meta} className="text-xs mb-1 disabled:opacity-60" style={{ color: 'var(--accent)' }}>Usar texto pronto</button>
+                </div>
+                <textarea
+                  ref={taRef}
+                  style={{ ...inputStyle, minHeight: wide ? 240 : 170, resize: 'vertical' as const, lineHeight: 1.5 }}
+                  placeholder="Escreva a mensagem e clique nas variáveis abaixo para encaixar os números."
+                  maxLength={TEMPLATE_MAX}
+                  value={template}
+                  onChange={(e) => onChange({ ...config, template: e.target.value })}
+                />
+                <div className="flex items-center justify-between text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+                  <span>*negrito* · _itálico_</span>
+                  <span>{template.length} / {TEMPLATE_MAX}</span>
+                </div>
+              </div>
+
+              {unknown.length > 0 && (
+                <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
+                  Variável que não existe: {unknown.map((u) => `{${u}}`).join(', ')}. Corrija ou escolha uma da lista.
+                </p>
+              )}
+              {custom && !template.trim() && (
+                <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>O texto está vazio.</p>
+              )}
+
+              <div>
+                <span style={labelStyle}>Variáveis — clique para inserir onde está o cursor</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(meta?.variables ?? []).map((v) => (
+                    <button key={v.key} onClick={() => insertVar(v.key)}
+                      title={`{${v.key}} — hoje: ${v.value}`}
+                      className="text-[11px] px-2 py-1 rounded-md"
+                      style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <span style={labelStyle}>Prévia com os números de hoje</span>
+          <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+            <div className="rounded-lg px-3 py-2 text-xs overflow-y-auto"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)', lineHeight: 1.45, maxHeight: wide ? 380 : 240, wordBreak: 'break-word', borderTopLeftRadius: 2 }}>
+              {previewText === null
+                ? <span style={{ color: 'var(--text-secondary)' }}>Gerando prévia...</span>
+                : previewText.trim()
+                  ? <WaText text={previewText} />
+                  : <span style={{ color: 'var(--text-secondary)' }}>A mensagem aparece aqui.</span>}
+            </div>
+          </div>
+          <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Os números são recalculados a cada envio. “—” aparece quando a empresa não tem aquele dado.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Modal QR Code Telegram ────────────────────────────────────────────────────
 
@@ -214,20 +818,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showQR, setShowQR] = useState(false);
-  const [preview, setPreview] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
   const [reportConfig, setReportConfig] = useState<ReportConfig>({ ...DEFAULT_REPORT_CONFIG });
-  const [loadingPreview, setLoadingPreview] = useState(false);
-
-  const loadPreview = async () => {
-    setLoadingPreview(true);
-    try {
-      const { data } = await apiService.getReportPreviewWithConfig(frequency, reportConfig);
-      setPreview(data.text);
-      setShowPreview(true);
-    } catch { setPreview('Erro ao gerar prévia.'); setShowPreview(true); }
-    finally { setLoadingPreview(false); }
-  };
 
   const handleSubmit = async () => {
     if (!destination.trim()) { setError('Informe o destino'); return; }
@@ -243,7 +834,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
       });
       onCreated();
       onClose();
-    } catch { setError('Erro ao criar agendamento'); } finally { setLoading(false); }
+    } catch (err) { setError(errMsg(err, 'Erro ao criar agendamento')); } finally { setLoading(false); }
   };
 
   const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
@@ -251,7 +842,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-lg rounded-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
+      <div className="w-full max-w-xl rounded-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
 
         {/* Header fixo */}
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -313,15 +904,17 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
 
         {/* Destino WhatsApp */}
         {channel === 'WHATSAPP' && (
-          <div>
-            <span style={labelStyle}>Número ou ID do grupo</span>
-            <input style={inputStyle} placeholder="Ex: 5511999999999" value={destination} onChange={e => setDestination(e.target.value)} />
-            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Formato: DDI + DDD + número, sem espaços ou símbolos</p>
-          </div>
+          <WhatsappDestination
+            destination={destination}
+            destinationName={destinationName}
+            onChange={(d, n) => { setDestination(d); setDestinationName(n); }}
+            inputStyle={inputStyle}
+            labelStyle={labelStyle}
+          />
         )}
 
-        {/* Nome do destino — oculto no Telegram quando conectado via QR (nome vem automático) */}
-        {!(channel === 'TELEGRAM' && destination) && (
+        {/* Nome do destino — só quando não vem automático: Telegram ainda sem chat, ou WhatsApp para número avulso */}
+        {(channel === 'TELEGRAM' ? !destination : destination !== '' && !destination.endsWith('@g.us')) && (
           <div>
             <span style={labelStyle}>Nome do destino</span>
             <input style={inputStyle} placeholder="Ex: Grupo Relatórios Galpão" value={destinationName} onChange={e => setDestinationName(e.target.value)} />
@@ -369,56 +962,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
           )}
         </div>
 
-        {/* Campos do relatório */}
-        <div>
-            <span style={labelStyle}>Campos do relatório</span>
-            <div className="grid grid-cols-2 gap-1.5 mt-1">
-              {CONFIG_FIELD_LABELS.map(({ key, label }) => (
-                <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={!!reportConfig[key]}
-                    onChange={e => setReportConfig(prev => ({ ...prev, [key]: e.target.checked }))}
-                    style={{ accentColor: '#3b82f6', width: 13, height: 13 }}
-                  />
-                  <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                </label>
-              ))}
-            </div>
-            <div className="mt-3">
-              <span style={labelStyle}>Observações (opcional)</span>
-              <textarea
-                style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
-                placeholder="Texto extra ao final do relatório..."
-                maxLength={300}
-                value={reportConfig.notes ?? ''}
-                onChange={e => setReportConfig(prev => ({ ...prev, notes: e.target.value }))}
-              />
-            </div>
-        </div>
-
-        {/* Preview editável */}
-        <button
-          onClick={loadPreview}
-          disabled={loadingPreview}
-          className="text-xs transition-colors"
-          style={{ color: 'var(--text-muted)', opacity: loadingPreview ? 0.6 : 1 }}
-        >
-          {loadingPreview ? 'Gerando prévia...' : 'Ver prévia do relatório →'}
-        </button>
-        {showPreview && (
-          <>
-            <textarea
-              className="rounded-lg p-3 text-xs whitespace-pre-wrap"
-              style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', maxHeight: 220, width: '100%', resize: 'vertical' as const, fontFamily: 'monospace', minHeight: 100, lineHeight: 1.5 }}
-              value={preview}
-              onChange={e => setPreview(e.target.value)}
-            />
-            <p className="text-xs" style={{ color: 'var(--text-muted)', marginTop: -8 }}>
-              Prévia editável — o conteúdo enviado pelo agendador usa os campos selecionados acima, atualizado a cada envio.
-            </p>
-          </>
-        )}
+        <MessageEditor frequency={frequency} config={reportConfig} onChange={setReportConfig} />
 
         {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
 
@@ -448,24 +992,8 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const [config, setConfig] = useState<ReportConfig>({ ...DEFAULT_REPORT_CONFIG, ...schedule.reportConfig });
-  const [preview, setPreview] = useState('');
-  const [showPreview, setShowPreview] = useState(false);
-  const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
-  const labelStyle = { color: 'var(--text-muted)', fontSize: 12, marginBottom: 4, display: 'block' as const };
-
-  const loadPreview = async () => {
-    setLoadingPreview(true);
-    try {
-      const { data } = await apiService.getReportPreviewWithConfig(schedule.frequency, config);
-      setPreview(data.text);
-      setShowPreview(true);
-    } catch { setPreview('Erro ao gerar prévia.'); setShowPreview(true); }
-    finally { setLoadingPreview(false); }
-  };
 
   const handleSave = async () => {
     setSaving(true); setError('');
@@ -473,65 +1001,23 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
       await apiService.updateReportSchedule(schedule.id, { reportConfig: config });
       onSaved();
       onClose();
-    } catch { setError('Erro ao salvar'); } finally { setSaving(false); }
+    } catch (err) { setError(errMsg(err, 'Erro ao salvar')); } finally { setSaving(false); }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-md rounded-2xl p-6 space-y-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
+      <div className="w-full max-w-3xl rounded-2xl p-6 space-y-5 overflow-y-auto" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Campos do relatório</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{schedule.destinationName}</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Mensagem do relatório</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{schedule.destinationName} · {destinationKind(schedule)} · {FREQ_LABELS[schedule.frequency]}</p>
           </div>
           <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <div>
-          <span style={labelStyle}>Campos incluídos</span>
-          <div className="grid grid-cols-2 gap-1.5 mt-1">
-            {CONFIG_FIELD_LABELS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={!!config[key]}
-                  onChange={e => setConfig(prev => ({ ...prev, [key]: e.target.checked }))}
-                  style={{ accentColor: '#3b82f6', width: 13, height: 13 }}
-                />
-                <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <span style={labelStyle}>Observações (opcional)</span>
-          <textarea
-            style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
-            placeholder="Texto extra ao final do relatório..."
-            maxLength={300}
-            value={config.notes ?? ''}
-            onChange={e => setConfig(prev => ({ ...prev, notes: e.target.value }))}
-          />
-        </div>
-
-        <button
-          onClick={loadPreview}
-          disabled={loadingPreview}
-          className="text-xs transition-colors"
-          style={{ color: 'var(--text-muted)', opacity: loadingPreview ? 0.6 : 1 }}
-        >
-          {loadingPreview ? 'Gerando...' : 'Ver prévia →'}
-        </button>
-        {showPreview && (
-          <textarea
-            style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)', borderRadius: 8, padding: '12px', fontSize: 12, width: '100%', minHeight: 100, maxHeight: 200, resize: 'vertical' as const, fontFamily: 'monospace', lineHeight: 1.5 }}
-            value={preview}
-            onChange={e => setPreview(e.target.value)}
-          />
-        )}
+        <MessageEditor frequency={schedule.frequency} config={config} onChange={setConfig} wide />
 
         {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
 
@@ -540,7 +1026,7 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
             Cancelar
           </button>
           <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: saving ? 0.6 : 1 }}>
-            {saving ? 'Salvando...' : 'Salvar configuração'}
+            {saving ? 'Salvando...' : 'Salvar mensagem'}
           </button>
         </div>
       </div>
@@ -578,7 +1064,10 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
           <span className="text-base">{channelIcon}</span>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{schedule.destinationName}</p>
-            <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>{schedule.destination}</p>
+            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
+              {destinationKind(schedule)} · {schedule.channelType === 'WHATSAPP' ? 'WhatsApp' : 'Telegram'}
+              {schedule.channelType === 'WHATSAPP' && destinationKind(schedule) === 'Individual' ? ` · ${schedule.destination}` : ''}
+            </p>
           </div>
         </div>
 
@@ -613,12 +1102,10 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
         >
           {sending ? 'Enviando...' : sendResult === 'ok' ? '✓ Enviado' : sendResult === 'err' ? '✗ Erro' : 'Enviar agora'}
         </button>
-        {schedule.channelType === 'TELEGRAM' && (
-          <button onClick={() => setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-            style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            Campos
-          </button>
-        )}
+        <button onClick={() => setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
+          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+          Mensagem
+        </button>
         <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
           style={{ backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.15)' }}>
           Remover
@@ -1002,18 +1489,7 @@ export default function RelatoriosPage() {
               {registeringWebhook ? 'Registrando...' : '⚡ Registrar Webhook'}
             </button>
           </div>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp</p>
-              <WhatsAppStatusBadge />
-            </div>
-            <ol className="space-y-0.5 list-decimal list-inside">
-              <li>Número conectado pelo administrador via Evolution API</li>
-              <li>Ao criar agendamento, informe o número do destinatário</li>
-              <li>Formato: DDI + DDD + número, sem espaços (ex: <code style={{ color: '#818cf8' }}>5511999999999</code>)</li>
-              <li>O número conectado acima envia para todos os destinos configurados</li>
-            </ol>
-          </div>
+          <ReportWhatsappPanel showToast={showToast} refreshSignal={showCreate} />
         </div>
       </div>
 
@@ -1038,6 +1514,8 @@ export default function RelatoriosPage() {
           </button>
         </div>
       ) : (
+        <>
+        <ScheduleCalendar schedules={schedules} />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {schedules.map(s => (
             <ScheduleCard
@@ -1050,6 +1528,7 @@ export default function RelatoriosPage() {
             />
           ))}
         </div>
+        </>
       )}
 
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchSchedules} />}

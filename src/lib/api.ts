@@ -685,13 +685,30 @@ class ApiService {
     return response.data;
   }
 
+  /** Variáveis da mensagem personalizada (com o valor atual de cada uma) + texto pronto. */
+  async getReportMessageTemplate(frequency: string): Promise<{ success: boolean; data: { preset: string; variables: { key: string; label: string; value: string }[] } }> {
+    const response = await this.client.get('/report-schedules/message-template', { params: { frequency } });
+    return response.data;
+  }
+
   async getWhatsAppStatus(): Promise<{ success: boolean; data: { connected: boolean; phone?: string } }> {
     const response = await this.client.get('/report-schedules/whatsapp/status');
     return response.data;
   }
 
-  async getWhatsAppQrCode(): Promise<{ success: boolean; data: { connected: boolean; qrcode: string | null } }> {
-    const response = await this.client.get('/report-schedules/whatsapp/qrcode');
+  // WhatsApp de relatórios: um número por org, pareado por QR (não é o do CRM)
+  async connectReportWhatsapp(): Promise<{ success: boolean; data: { connected: boolean; qrcode: string | null } }> {
+    const response = await this.client.post('/report-schedules/whatsapp/connect');
+    return response.data;
+  }
+
+  async disconnectReportWhatsapp(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/report-schedules/whatsapp/disconnect');
+    return response.data;
+  }
+
+  async getReportWhatsappGroups(): Promise<{ success: boolean; data: { id: string; name: string; size?: number }[] }> {
+    const response = await this.client.get('/report-schedules/whatsapp/groups', { timeout: 70_000 });
     return response.data;
   }
 
