@@ -58,6 +58,7 @@ const EVENT_LABELS: Record<string, string> = {
   SALE_WON: 'Venda ganha',
   SALE_LOST: 'Venda perdida',
   SALE_DELETED: 'Venda removida',
+  SALE_CLOSED_DATE_CHANGED: 'Data de fechamento alterada',
   NOTE: 'Nota',
   FOLLOWUP_SET: 'Follow-up agendado',
   FOLLOWUP_CLEARED: 'Follow-up removido',
@@ -76,6 +77,10 @@ const eventTitle = (e: CrmEvent): string => {
     return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : ''}`;
   }
   if (e.type === 'AUTO_MESSAGE_SKIPPED' && typeof e.payload.reason === 'string') return `: ${e.payload.reason}`;
+  if (e.type === 'SALE_CLOSED_DATE_CHANGED' && typeof e.payload.to === 'string') {
+    const de = typeof e.payload.from === 'string' ? `${fmtDate(e.payload.from)} → ` : '';
+    return `: ${de}${fmtDate(e.payload.to)}`;
+  }
   return (e.type === 'TASK_CREATED' || e.type === 'TASK_DONE') && typeof e.payload.title === 'string'
     ? `: ${e.payload.title}`
     : '';
@@ -128,6 +133,11 @@ function fmtPhone(p: string): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+/** YYYY-MM-DD no fuso do navegador (toISOString daria o dia em UTC). */
+function localDay(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function originLabel(o: CrmOrigin): string {
@@ -1741,6 +1751,13 @@ export default function CrmPage() {
               await refreshDetail();
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao atualizar o valor.')); }
           }}
+          onChangeSaleClosedDate={async (saleId, closedDate) => {
+            try {
+              await apiService.changeCrmSaleClosedDate(saleId, closedDate);
+              showToast('success', 'Data de fechamento atualizada.');
+              await refreshDetail();
+            } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao alterar a data de fechamento.')); }
+          }}
           onUpdateClient={async (data) => {
             if (!detail) return;
             try {
@@ -2892,6 +2909,7 @@ function ClientDrawer(props: {
   onTransfer: (responsibleId: string | null) => void;
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
+  onChangeSaleClosedDate: (saleId: string, closedDate: string) => Promise<void>;
   onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
@@ -2910,6 +2928,9 @@ function ClientDrawer(props: {
   const [editingValueSale, setEditingValueSale] = useState<string | null>(null);
   const [valueDraft, setValueDraft] = useState('');
   const [savingValue, setSavingValue] = useState(false);
+  // Corrigir a data de fechamento (venda lançada com atraso) — só admin
+  const [editingClosedSale, setEditingClosedSale] = useState<string | null>(null);
+  const [closedDraft, setClosedDraft] = useState('');
   const [addingTag, setAddingTag] = useState(false);
   // Ação de recorrência (Aceitar/Dispensar) em andamento — desabilita os botões do banner
   const [returningBusy, setReturningBusy] = useState(false);
@@ -3588,6 +3609,37 @@ function ClientDrawer(props: {
                           Perder
                         </button>
                       </div>
+                    )}
+
+                    {isAdmin && s.status !== 'OPEN' && (
+                      editingClosedSale === s.id ? (
+                        <div className="flex items-center gap-2 mt-2 text-[11px]">
+                          <span style={{ color: 'var(--text-secondary)' }}>Fechada em</span>
+                          <input
+                            type="date"
+                            className="rounded-md px-2 py-1"
+                            style={input}
+                            value={closedDraft}
+                            max={localDay(new Date())}
+                            onChange={(e) => setClosedDraft(e.target.value)}
+                          />
+                          <button
+                            disabled={!closedDraft}
+                            onClick={() => { setEditingClosedSale(null); void props.onChangeSaleClosedDate(s.id, closedDraft); }}
+                            className="font-bold disabled:opacity-60"
+                            style={{ color: 'var(--badge-success-text)' }}
+                          >Salvar</button>
+                          <button onClick={() => setEditingClosedSale(null)} style={{ color: 'var(--text-secondary)' }}>Cancelar</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setEditingClosedSale(s.id); setClosedDraft(s.closedAt ? localDay(new Date(s.closedAt)) : ''); }}
+                          className="text-[11px] mt-2 mr-3"
+                          style={{ color: 'var(--text-secondary)' }}
+                        >
+                          Alterar data de fechamento
+                        </button>
+                      )
                     )}
 
                     {isAdmin && (

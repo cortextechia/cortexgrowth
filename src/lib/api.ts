@@ -1183,6 +1183,12 @@ class ApiService {
     return response.data;
   }
 
+  /** Corrige a data de fechamento de venda ganha/perdida (ADMIN+). `closedDate` = YYYY-MM-DD. */
+  async changeCrmSaleClosedDate(saleId: string, closedDate: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/crm/sales/${saleId}/closed-date`, { closedDate });
+    return response.data;
+  }
+
   async deleteCrmSale(saleId: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.delete(`/crm/sales/${saleId}`);
     return response.data;
