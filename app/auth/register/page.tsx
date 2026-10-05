@@ -32,7 +32,7 @@ const IDENTIDADE: Record<string, {
     corSuave: 'var(--plano-demo-soft)',
     chamada: 'Para conhecer a plataforma',
     publico: '1 usuário · mensal',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   STARTER: {
     cor: 'var(--plano-starter)',
