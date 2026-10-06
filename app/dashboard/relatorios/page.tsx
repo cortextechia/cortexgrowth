@@ -1278,7 +1278,7 @@ function AlertConfigSection() {
         <div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Alertas de Anomalia</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Verificado a cada 4h — enviado nos chats Telegram ativos acima
+            Verificado 1 vez por dia, às 9h — enviado nos chats Telegram ativos acima
           </p>
         </div>
         <button
