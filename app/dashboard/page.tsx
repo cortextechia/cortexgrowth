@@ -26,6 +26,7 @@ export interface KommoLead {
   tags: string[];
   rawData: { created_at?: number; [key: string]: unknown };
   createdAt: string;
+  source?: 'KOMMO' | 'CRM_CORTEX';
 }
 
 type Range = '7D' | '30D' | '90D' | 'CUSTOM';
@@ -1372,8 +1373,12 @@ export default function DashboardPage() {
     const leads = mktTab === 'meta'   ? kommoLeads.filter(l => l.utmSource === 'meta')
                 : mktTab === 'google' ? kommoLeads.filter(l => l.utmSource === 'google')
                 : kommoLeads;
-    return leads.reduce((s, l) => (PIPELINE_NEGOTIATION_STATUSES.includes(l.status) ? s + (l.price ?? 0) : s), 0);
-  }, [kommoLeads, mktTab]);
+    // Com o CRM Cortex ativo, lead aberto do Kommo é resíduo da migração (ver negotiatingLeads).
+    const usaCrmCortex = integrations.some((i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED');
+    return leads.reduce((s, l) => (
+      PIPELINE_NEGOTIATION_STATUSES.includes(l.status) && (!usaCrmCortex || l.source === 'CRM_CORTEX') ? s + (l.price ?? 0) : s
+    ), 0);
+  }, [kommoLeads, mktTab, integrations]);
 
   // ── Recurrent leads (tag "carteira") ──────────────────────────────────────
   const recurrentCount = useMemo(
@@ -1400,27 +1405,25 @@ export default function DashboardPage() {
     const googleSpend = googleCur.reduce((s, d) => s + d.cost, 0);
     const metaLeads   = kommoCur.filter((l) => l.utmSource === 'meta');
     const googleLeads = kommoCur.filter((l) => l.utmSource === 'google');
-    const metaWon     = metaLeads.filter((l) => WON_STATUSES.includes(l.status));
-    const googleWon   = googleLeads.filter((l) => WON_STATUSES.includes(l.status));
+    // Vendas e receita seguem a regra da tela inteira: fechadas no período, pela data de
+    // fechamento. Pela data de criação, venda lançada com atraso ficava fora do mês em que
+    // fechou — e o ROAS saía menor que a própria "Receita fechada" ao lado.
+    const metaWon     = kommoWonCur.filter((l) => l.utmSource === 'meta');
+    const googleWon   = kommoWonCur.filter((l) => l.utmSource === 'google');
     const metaRev     = metaWon.reduce((s, l) => s + (l.price ?? 0), 0);
     const googleRev   = googleWon.reduce((s, l) => s + (l.price ?? 0), 0);
-    // "Vendas" segue a regra da tela inteira: fechadas no período, pela data de fechamento.
-    // Contar pelo status dos leads criados no período punha venda de outro mês aqui.
-    // O ROAS continua na base de sempre (regra da sessão 8) — por isso as duas listas.
-    const metaClosed   = kommoWonCur.filter((l) => l.utmSource === 'meta').length;
-    const googleClosed = kommoWonCur.filter((l) => l.utmSource === 'google').length;
     return {
       meta: {
         leads: metaLeads.length,
         cpl:   metaLeads.length > 0 && metaSpend > 0 ? metaSpend / metaLeads.length : null,
-        won:   metaClosed,
+        won:   metaWon.length,
         roas:  metaSpend > 0 ? metaRev / metaSpend : null,
         spend: metaSpend,
       },
       google: {
         leads: googleLeads.length,
         cpl:   googleLeads.length > 0 && googleSpend > 0 ? googleSpend / googleLeads.length : null,
-        won:   googleClosed,
+        won:   googleWon.length,
         roas:  googleSpend > 0 ? googleRev / googleSpend : null,
         spend: googleSpend,
       },
@@ -1759,8 +1762,13 @@ export default function DashboardPage() {
       const clientId = (l.rawData as Record<string, unknown> | undefined)?.crm_client_id;
       return typeof clientId === 'string' ? `/dashboard/crm?client=${clientId}` : null;
     };
+    // Org que migrou do Kommo para o CRM Cortex carrega os leads abertos do Kommo congelados
+    // na data da migração. É estado atual, não histórico: com o CRM Cortex ativo eles saem
+    // (medido na Galpão em 07/10: 75 dos 112 "em negociação" e R$ 148.782 eram do Kommo morto).
+    const usaCrmCortex = integrations.some((i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED');
     return kommoLeads
       .filter((l) => PIPELINE_NEGOTIATION_STATUSES.includes(l.status))
+      .filter((l) => !usaCrmCortex || l.source === 'CRM_CORTEX')
       .map((l) => ({ ...l, kommoUrl: kommoUrl(l.externalId), crmUrl: crmUrl(l) }))
       .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
   }, [kommoLeads, integrations]);
@@ -2752,10 +2760,14 @@ export default function DashboardPage() {
                 {hygieneOpen === row.key && (
                   <div className="px-3 pb-3 flex flex-col gap-1 max-h-56 overflow-y-auto">
                     {row.items.map((i) => (
-                      <div key={i.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                      <div key={i.crmUrl ?? i.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                         <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '38%' }}>{i.name ?? `Lead #${i.externalId}`}</span>
                         <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{row.detail(i)}</span>
-                        {i.kommoUrl && (
+                        {i.crmUrl ? (
+                          <a href={i.crmUrl} className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
+                            abrir card
+                          </a>
+                        ) : i.kommoUrl && (
                           <a href={i.kommoUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 hover:underline" style={{ color: 'var(--accent)' }}>
                             abrir no Kommo →
                           </a>

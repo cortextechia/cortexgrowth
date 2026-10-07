@@ -745,6 +745,7 @@ export interface CrmHygieneItem {
   lastActivityAt: string | null;
   closedAt: string | null;
   kommoUrl: string | null;
+  crmUrl: string | null;
 }
 
 export interface CrmHygiene {
