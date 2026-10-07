@@ -42,7 +42,8 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
   { key: 'GOOGLE',    label: 'Google Ads' },
   { key: 'WHATSAPP',  label: 'WhatsApp' },
   { key: 'INDICACAO', label: 'Indicação' },
-  { key: 'FACHADA',   label: 'Fachada da loja' },
+  { key: 'FACHADA',   label: 'Na loja' },
+  { key: 'LINK_BIO',  label: 'Link da bio' },
   { key: 'ORGANICO',  label: 'Orgânico' },
   { key: 'OUTRO',     label: 'Outro' },
 ];
@@ -5119,6 +5120,8 @@ const ORIGIN_BY_TEXT: Record<string, CrmOrigin> = {
   meta: 'META', facebook: 'META', instagram: 'META', 'meta ads': 'META',
   google: 'GOOGLE', 'google ads': 'GOOGLE',
   whatsapp: 'WHATSAPP', indicacao: 'INDICACAO', fachada: 'FACHADA',
+  'na loja': 'FACHADA', loja: 'FACHADA', balcao: 'FACHADA',
+  'link da bio': 'LINK_BIO', 'link bio': 'LINK_BIO', bio: 'LINK_BIO',
   organico: 'ORGANICO', outro: 'OUTRO',
 };
 

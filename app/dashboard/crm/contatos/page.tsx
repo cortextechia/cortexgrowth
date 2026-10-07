@@ -17,7 +17,8 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
   { key: 'GOOGLE',    label: 'Google Ads' },
   { key: 'WHATSAPP',  label: 'WhatsApp' },
   { key: 'INDICACAO', label: 'Indicação' },
-  { key: 'FACHADA',   label: 'Fachada da loja' },
+  { key: 'FACHADA',   label: 'Na loja' },
+  { key: 'LINK_BIO',  label: 'Link da bio' },
   { key: 'ORGANICO',  label: 'Orgânico' },
   { key: 'OUTRO',     label: 'Outro' },
 ];

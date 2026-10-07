@@ -213,7 +213,12 @@ export interface FunnelSummary {
   contacts: FunnelChannelCounts | null;
   leads: FunnelChannelCounts | null;
   opportunities: FunnelChannelCounts;
+  /** Vendas ganhas FECHADAS no período (data de fechamento). */
   won: number;
+  /** Leads por origem do card (chave do `CrmOrigin`). `null` junto com `leads`. */
+  leadsByOrigin: Record<string, number> | null;
+  /** Funil pelos cards: quantos leads do período alcançaram cada etapa do CRM. */
+  cardFunnel: (FunnelChannelCounts & { name: string })[] | null;
   /** LEAD = dividiu por lead · OPPORTUNITY/PLATFORM_CONVERSION = base antiga. */
   cplBasis: 'LEAD' | 'OPPORTUNITY' | 'PLATFORM_CONVERSION';
   /** Desde quando existe contato — usado para explicar a faixa ausente. */
@@ -827,7 +832,7 @@ export interface SellersRanking {
 }
 
 // ===== CRM PRÓPRIO (CRM CORTEX) =====
-export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'ORGANICO' | 'OUTRO';
+export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'LINK_BIO' | 'ORGANICO' | 'OUTRO';
 export type CrmSaleStatus = 'OPEN' | 'WON' | 'LOST';
 
 // Motivo de perda configurável por org — a venda guarda o rótulo como texto

@@ -49,6 +49,18 @@ const CONTACT_STATUSES = [
 // "Pipeline em negociação" considera negociação a partir do orçamento enviado (cliente já recebeu proposta)
 const PIPELINE_NEGOTIATION_STATUSES = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES];
 
+// Origens do card do CRM Cortex (enum `CrmOrigin`), na ordem e com o rótulo da tela do CRM.
+const ORIGENS_CRM = [
+  { key: 'META',      label: 'Meta Ads',    color: '#818cf8' },
+  { key: 'GOOGLE',    label: 'Google Ads',  color: '#34d399' },
+  { key: 'WHATSAPP',  label: 'WhatsApp',    color: '#4ade80' },
+  { key: 'INDICACAO', label: 'Indicação',   color: '#fbbf24' },
+  { key: 'FACHADA',   label: 'Na loja',     color: '#f472b6' },
+  { key: 'LINK_BIO',  label: 'Link da bio', color: '#c084fc' },
+  { key: 'ORGANICO',  label: 'Orgânico',    color: '#22d3ee' },
+  { key: 'OUTRO',     label: 'Outro',       color: 'var(--text-muted)' },
+];
+
 interface ActiveAlert {
   type: 'critical' | 'warning' | 'opportunity';
   title: string;
@@ -104,7 +116,10 @@ function originTagFor(utmSource: string | null, isDark: boolean): OriginTag {
     Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',    text: 'var(--text-muted)' },
   };
   const noTrackTag: OriginTag = { label: 'Sem rastreio', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' };
-  return utmSource ? (ORIGIN_TAGS[utmSource] ?? { label: utmSource, bg: 'var(--bg-elevated)', text: 'var(--text-muted)' }) : noTrackTag;
+  // Origens do CRM Cortex chegam em minúsculas pela projeção ('whatsapp', 'link_bio'...).
+  const CRM_LABELS: Record<string, string> = { indicacao: 'Indicação', fachada: 'Na loja', link_bio: 'Link da bio', organico: 'Orgânico' };
+  if (utmSource === 'whatsapp') return ORIGIN_TAGS.WhatsApp;
+  return utmSource ? (ORIGIN_TAGS[utmSource] ?? { label: CRM_LABELS[utmSource] ?? utmSource, bg: 'var(--bg-elevated)', text: 'var(--text-muted)' }) : noTrackTag;
 }
 
 function fmtPct(v: number): string {
@@ -579,41 +594,47 @@ interface FunnelCounts {
   lost: number;
 }
 
-function FunnelSVG({ counts, isDark }: { counts: FunnelCounts; isDark: boolean }) {
+interface FunnelEtapa { label: string; count: number }
+
+// As etapas vêm de fora: 5 fixas quando o funil é montado nas oportunidades, ou uma por
+// coluna do CRM quando é montado nos cards (`funilEtapas`).
+function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa[]; lost: number; isDark: boolean; semTaxaFinal?: boolean }) {
   const W = 260;
-  const H = 340;
   const cx = W / 2;
   const maxHalf = 88;
   const stageH = 50;
   const gap = 12;
   const curveOff = 26;
+  const H = etapas.length * (stageH + gap) + 30;
 
-  const stages = isDark ? [
-    { label: 'Leads gerados',    count: counts.generated,   color: '#1e3a5f', textColor: '#93c5fd' },
-    { label: 'Em atendimento',   count: counts.contacted,   color: '#1e3a4a', textColor: '#67e8f9' },
-    { label: 'Orç. enviado',     count: counts.quoted,      color: '#14432a', textColor: '#6ee7b7' },
-    { label: 'Em negociação',    count: counts.negotiating, color: '#1a3d20', textColor: '#86efac' },
-    { label: 'Venda ganha',      count: counts.won,         color: '#0d2e14', textColor: '#4ade80' },
+  const paleta = isDark ? [
+    { color: '#1e3a5f', textColor: '#93c5fd' },
+    { color: '#1e3a4a', textColor: '#67e8f9' },
+    { color: '#14432a', textColor: '#6ee7b7' },
+    { color: '#1a3d20', textColor: '#86efac' },
+    { color: '#0d2e14', textColor: '#4ade80' },
   ] : [
-    { label: 'Leads gerados',    count: counts.generated,   color: 'rgba(59,130,246,0.18)',  textColor: '#1d4ed8' },
-    { label: 'Em atendimento',   count: counts.contacted,   color: 'rgba(6,182,212,0.18)',   textColor: '#0e7490' },
-    { label: 'Orç. enviado',     count: counts.quoted,      color: 'rgba(16,185,129,0.18)',  textColor: '#047857' },
-    { label: 'Em negociação',    count: counts.negotiating, color: 'rgba(34,197,94,0.18)',   textColor: '#15803d' },
-    { label: 'Venda ganha',      count: counts.won,         color: 'rgba(74,222,128,0.22)',  textColor: '#166534' },
+    { color: 'rgba(59,130,246,0.18)',  textColor: '#1d4ed8' },
+    { color: 'rgba(6,182,212,0.18)',   textColor: '#0e7490' },
+    { color: 'rgba(16,185,129,0.18)',  textColor: '#047857' },
+    { color: 'rgba(34,197,94,0.18)',   textColor: '#15803d' },
+    { color: 'rgba(74,222,128,0.22)',  textColor: '#166534' },
   ];
+  // Distribui a paleta do azul ao verde por qualquer quantidade de etapas.
+  const stages = etapas.map((e, i) => ({
+    ...e,
+    label: e.label.length > 22 ? `${e.label.slice(0, 21)}…` : e.label,
+    ...paleta[etapas.length > 1 ? Math.round((i * (paleta.length - 1)) / (etapas.length - 1)) : 0],
+  }));
 
-  const total = counts.generated || 1;
+  const generated = etapas[0]?.count ?? 0;
+  const total = generated || 1;
 
   function halfW(count: number) {
     return Math.max(10, maxHalf * (count / total));
   }
 
-  const convRates = [
-    counts.generated > 0 ? (counts.contacted / counts.generated) * 100 : 0,
-    counts.contacted > 0 ? (counts.quoted / counts.contacted) * 100 : 0,
-    counts.quoted > 0    ? (counts.negotiating / counts.quoted) * 100 : 0,
-    counts.negotiating > 0 ? (counts.won / counts.negotiating) * 100 : 0,
-  ];
+  const convRates = etapas.slice(1).map((e, i) => (etapas[i].count > 0 ? (e.count / etapas[i].count) * 100 : 0));
 
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="shrink-0">
@@ -657,7 +678,9 @@ function FunnelSVG({ counts, isDark }: { counts: FunnelCounts; isDark: boolean }
                   fill={convRates[i] >= 50 ? '#4ade80' : convRates[i] >= 25 ? '#fbbf24' : '#f87171'}
                   fontFamily="Inter,sans-serif"
                 >
-                  {fmtPct1(convRates[i])}
+                  {/* No funil por cards a última seta liga leads do período a vendas FECHADAS no
+                      período (podem ser de lead antigo): não é taxa de passagem e passava de 100%. */}
+                  {semTaxaFinal && i === stages.length - 2 ? '' : fmtPct1(convRates[i])}
                 </text>
               </>
             )}
@@ -666,12 +689,12 @@ function FunnelSVG({ counts, isDark }: { counts: FunnelCounts; isDark: boolean }
       })}
 
       {/* Lost bar */}
-      {counts.lost > 0 && (
+      {lost > 0 && (
         <>
           <line x1={6} y1={H - 38} x2={W - 6} y2={H - 38} stroke="var(--border)" strokeWidth="0.5" />
           <rect x={6} y={H - 28} width={W - 12} height={22} rx={4} fill="rgba(248,113,113,0.12)" stroke="rgba(248,113,113,0.2)" strokeWidth="0.5" />
           <text x={cx} y={H - 13} textAnchor="middle" fontSize="10" fill="#f87171" fontFamily="Inter,sans-serif">
-            {`${counts.lost} perdidos · ${counts.generated > 0 ? fmtPct1((counts.lost / counts.generated) * 100) : '0%'} do total`}
+            {`${lost} perdidos · ${generated > 0 ? fmtPct1((lost / generated) * 100) : '0%'} do total`}
           </text>
         </>
       )}
@@ -1280,13 +1303,18 @@ export default function DashboardPage() {
   const leadsByOrigin = useMemo(() => {
     const meta      = kommoCur.filter((l) => l.utmSource === 'meta').length;
     const google    = kommoCur.filter((l) => l.utmSource === 'google').length;
-    const whatsapp  = kommoCur.filter((l) => l.utmSource === 'WhatsApp').length;
+    // O Kommo grava 'WhatsApp' e a projeção do CRM Cortex grava 'whatsapp'.
+    const whatsapp  = kommoCur.filter((l) => l.utmSource?.toLowerCase() === 'whatsapp').length;
     const noUtm     = kommoCur.filter((l) => !l.utmSource).length;
+    // Tudo que não é um dos quatro acima (indicação, loja, orgânico...) — sem esta linha a
+    // lista somava menos que o total e os percentuais não fechavam.
+    const outras    = kommoCur.length - meta - google - whatsapp - noUtm;
     const total     = kommoCur.length || 1;
     return [
       { label: 'Meta Ads',  count: meta,     color: '#818cf8', pct: (meta     / total) * 100 },
       { label: 'Google Ads',count: google,   color: '#34d399', pct: (google   / total) * 100 },
       { label: 'WhatsApp',  count: whatsapp, color: '#4ade80', pct: (whatsapp / total) * 100 },
+      { label: 'Outras origens', count: outras, color: '#fbbf24', pct: (outras / total) * 100 },
       { label: 'Sem UTM',   count: noUtm,    color: 'var(--text-muted)', pct: (noUtm    / total) * 100 },
     ];
   }, [kommoCur]);
@@ -1376,25 +1404,28 @@ export default function DashboardPage() {
     const googleWon   = googleLeads.filter((l) => WON_STATUSES.includes(l.status));
     const metaRev     = metaWon.reduce((s, l) => s + (l.price ?? 0), 0);
     const googleRev   = googleWon.reduce((s, l) => s + (l.price ?? 0), 0);
+    // "Vendas" segue a regra da tela inteira: fechadas no período, pela data de fechamento.
+    // Contar pelo status dos leads criados no período punha venda de outro mês aqui.
+    // O ROAS continua na base de sempre (regra da sessão 8) — por isso as duas listas.
+    const metaClosed   = kommoWonCur.filter((l) => l.utmSource === 'meta').length;
+    const googleClosed = kommoWonCur.filter((l) => l.utmSource === 'google').length;
     return {
       meta: {
         leads: metaLeads.length,
-        cpl:   metaLeads.length > 0 ? metaSpend / metaLeads.length : null,
-        won:   metaWon.length,
-        conv:  metaLeads.length > 0 ? (metaWon.length / metaLeads.length) * 100 : 0,
+        cpl:   metaLeads.length > 0 && metaSpend > 0 ? metaSpend / metaLeads.length : null,
+        won:   metaClosed,
         roas:  metaSpend > 0 ? metaRev / metaSpend : null,
         spend: metaSpend,
       },
       google: {
         leads: googleLeads.length,
-        cpl:   googleLeads.length > 0 ? googleSpend / googleLeads.length : null,
-        won:   googleWon.length,
-        conv:  googleLeads.length > 0 ? (googleWon.length / googleLeads.length) * 100 : 0,
+        cpl:   googleLeads.length > 0 && googleSpend > 0 ? googleSpend / googleLeads.length : null,
+        won:   googleClosed,
         roas:  googleSpend > 0 ? googleRev / googleSpend : null,
         spend: googleSpend,
       },
     };
-  }, [metaCur, googleCur, kommoCur]);
+  }, [metaCur, googleCur, kommoCur, kommoWonCur]);
 
   // ── Campaign health scores A/B/C/D (fixed 30-day window, independent of range selector) ─
   const campaignHealthScores = useMemo(() => {
@@ -1814,7 +1845,66 @@ export default function DashboardPage() {
         { label: 'vendas',        value: funnelSummary!.won,                  cor: '#34d399' },
       ]
     : [];
-  const mktConvRate = funnelCounts.generated > 0 ? (funnelCounts.won / funnelCounts.generated) * 100 : null;
+
+  // ── Funil, origem e comparativo pelos CARDS ────────────────────────────────
+  // Com camada de contato, o bloco "Funil de vendas" sai dos cards do CRM (lead por etapa) e
+  // não das oportunidades: no CRM Cortex `KommoLeads` é VENDA, e org que só registra a venda
+  // no fechamento via "8 leads gerados" com 100% em todas as etapas (Casa do Vidro, 06/10).
+  // Sem camada de contato na janela, tudo abaixo cai no cálculo antigo.
+  const cardFunnel = temCadeia ? funnelSummary!.cardFunnel : null;
+  const funilPorCards = cardFunnel != null;
+  const funilGerados = funilPorCards ? funnelSummary!.leads![funnelTab] : funnelCounts.generated;
+  const funilEtapas: FunnelEtapa[] = funilPorCards
+    ? [
+        { label: 'Leads', count: funilGerados },
+        ...cardFunnel.map((e) => ({ label: e.name, count: e[funnelTab] })),
+        { label: 'Venda ganha', count: funnelCounts.won },
+      ]
+    : [
+        { label: 'Leads gerados',  count: funnelCounts.generated },
+        { label: 'Em atendimento', count: funnelCounts.contacted },
+        { label: 'Orç. enviado',   count: funnelCounts.quoted },
+        { label: 'Em negociação',  count: funnelCounts.negotiating },
+        { label: 'Venda ganha',    count: funnelCounts.won },
+      ];
+
+  const cplFunil = !funilPorCards ? null
+                 : funnelTab === 'meta'   ? funnelSummary!.cplMeta
+                 : funnelTab === 'google' ? funnelSummary!.cplGoogle
+                 : funnelSummary!.cpl;
+  const taxa = (parte: number, todo: number) => (todo > 0 ? parte / todo : 0);
+  const funilMinis: { label: string; val: number | null; display?: string; color: string }[] = funilPorCards
+    ? [
+        { label: 'Contato → Lead', val: taxa(funilGerados, funnelSummary!.contacts![funnelTab]), color: 'var(--badge-success-text)' },
+        ...cardFunnel.slice(0, 1).map((e) => ({ label: `Lead → ${e.name}`, val: taxa(e[funnelTab], funilGerados), color: 'var(--badge-warn-text)' })),
+        ...cardFunnel.slice(1).slice(-1).map((e) => ({ label: `Lead → ${e.name}`, val: taxa(e[funnelTab], funilGerados), color: 'var(--badge-success-text)' })),
+        { label: 'CPL médio', val: null, display: cplFunil != null ? fmtBRL(cplFunil) : '—', color: 'var(--accent)' },
+      ]
+    : [
+        { label: 'Lead → Atendimento', val: taxa(funnelCounts.contacted, funnelCounts.generated), color: 'var(--badge-success-text)' },
+        { label: 'Lead → Orçamento',   val: taxa(funnelCounts.quoted, funnelCounts.generated),    color: 'var(--badge-warn-text)' },
+        { label: 'Orç. → Venda',       val: taxa(funnelCounts.won, funnelCounts.quoted),          color: 'var(--badge-success-text)' },
+        { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: 'var(--accent)' },
+      ];
+
+  const origemDosLeads = funilPorCards && funnelSummary!.leadsByOrigin
+    ? ORIGENS_CRM.map((o) => {
+        const count = funnelSummary!.leadsByOrigin![o.key] ?? 0;
+        return { label: o.label, count, color: o.color, pct: taxa(count, funnelSummary!.leads!.total) * 100 };
+      })
+    : leadsByOrigin;
+
+  // Leads e CPL do comparativo passam a ser os da cadeia (lead de verdade, não venda).
+  const compCanal = (canal: 'meta' | 'google') => {
+    const base  = canalComparativo[canal];
+    const leads = funilPorCards ? funnelSummary!.leads![canal] : base.leads;
+    const cpl   = !funilPorCards ? base.cpl : canal === 'meta' ? funnelSummary!.cplMeta : funnelSummary!.cplGoogle;
+    return { ...base, leads, cpl, conv: taxa(base.won, leads) * 100 };
+  };
+  const compMeta   = compCanal('meta');
+  const compGoogle = compCanal('google');
+
+  const mktConvRate = funilGerados > 0 ? (funnelCounts.won / funilGerados) * 100 : null;
   const mktTicket   = mktWonCount > 0 ? mktClosedValue / mktWonCount : null;
   // Cobertura de atribuição: % dos leads do período com UTM de canal pago — contexto
   // obrigatório do ROAS atribuído (sem isso o número parece o ROAS do negócio inteiro)
@@ -2276,7 +2366,7 @@ export default function DashboardPage() {
               <BottomKpiCard
                 title="CPL"
                 value={cplPorLead != null ? fmtBRL(cplPorLead) : '—'}
-                badge={mktLeadsBadge}
+                badge={temCadeia ? undefined : mktLeadsBadge}
                 badgeColor="#60a5fa"
                 sub={temCadeia ? `Gasto / ${qtdLeadsCpl} leads de anúncio` : 'Custo por lead no período'}
                 accent="#60a5fa"
@@ -2311,7 +2401,7 @@ export default function DashboardPage() {
             {visibleBottomKpis.includes('leads') && (
               <BottomKpiCard
                 title="Leads"
-                value={fmtNum(funnelCounts.generated)}
+                value={fmtNum(funilGerados)}
                 sub={`${funnelCounts.won} vendas · ${funnelCounts.lost} perdidos`}
                 accent="#60a5fa"
                 info="Total de leads que entraram no CRM no período, de todos os canais (pago, WhatsApp, orgânico)."
@@ -2330,7 +2420,7 @@ export default function DashboardPage() {
               <BottomKpiCard
                 title="Conversão final"
                 value={mktConvRate != null ? fmtPct1(mktConvRate) : '—'}
-                sub={`${funnelCounts.won} vendas em ${funnelCounts.generated} leads`}
+                sub={`${funnelCounts.won} vendas em ${funilGerados} leads`}
                 accent={mktConvRate != null ? (mktConvRate >= 10 ? 'var(--badge-success-text)' : mktConvRate >= 5 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
                 info="Vendas fechadas no período ÷ leads gerados no período. Como as vendas contam pela data de fechamento, podem incluir leads antigos — em janelas curtas a taxa pode passar de 100%."
               />
@@ -2362,10 +2452,10 @@ export default function DashboardPage() {
       )}
 
       {/* ── 5. FUNIL DE VENDAS ────────────────────────────────────────────────── */}
-      {kommoCur.length > 0 && (
+      {((funilPorCards && funnelSummary!.leads!.total > 0) || kommoCur.length > 0) && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funnelLeads.length} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · {crmLabel}</p>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funilGerados} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · {crmLabel}</p>
             <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
                 <button
@@ -2384,20 +2474,20 @@ export default function DashboardPage() {
             {/* Left: funnel SVG + right info panel */}
             <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <div className="flex flex-col justify-center">
-                <FunnelSVG counts={funnelCounts} isDark={isDark} />
+                <FunnelSVG etapas={funilEtapas} lost={funnelCounts.lost} isDark={isDark} semTaxaFinal={funilPorCards} />
               </div>
 
               <div className="flex-1 flex flex-col gap-3 min-w-0">
                 {/* Conversão final */}
                 <div className="rounded-xl p-4 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                   <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Conversão final — lead → venda</p>
-                  <p className="text-4xl font-semibold tabular-nums" style={{ color: funnelCounts.generated > 0 && funnelCounts.won / funnelCounts.generated >= 0.1 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
-                    {funnelCounts.generated > 0 ? fmtPct1((funnelCounts.won / funnelCounts.generated) * 100) : '—'}
+                  <p className="text-4xl font-semibold tabular-nums" style={{ color: funilGerados > 0 && funnelCounts.won / funilGerados >= 0.1 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
+                    {funilGerados > 0 ? fmtPct1((funnelCounts.won / funilGerados) * 100) : '—'}
                   </p>
                   <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                    <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.generated} leads</strong>
+                    <strong style={{ color: 'var(--text-primary)' }}>{funnelCounts.won} vendas</strong> em <strong style={{ color: 'var(--text-primary)' }}>{funilGerados} leads</strong>
                   </p>
-                  {funnelCounts.won > funnelCounts.generated && (
+                  {funnelCounts.won > funilGerados && (
                     <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                       inclui vendas de leads criados antes do período
                     </p>
@@ -2407,14 +2497,14 @@ export default function DashboardPage() {
                 {/* Alertas do funil */}
                 <div className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                   <p className="text-xs font-medium uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Onde prestar atenção</p>
-                  {funnelCounts.generated > 0 && funnelCounts.contacted / funnelCounts.generated < 0.5 && (
+                  {!funilPorCards && funnelCounts.generated > 0 && funnelCounts.contacted / funnelCounts.generated < 0.5 && (
                     <div className="rounded-lg p-2.5 mb-2" style={{ backgroundColor: 'var(--badge-error-bg)', borderLeft: '2px solid var(--badge-error-text)' }}>
                       <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
                         <strong>{fmtPct1((funnelCounts.contacted / funnelCounts.generated) * 100)}</strong> dos leads recebem atendimento — verificar tempo de resposta
                       </p>
                     </div>
                   )}
-                  {funnelCounts.contacted > 0 && funnelCounts.quoted / funnelCounts.contacted < 0.4 && (
+                  {!funilPorCards && funnelCounts.contacted > 0 && funnelCounts.quoted / funnelCounts.contacted < 0.4 && (
                     <div className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-warn-bg)', borderLeft: '2px solid var(--badge-warn-text)' }}>
                       <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
                         Apenas <strong>{fmtPct1((funnelCounts.quoted / funnelCounts.contacted) * 100)}</strong> dos atendidos recebem orçamento — maior gargalo do funil
@@ -2424,7 +2514,7 @@ export default function DashboardPage() {
                   {funnelCounts.lost > 0 && (
                     <div className="rounded-lg p-2.5 mt-2" style={{ backgroundColor: 'var(--badge-error-bg)', borderLeft: '2px solid var(--badge-error-text)' }}>
                       <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
-                        <strong>{funnelCounts.lost}</strong> leads perdidos ({funnelCounts.generated > 0 ? fmtPct1((funnelCounts.lost / funnelCounts.generated) * 100) : '—'} do total)
+                        <strong>{funnelCounts.lost}</strong> leads perdidos ({funilGerados > 0 ? fmtPct1((funnelCounts.lost / funilGerados) * 100) : '—'} do total)
                       </p>
                     </div>
                   )}
@@ -2432,12 +2522,7 @@ export default function DashboardPage() {
 
                 {/* Mini KPIs de conversão */}
                 <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Lead → Atendimento', val: funnelCounts.generated > 0 ? funnelCounts.contacted / funnelCounts.generated : 0, color: 'var(--badge-success-text)' },
-                    { label: 'Lead → Orçamento',   val: funnelCounts.generated > 0 ? funnelCounts.quoted / funnelCounts.generated : 0,   color: 'var(--badge-warn-text)' },
-                    { label: 'Orç. → Venda',       val: funnelCounts.quoted > 0    ? funnelCounts.won / funnelCounts.quoted : 0,          color: 'var(--badge-success-text)' },
-                    { label: 'CPL médio', val: null, display: funnelCounts.generated > 0 && attributionSummary?.cac ? fmtBRL(attributionSummary.cac) : '—', color: 'var(--accent)' },
-                  ].map((item, i) => (
+                  {funilMinis.map((item, i) => (
                     <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                       <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
                       <p className="text-base font-semibold" style={{ color: item.color }}>
@@ -2454,8 +2539,9 @@ export default function DashboardPage() {
                     {/* Donut chart */}
                     {(() => {
                       const R = 44; const r = 28; const cx = 52; const cy = 52;
-                      const active = leadsByOrigin.filter((o) => o.count > 0);
-                      const total = active.reduce((s, o) => s + o.count, 0) || 1;
+                      const active = origemDosLeads.filter((o) => o.count > 0);
+                      const soma = active.reduce((s, o) => s + o.count, 0);
+                      const total = soma || 1;
                       let cumAngle = -90;
                       const slices = active.map((o) => {
                         const angle = (o.count / total) * 360;
@@ -2479,7 +2565,7 @@ export default function DashboardPage() {
                             <path key={s.label} d={arc(s.start, s.angle, R, r)} fill={s.color} opacity={0.85} />
                           ))}
                           <text x={cx} y={cy - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="var(--text-primary)" fontFamily="Inter,sans-serif">
-                            {total}
+                            {soma}
                           </text>
                           <text x={cx} y={cy + 9} textAnchor="middle" fontSize="8" fill="var(--text-muted)" fontFamily="Inter,sans-serif">
                             leads
@@ -2489,7 +2575,7 @@ export default function DashboardPage() {
                     })()}
                     {/* Bars */}
                     <div className="flex-1 space-y-2.5">
-                      {leadsByOrigin.filter((o) => o.count > 0).map((o) => (
+                      {origemDosLeads.filter((o) => o.count > 0).map((o) => (
                         <div key={o.label}>
                           <div className="flex justify-between items-center mb-1">
                             <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
@@ -2573,23 +2659,23 @@ export default function DashboardPage() {
                   {[
                     {
                       label: 'Leads',
-                      meta:   String(canalComparativo.meta.leads),
-                      google: String(canalComparativo.google.leads),
+                      meta:   String(compMeta.leads),
+                      google: String(compGoogle.leads),
                     },
                     {
                       label: 'CPL',
-                      meta:   canalComparativo.meta.cpl != null ? fmtMoney(canalComparativo.meta.cpl) : '—',
-                      google: canalComparativo.google.cpl != null ? fmtMoney(canalComparativo.google.cpl) : '—',
+                      meta:   compMeta.cpl != null ? fmtMoney(compMeta.cpl) : '—',
+                      google: compGoogle.cpl != null ? fmtMoney(compGoogle.cpl) : '—',
                     },
                     {
                       label: 'Vendas',
-                      meta:   String(canalComparativo.meta.won),
-                      google: String(canalComparativo.google.won),
+                      meta:   String(compMeta.won),
+                      google: String(compGoogle.won),
                     },
                     {
                       label: 'Conversão',
-                      meta:   canalComparativo.meta.leads > 0 ? fmtPct1(canalComparativo.meta.conv) : '—',
-                      google: canalComparativo.google.leads > 0 ? fmtPct1(canalComparativo.google.conv) : '—',
+                      meta:   compMeta.leads > 0 ? fmtPct1(compMeta.conv) : '—',
+                      google: compGoogle.leads > 0 ? fmtPct1(compGoogle.conv) : '—',
                     },
                     {
                       label: 'ROAS',
