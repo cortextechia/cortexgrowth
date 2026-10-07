@@ -1341,18 +1341,28 @@ export default function DashboardPage() {
     };
   }, [funnelLeads, kommoWonCur, kommoLostCur, funnelTab]);
 
+  // Motivos de perda REAIS (rawData.lost_reason, gravado pela projeção do CRM Cortex).
+  // Antes a tela aplicava percentuais fixos (38/24/18/12/8) sobre o total e rotulava
+  // "estimativa": na Galpão mostrava "Preço alto 9" num mês com 1 perda por preço.
+  const lostReasons = useMemo(() => {
+    const perdidos = funnelTab === 'meta'   ? kommoLostCur.filter((l) => l.utmSource === 'meta')
+                   : funnelTab === 'google' ? kommoLostCur.filter((l) => l.utmSource === 'google')
+                   : kommoLostCur;
+    const SEM_MOTIVO = 'Sem motivo regist.';
+    const porMotivo = new Map<string, number>();
+    for (const l of perdidos) {
+      const motivo = l.rawData?.lost_reason;
+      const label = typeof motivo === 'string' && motivo.trim() ? motivo.trim() : SEM_MOTIVO;
+      porMotivo.set(label, (porMotivo.get(label) ?? 0) + 1);
+    }
+    return [...porMotivo.entries()]
+      .map(([label, count]) => ({ label, count, pct: perdidos.length > 0 ? count / perdidos.length : 0, warn: label === SEM_MOTIVO }))
+      .sort((a, b) => Number(a.warn) - Number(b.warn) || b.count - a.count);
+  }, [kommoLostCur, funnelTab]);
+
   // ── Revenue / pipeline from Kommo ─────────────────────────────────────────
-  // closedValue: vendas fechadas no período (closed_at). Pipeline: leads abertos
-  // criados no período (coorte — segue por created_at).
-  const { closedValue, pipeline } = useMemo(() => {
-    let pipeline = 0;
-    kommoCur.forEach((l) => {
-      if (l.price == null || l.price === 0) return;
-      if (!WON_STATUSES.includes(l.status) && !LOST_STATUSES.includes(l.status)) pipeline += l.price;
-    });
-    const closedValue = kommoWonCur.reduce((s, l) => s + (l.price ?? 0), 0);
-    return { pipeline, closedValue };
-  }, [kommoCur, kommoWonCur]);
+  // closedValue: vendas fechadas no período (closed_at).
+  const closedValue = useMemo(() => kommoWonCur.reduce((s, l) => s + (l.price ?? 0), 0), [kommoWonCur]);
 
   // ── Revenue filtered by marketing platform tab ─────────────────────────────
   // Vendas fechadas no período (closed_at), filtradas pela aba de plataforma.
@@ -1602,9 +1612,10 @@ export default function DashboardPage() {
     // CAC real = gasto em anúncios / clientes efetivamente adquiridos via Meta ou Google.
     // Dividir LTV por CPL (gasto/leads) produziria um ratio sem sentido — um lead não é
     // um cliente. O custo real por cliente inclui todos os leads que não converteram.
-    const wonFromPaid = kommoCur.filter(
-      (l) => WON_STATUSES.includes(l.status) &&
-             (l.utmSource === 'meta' || l.utmSource === 'google'),
+    // Vendas FECHADAS no período (mesma base do ROAS e do comparativo de canais). Pela data de
+    // criação a tela dizia "1 venda paga" ao lado de um comparativo com 3.
+    const wonFromPaid = kommoWonCur.filter(
+      (l) => l.utmSource === 'meta' || l.utmSource === 'google',
     );
     const totalAdSpend = attributionSummary?.spend ?? 0;
     const cacReal = wonFromPaid.length > 0 && totalAdSpend > 0
@@ -1613,16 +1624,8 @@ export default function DashboardPage() {
 
     const ltvCacRatio = ltv && cacReal && cacReal > 0 ? ltv / cacReal : null;
     return { ticketMedio, ltv, ltvCacRatio, wonTotal, wonCount, cacReal, wonFromPaidCount: wonFromPaid.length };
-  }, [kommoCur, kommoWonCur, closedValue, recurrentCount, attributionSummary]);
+  }, [kommoWonCur, closedValue, recurrentCount, attributionSummary]);
 
-  const projection = useMemo(() => {
-    const today = new Date();
-    const dayOfMonth = today.getDate();
-    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    if (dayOfMonth === 0 || closedValue === 0) return null;
-    const projected = (closedValue / dayOfMonth) * daysInMonth + pipeline * 0.3;
-    return { projected, dayOfMonth, daysInMonth };
-  }, [closedValue, pipeline]);
 
   // ── Alerts ─────────────────────────────────────────────────────────────────
   const alerts = useMemo<ActiveAlert[]>(() => {
@@ -1691,20 +1694,8 @@ export default function DashboardPage() {
       });
     }
 
-    // Opportunity: ROAS > 5x in any channel
-    if (attributionSummary?.roasGoogle && attributionSummary.roasGoogle > 5) {
-      result.push({
-        type: 'opportunity',
-        title: `Google Ads com ROAS de <strong>${attributionSummary.roasGoogle.toFixed(1).replace('.', ',')}x</strong> nos últimos dias`,
-        action: '→ Considerar aumentar orçamento no Google',
-      });
-    } else if (attributionSummary?.roasMeta && attributionSummary.roasMeta > 5) {
-      result.push({
-        type: 'opportunity',
-        title: `Meta Ads com ROAS de <strong>${attributionSummary.roasMeta.toFixed(1).replace('.', ',')}x</strong> no período`,
-        action: '→ Considerar escalar investimento no Meta',
-      });
-    }
+    // Sem card de "ROAS alto → aumentar orçamento": a plataforma não opina sobre verba
+    // (regra de 12/08). O ROAS por canal segue visível no comparativo.
 
     // Opportunity: high CTR campaign
     if (result.filter((a) => a.type === 'opportunity').length === 0) {
@@ -1777,6 +1768,22 @@ export default function DashboardPage() {
     () => negotiatingLeads.reduce((s, l) => s + (l.price ?? 0), 0),
     [negotiatingLeads]
   );
+
+  // Projeção do MÊS CORRENTE: não depende do filtro da tela. Antes dividia a receita do
+  // período filtrado (30 dias, ou um mês passado inteiro) pelo dia do mês — em 07/10 a Galpão
+  // via R$ 271 mil projetados com R$ 18,9 mil fechados no mês.
+  const projection = useMemo(() => {
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const monthRevenue = filterKommoByClosedRange(
+      kommoLeads.filter((l) => WON_STATUSES.includes(l.status)), monthStart, today,
+    ).reduce((s, l) => s + (l.price ?? 0), 0);
+    if (monthRevenue === 0) return null;
+    const fromPipeline = negotiatingTotal * 0.3;
+    return { projected: (monthRevenue / dayOfMonth) * daysInMonth + fromPipeline, fromPipeline, dayOfMonth, daysInMonth };
+  }, [kommoLeads, negotiatingTotal]);
 
   if (user?.role === UserRole.SUPER_ADMIN) {
     return <AdminDashboard />;
@@ -2615,24 +2622,20 @@ export default function DashboardPage() {
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum lead perdido</p>
                 ) : (
                   <div className="space-y-3">
-                    {[
-                      { label: 'Sem resposta',      pct: 0.38 },
-                      { label: 'Preço alto',         pct: 0.24 },
-                      { label: 'Não qualificado',    pct: 0.18 },
-                      { label: 'Escolheu concorr.',  pct: 0.12 },
-                      { label: 'Sem motivo regist.', pct: 0.08, warn: true },
-                    ].map((m, i) => (
+                    {lostReasons.map((m, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="text-xs shrink-0" style={{ color: m.warn ? 'var(--badge-error-text)' : 'var(--text-muted)', width: 100 }}>{m.label}</span>
+                        <span className="text-xs shrink-0 truncate" title={m.label} style={{ color: m.warn ? 'var(--badge-error-text)' : 'var(--text-muted)', width: 100 }}>{m.label}</span>
                         <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-md)' }}>
                           <div className="h-full rounded-full" style={{ width: `${m.pct * 100}%`, backgroundColor: m.warn ? 'rgba(248,113,113,0.5)' : '#f87171', opacity: 0.65 }} />
                         </div>
                         <span className="text-xs tabular-nums" style={{ color: m.warn ? 'var(--badge-error-text)' : 'var(--text-muted)', width: 28, textAlign: 'right' }}>
-                          {Math.round(funnelCounts.lost * m.pct)}
+                          {m.count}
                         </span>
                       </div>
                     ))}
-                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>* Estimativa — configure motivos de perda no {crmLabel} para dados exatos</p>
+                    {lostReasons.length === 1 && lostReasons[0]!.warn && (
+                      <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Nenhuma perda do período tem motivo registrado no {crmLabel}.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -3071,8 +3074,9 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>CPL e distribuição por canal</p>
               <div className="space-y-4">
                 {[
-                  { label: 'Meta Ads',   data: cplByChannel.meta,   color: '#818cf8' },
-                  { label: 'Google Ads', data: cplByChannel.google, color: '#34d399' },
+                  // Leads e CPL na MESMA base dos cards e do comparativo (lead, não oportunidade).
+                  { label: 'Meta Ads',   data: { ...cplByChannel.meta,   leads: leadsMetaCard,   cpl: cplMetaCard },   color: '#818cf8' },
+                  { label: 'Google Ads', data: { ...cplByChannel.google, leads: leadsGoogleCard, cpl: cplGoogleCard }, color: '#34d399' },
                 ].map(({ label, data, color }) => (
                   data.spend > 0 && (
                     <div key={label}>
@@ -3092,13 +3096,6 @@ export default function DashboardPage() {
                   )
                 ))}
               </div>
-              {cplByChannel.google.spend > 0 && cplByChannel.meta.spend > 0 && (
-                <div className="mt-4 rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-warn-bg)', border: '1px solid var(--badge-warn-text)' }}>
-                  <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>
-                    Google gera menos leads mas tende a ter ticket maior — acompanhar ROAS por canal
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -3168,7 +3165,7 @@ export default function DashboardPage() {
               {projection ? (
                 <>
                   <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
-                  <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>baseado no ritmo atual + pipeline ativo</p>
+                  <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>ritmo do mês corrente + 30% do pipeline em negociação</p>
                   <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--border-md)' }}>
                     <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: 'var(--badge-success-text)', opacity: 0.7 }} />
                   </div>
@@ -3178,11 +3175,11 @@ export default function DashboardPage() {
                   </div>
                   <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
                   <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                    Se 30% do pipeline fechar: <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(pipeline * 0.3)}</strong>
+                    Se 30% do pipeline fechar: <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(projection.fromPipeline)}</strong>
                   </p>
                 </>
               ) : (
-                <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>Sem receitas fechadas no período para projetar</p>
+                <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>Sem receitas fechadas neste mês para projetar</p>
               )}
             </div>
 
