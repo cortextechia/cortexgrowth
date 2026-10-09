@@ -1038,6 +1038,8 @@ export default function DashboardPage() {
   const OPTIONAL_COLS = [
     { key: 'spend',       label: 'Gasto'       },
     { key: 'leads',       label: 'Leads'       },
+    { key: 'result',      label: 'Resultado'   },
+    { key: 'cpr',         label: 'Custo/resultado' },
     { key: 'ctr',         label: 'CTR'         },
     { key: 'cpc',         label: 'CPC'         },
     { key: 'cpl',         label: 'CPL'         },
@@ -1045,7 +1047,7 @@ export default function DashboardPage() {
     { key: 'clicks',      label: 'Cliques'     },
   ] as const;
   type ColKey = typeof OPTIONAL_COLS[number]['key'];
-  const DEFAULT_COLS: ColKey[] = ['spend', 'leads', 'ctr'];
+  const DEFAULT_COLS: ColKey[] = ['spend', 'leads', 'result', 'ctr'];
   const [visibleCols, setVisibleCols] = useState<ColKey[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_COLS;
     try {
@@ -1066,6 +1068,7 @@ export default function DashboardPage() {
     { key: 'roas',      label: 'ROAS atribuído'  },
     { key: 'cac',       label: 'CPL'             },  // gasto ÷ LEAD (ver leadCounts.ts)
     { key: 'receita',   label: 'Receita fechada' },
+    { key: 'vendas',    label: 'Vendas'          },
     { key: 'pipeline',  label: 'Pipeline'        },
     { key: 'leads',     label: 'Leads'           },
     { key: 'cpl',       label: 'Custo por oportunidade' },
@@ -1073,12 +1076,22 @@ export default function DashboardPage() {
     { key: 'ticket',    label: 'Ticket médio'    },
   ] as const;
   type BottomKpiKey = typeof BOTTOM_KPI_OPTIONS[number]['key'];
-  const DEFAULT_BOTTOM_KPIS: BottomKpiKey[] = ['roas', 'cac', 'receita', 'pipeline'];
+  const DEFAULT_BOTTOM_KPIS: BottomKpiKey[] = ['roas', 'cac', 'receita', 'vendas', 'pipeline'];
   const [visibleBottomKpis, setVisibleBottomKpis] = useState<BottomKpiKey[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_BOTTOM_KPIS;
     try {
       const saved = localStorage.getItem('dashboard_bottom_kpis');
-      if (saved) return JSON.parse(saved) as BottomKpiKey[];
+      if (saved) {
+        const lista = JSON.parse(saved) as BottomKpiKey[];
+        // "Vendas" entrou em 09/10/2026: quem já tinha escolhido os cards recebe o novo UMA vez
+        // (senão ele só apareceria para quem nunca personalizou) e pode tirar depois.
+        if (!localStorage.getItem('dashboard_kpi_vendas_apresentado')) {
+          localStorage.setItem('dashboard_kpi_vendas_apresentado', '1');
+          if (!lista.includes('vendas')) lista.push('vendas');
+        }
+        return lista;
+      }
+      localStorage.setItem('dashboard_kpi_vendas_apresentado', '1');
     } catch { /* ignore */ }
     return DEFAULT_BOTTOM_KPIS;
   });
@@ -1451,21 +1464,25 @@ export default function DashboardPage() {
 
   // ── Revenue filtered by marketing platform tab ─────────────────────────────
   // Vendas fechadas no período (closed_at), filtradas pela aba de plataforma.
-  const { mktClosedValue, mktWonCount } = useMemo(() => {
-    const leads = mktTab === 'meta'   ? kommoWonCur.filter(l => l.utmSource === 'meta')
+  // Aba Meta = anúncio + link da bio (decisão de 09/10/2026, pedido do Ruan): os dois são
+  // Instagram para quem olha o negócio. ROAS e CPL NÃO entram nisso — link da bio não custa
+  // anúncio, e somá-lo ali faria o Meta parecer mais barato do que é.
+  const { mktClosedValue, mktWonCount, mktBioWon } = useMemo(() => {
+    const leads = mktTab === 'meta'   ? kommoWonCur.filter(l => l.utmSource === 'meta' || l.utmSource === 'link_bio')
                 : mktTab === 'google' ? kommoWonCur.filter(l => l.utmSource === 'google')
                 : kommoWonCur;
-    let mktClosedValue = 0, mktWonCount = 0;
+    let mktClosedValue = 0, mktWonCount = 0, mktBioWon = 0;
     leads.forEach(l => {
       if (l.price == null || l.price === 0) return;
       mktClosedValue += l.price; mktWonCount++;
+      if (l.utmSource === 'link_bio') mktBioWon++;
     });
-    return { mktClosedValue, mktWonCount };
+    return { mktClosedValue, mktWonCount, mktBioWon };
   }, [kommoWonCur, mktTab]);
 
   // ── Pipeline em negociação filtrado por canal — estado atual, sem filtro de período ──
   const mktPipeline = useMemo(() => {
-    const leads = mktTab === 'meta'   ? kommoLeads.filter(l => l.utmSource === 'meta')
+    const leads = mktTab === 'meta'   ? kommoLeads.filter(l => l.utmSource === 'meta' || l.utmSource === 'link_bio')
                 : mktTab === 'google' ? kommoLeads.filter(l => l.utmSource === 'google')
                 : kommoLeads;
     // Com o CRM Cortex ativo, lead aberto do Kommo é resíduo da migração (ver negotiatingLeads).
@@ -1507,11 +1524,23 @@ export default function DashboardPage() {
     const googleWon   = kommoWonCur.filter((l) => l.utmSource === 'google');
     const metaRev     = metaWon.reduce((s, l) => s + (l.price ?? 0), 0);
     const googleRev   = googleWon.reduce((s, l) => s + (l.price ?? 0), 0);
+    const bioWon      = kommoWonCur.filter((l) => l.utmSource === 'link_bio');
+    // Ticket só com venda de valor registrado — venda de R$ 0 derrubaria a média.
+    const ticket = (won: KommoLead[]) => {
+      const comValor = won.filter((l) => (l.price ?? 0) > 0);
+      return comValor.length > 0 ? comValor.reduce((s, l) => s + (l.price ?? 0), 0) / comValor.length : null;
+    };
     return {
+      bio: {
+        leads:  kommoCur.filter((l) => l.utmSource === 'link_bio').length,
+        won:    bioWon.length,
+        ticket: ticket(bioWon),
+      },
       meta: {
         leads: metaLeads.length,
         cpl:   metaLeads.length > 0 && metaSpend > 0 ? metaSpend / metaLeads.length : null,
         won:   metaWon.length,
+        ticket: ticket(metaWon),
         roas:  metaSpend > 0 ? metaRev / metaSpend : null,
         spend: metaSpend,
       },
@@ -1519,6 +1548,7 @@ export default function DashboardPage() {
         leads: googleLeads.length,
         cpl:   googleLeads.length > 0 && googleSpend > 0 ? googleSpend / googleLeads.length : null,
         won:   googleWon.length,
+        ticket: ticket(googleWon),
         roas:  googleSpend > 0 ? googleRev / googleSpend : null,
         spend: googleSpend,
       },
@@ -1645,9 +1675,13 @@ export default function DashboardPage() {
   }, [metaInsights, googleAdsMetrics, kommoLeads]);
 
   // ── Top campaigns ─────────────────────────────────────────────────────────
-  interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; }
+  // `result` é o que a PLATAFORMA reporta (Meta: tipo predominante, nunca a soma dos três;
+  // Google: conversões). `leads` é o que chegou no CRM com a campanha identificada.
+  interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; result: { count: number; label: string } | null; }
   const campaigns = useMemo(() => {
-    const map = new Map<string, Campaign>();
+    const map = new Map<string, Omit<Campaign, 'result'>>();
+    const resMeta = new Map<string, { compras: number; leads: number; conversas: number }>();
+    const convGoogle = new Map<string, number>();
     const leadsByCampaign = new Map<string, number>();
     kommoCur.forEach((l) => {
       if (l.utmCampaign) leadsByCampaign.set(l.utmCampaign, (leadsByCampaign.get(l.utmCampaign) ?? 0) + 1);
@@ -1656,15 +1690,36 @@ export default function DashboardPage() {
     metaCur.forEach((d) => {
       const prev = map.get(d.campaignName) ?? { name: d.campaignName, platform: 'Meta' as const, spend: 0, clicks: 0, impressions: 0, leads: 0 };
       map.set(d.campaignName, { ...prev, spend: prev.spend + d.spend, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
+      const r = resMeta.get(d.campaignName) ?? { compras: 0, leads: 0, conversas: 0 };
+      resMeta.set(d.campaignName, {
+        compras:   r.compras   + (d.resultBreakdown?.compras   ?? 0),
+        leads:     r.leads     + (d.resultBreakdown?.leads     ?? 0),
+        conversas: r.conversas + (d.resultBreakdown?.conversas ?? 0),
+      });
     });
     googleCur.forEach((d) => {
       const key = `[G] ${d.campaignName}`;
+      convGoogle.set(key, (convGoogle.get(key) ?? 0) + (d.conversions ?? 0));
       const prev = map.get(key) ?? { name: d.campaignName, platform: 'Google' as const, spend: 0, clicks: 0, impressions: 0, leads: 0 };
       map.set(key, { ...prev, spend: prev.spend + d.cost, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
     });
 
-    return Array.from(map.values())
-      .map((c) => ({ ...c, leads: leadsByCampaign.get(c.name) ?? 0 }))
+    const resultado = (key: string, c: Omit<Campaign, 'result'>): Campaign['result'] => {
+      if (c.platform === 'Google') {
+        const n = convGoogle.get(key) ?? 0;
+        return n > 0 ? { count: n, label: 'conversões' } : null;
+      }
+      const r = resMeta.get(key);
+      if (!r) return null;
+      // Empate mantém a ordem compra > lead > conversa, igual ao backend (lib/metaResults.ts).
+      const melhor = ([['compras', r.compras], ['leads', r.leads], ['conversas', r.conversas]] as [string, number][])
+        .filter(([, n]) => n > 0)
+        .sort((a, b) => b[1] - a[1])[0];
+      return melhor ? { count: melhor[1], label: melhor[0] } : null;
+    };
+
+    return Array.from(map.entries())
+      .map(([key, c]) => ({ ...c, leads: leadsByCampaign.get(c.name) ?? 0, result: resultado(key, c) }))
       .sort((a, b) => b.spend - a.spend)
       .slice(0, 6);
   }, [metaCur, googleCur, kommoCur]);
@@ -1932,6 +1987,9 @@ export default function DashboardPage() {
   // Sem cadeia na janela, caem no valor antigo (oportunidade), que é o histórico do cliente.
   const leadsMetaCard   = temCadeia ? funnelSummary!.leads!.meta   : topoKpis.metaLeads;
   const leadsGoogleCard = temCadeia ? funnelSummary!.leads!.google : topoKpis.googleLeads;
+  // Leads do link da bio: somam no card "Leads Meta" e têm coluna própria no comparativo.
+  // Nunca entram em `leadsMetaCard`, que é o denominador do CPL.
+  const leadsBio        = temCadeia ? (funnelSummary!.leadsByOrigin?.LINK_BIO ?? 0) : canalComparativo.bio.leads;
   const cplMetaCard     = temCadeia ? funnelSummary!.cplMeta       : topoKpis.cplMeta;
   const cplGoogleCard   = temCadeia ? funnelSummary!.cplGoogle     : topoKpis.cplGoogle;
 
@@ -2003,6 +2061,11 @@ export default function DashboardPage() {
   };
   const compMeta   = compCanal('meta');
   const compGoogle = compCanal('google');
+  // Link da bio: canal sem gasto, então sem CPL e sem ROAS. A coluna só aparece com dado.
+  const compBio    = { ...canalComparativo.bio, leads: leadsBio, conv: taxa(canalComparativo.bio.won, leadsBio) * 100 };
+  const temBio     = compBio.leads > 0 || compBio.won > 0;
+  // Com a terceira coluna o valor em reais encostava no vizinho: coluna e fonte encolhem só nesse caso.
+  const colCanal   = temBio ? 'w-[76px] text-[11px]' : 'w-20 text-xs';
 
   const mktConvRate = funilGerados > 0 ? (funnelCounts.won / funilGerados) * 100 : null;
   const mktTicket   = mktWonCount > 0 ? mktClosedValue / mktWonCount : null;
@@ -2192,7 +2255,7 @@ export default function DashboardPage() {
                 <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="#60a5fa" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
               )}
               {visibleTopoKpis.includes('leads_meta') && (
-                <BottomKpiCard title="Leads Meta (CRM)" value={leadsMetaCard > 0 ? fmtNum(leadsMetaCard) : '—'} sub={temCadeia ? 'Contatos do Meta que passaram na triagem' : `Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
+                <BottomKpiCard title="Leads Meta (CRM)" value={leadsMetaCard + leadsBio > 0 ? fmtNum(leadsMetaCard + leadsBio) : '—'} sub={leadsBio > 0 ? `${leadsMetaCard} de anúncio + ${leadsBio} do link da bio` : temCadeia ? 'Contatos do Meta que passaram na triagem' : `Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
               )}
               {visibleTopoKpis.includes('leads_google') && (
                 <BottomKpiCard title="Leads Google (CRM)" value={leadsGoogleCard > 0 ? fmtNum(leadsGoogleCard) : '—'} sub={temCadeia ? 'Contatos do Google que passaram na triagem' : `Com utm_source=google no ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Leads no ${crmLabel} com origem atribuída ao Google Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
@@ -2482,9 +2545,22 @@ export default function DashboardPage() {
                 sub={mktWonCount > 0
                   ? mktTab === 'total'
                     ? `${mktWonCount} vendas · inclui leads sem UTM`
-                    : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
+                    : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}${mktTab === 'meta' && mktBioWon > 0 ? ` · ${mktBioWon} do link da bio` : ''}`
                   : 'Nenhuma venda fechada'}
-                info="Vendas fechadas dentro do período selecionado, pela data de fechamento — mesma base da Meta do Mês. Inclui vendas de leads criados antes do período."
+                info="Vendas fechadas dentro do período selecionado, pela data de fechamento — mesma base da Meta do Mês. Inclui vendas de leads criados antes do período. Na aba Meta entram as vendas de anúncio e as do link da bio; o ROAS ao lado continua só com anúncio."
+              />
+            )}
+            {visibleBottomKpis.includes('vendas') && (
+              <BottomKpiCard
+                title="Vendas"
+                value={mktWonCount > 0 ? fmtNum(mktWonCount) : '—'}
+                sub={mktWonCount > 0
+                  ? mktTab === 'meta' && mktBioWon > 0
+                    ? `${mktWonCount - mktBioWon} de anúncio + ${mktBioWon} do link da bio`
+                    : `Ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}`
+                  : 'Nenhuma venda fechada'}
+                accent="var(--badge-success-text)"
+                info="Número de vendas fechadas no período, pela data de fechamento. Conta só venda com valor registrado. Na aba Meta entram as vendas de anúncio e as do link da bio."
               />
             )}
             {visibleBottomKpis.includes('pipeline') && (
@@ -2749,33 +2825,45 @@ export default function DashboardPage() {
                   {/* Header */}
                   <div className="flex items-center py-1.5 mb-1">
                     <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}></span>
-                    <span className="w-20 text-center text-xs font-medium" style={{ color: PLATFORM_COLORS.Meta.text }}>Meta</span>
-                    <span className="w-20 text-center text-xs font-medium" style={{ color: PLATFORM_COLORS.Google.text }}>Google</span>
+                    <span className={`${colCanal} text-center font-medium`} style={{ color: PLATFORM_COLORS.Meta.text }}>{temBio ? 'Meta anúncio' : 'Meta'}</span>
+                    {temBio && <span className={`${colCanal} text-center font-medium`} style={{ color: 'var(--text-primary)' }}>Link da bio</span>}
+                    <span className={`${colCanal} text-center font-medium`} style={{ color: PLATFORM_COLORS.Google.text }}>Google</span>
                   </div>
                   {[
                     {
                       label: 'Leads',
                       meta:   String(compMeta.leads),
+                      bio:    String(compBio.leads),
                       google: String(compGoogle.leads),
                     },
                     {
                       label: 'CPL',
                       meta:   compMeta.cpl != null ? fmtMoney(compMeta.cpl) : '—',
+                      bio:    '—',
                       google: compGoogle.cpl != null ? fmtMoney(compGoogle.cpl) : '—',
                     },
                     {
                       label: 'Vendas',
                       meta:   String(compMeta.won),
+                      bio:    String(compBio.won),
                       google: String(compGoogle.won),
                     },
                     {
                       label: 'Conversão',
                       meta:   compMeta.leads > 0 ? fmtPct1(compMeta.conv) : '—',
+                      bio:    compBio.leads > 0 ? fmtPct1(compBio.conv) : '—',
                       google: compGoogle.leads > 0 ? fmtPct1(compGoogle.conv) : '—',
+                    },
+                    {
+                      label: 'Ticket médio',
+                      meta:   compMeta.ticket != null ? fmtMoney(compMeta.ticket) : '—',
+                      bio:    compBio.ticket != null ? fmtMoney(compBio.ticket) : '—',
+                      google: compGoogle.ticket != null ? fmtMoney(compGoogle.ticket) : '—',
                     },
                     {
                       label: 'ROAS',
                       meta:   canalComparativo.meta.roas != null ? `${canalComparativo.meta.roas.toFixed(1).replace('.', ',')}x` : '—',
+                      bio:    '—',
                       google: canalComparativo.google.roas != null ? `${canalComparativo.google.roas.toFixed(1).replace('.', ',')}x` : '—',
                     },
                   ].map((row, i, arr) => (
@@ -2785,8 +2873,9 @@ export default function DashboardPage() {
                       style={{ borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}
                     >
                       <span className="flex-1 text-xs" style={{ color: 'var(--text-muted)' }}>{row.label}</span>
-                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: PLATFORM_COLORS.Meta.text }}>{row.meta}</span>
-                      <span className="w-20 text-center text-xs font-semibold tabular-nums" style={{ color: PLATFORM_COLORS.Google.text }}>{row.google}</span>
+                      <span className={`${colCanal} text-center font-semibold tabular-nums whitespace-nowrap`} style={{ color: PLATFORM_COLORS.Meta.text }}>{row.meta}</span>
+                      {temBio && <span className={`${colCanal} text-center font-semibold tabular-nums whitespace-nowrap`} style={{ color: 'var(--text-primary)' }}>{row.bio}</span>}
+                      <span className={`${colCanal} text-center font-semibold tabular-nums whitespace-nowrap`} style={{ color: PLATFORM_COLORS.Google.text }}>{row.google}</span>
                     </div>
                   ))}
                 </div>
@@ -3093,6 +3182,8 @@ export default function DashboardPage() {
                         const cellVal: Record<ColKey, React.ReactNode> = {
                           spend:       <span style={{ color: 'var(--text-secondary)' }}>{fmtMoney(c.spend)}</span>,
                           leads:       <span style={{ color: 'var(--text-secondary)' }}>{c.leads > 0 ? c.leads : '—'}</span>,
+                          result:      <span className="whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{c.result ? `${fmtNum(Math.round(c.result.count))} ${c.result.label}` : '—'}</span>,
+                          cpr:         <span style={{ color: 'var(--text-secondary)' }}>{c.result ? fmtMoney(c.spend / c.result.count) : '—'}</span>,
                           ctr:         <span style={{ color: ctr >= 2 ? 'var(--badge-success-text)' : ctr >= 1 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)' }}>{fmtPct(ctr)}</span>,
                           cpc:         <span style={{ color: 'var(--text-secondary)' }}>{cpc > 0 ? fmtMoney(cpc) : '—'}</span>,
                           cpl:         <span style={{ color: 'var(--text-secondary)' }}>{cpl > 0 ? fmtMoney(cpl) : '—'}</span>,
@@ -3142,6 +3233,12 @@ export default function DashboardPage() {
                       })}
                     </tbody>
                   </table>
+                  {(visibleCols.includes('result') || visibleCols.includes('cpr')) && (
+                    <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)' }}>
+                      <strong>Resultado</strong> é o que a própria plataforma reporta: conversas iniciadas, leads ou compras na Meta; conversões no Google.
+                      “—” quer dizer que a plataforma não reportou, não que foi zero.
+                    </p>
+                  )}
                   {campanhaCobertura.pagos > 0 && campanhaCobertura.comCampanha < campanhaCobertura.pagos && (
                     <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)' }}>
                       <strong>{campanhaCobertura.comCampanha} de {campanhaCobertura.pagos}</strong> leads de anúncio dizem de qual campanha vieram.

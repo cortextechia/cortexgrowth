@@ -32,6 +32,9 @@ function platformStyle(p: CrmAdPlatform, isDark: boolean) {
   if (p === 'GOOGLE') {
     return { label: 'Google', color: isDark ? '#6ee7b7' : '#047857', bg: isDark ? 'rgba(110,231,183,0.12)' : 'rgba(4,120,87,0.10)' };
   }
+  if (p === 'LINK_BIO') {
+    return { label: 'Link da bio', color: isDark ? '#d8b4fe' : '#7e22ce', bg: isDark ? 'rgba(216,180,254,0.12)' : 'rgba(126,34,206,0.10)' };
+  }
   return { label: 'Meta', color: isDark ? '#a5b4fc' : '#4338ca', bg: isDark ? 'rgba(165,180,252,0.12)' : 'rgba(67,56,202,0.10)' };
 }
 
@@ -428,7 +431,7 @@ export default function CrmCriativosPage() {
 
             <label className="mt-3 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Plataforma</label>
             <div className="mt-1 flex gap-2">
-              {(['META', 'GOOGLE'] as CrmAdPlatform[]).map((op) => {
+              {(['META', 'GOOGLE', 'LINK_BIO'] as CrmAdPlatform[]).map((op) => {
                 const st = platformStyle(op, isDark);
                 const sel = platform === op;
                 return (

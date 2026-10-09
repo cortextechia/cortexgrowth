@@ -1061,7 +1061,7 @@ export interface CrmBroadcastPreview {
   skipped: number;
 }
 
-export type CrmAdPlatform = 'META' | 'GOOGLE';
+export type CrmAdPlatform = 'META' | 'GOOGLE' | 'LINK_BIO';
 
 // Criativo rastreável: a FRASE viaja no texto pré-preenchido do wa.me e volta na
 // primeira mensagem do lead, que é como o card ganha origem Meta/Google.

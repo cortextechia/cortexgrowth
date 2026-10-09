@@ -977,7 +977,7 @@ class ApiService {
     return response.data;
   }
 
-  async getCrmClients(params?: { search?: string; take?: number; skip?: number; unread?: boolean }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number } }> {
+  async getCrmClients(params?: { search?: string; take?: number; skip?: number; unread?: boolean; origin?: string; createdFrom?: string; createdTo?: string }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number; byOrigin?: Record<string, number> } }> {
     const response = await this.client.get('/crm/clients', { params });
     return response.data;
   }

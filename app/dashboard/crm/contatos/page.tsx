@@ -24,6 +24,17 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
 ];
 const originLabel = (o: CrmOrigin) => ORIGIN_OPTIONS.find((x) => x.key === o)?.label ?? o;
 
+// Período de CHEGADA do contato. Dia local no formato do backend (YYYY-MM-DD).
+const PERIODOS = [
+  { key: '', label: 'Chegada: qualquer data', dias: 0 },
+  { key: 'hoje', label: 'Chegaram hoje', dias: 1 },
+  { key: '7', label: 'Últimos 7 dias', dias: 7 },
+  { key: '15', label: 'Últimos 15 dias', dias: 15 },
+  { key: '30', label: 'Últimos 30 dias', dias: 30 },
+  { key: 'custom', label: 'Período personalizado', dias: 0 },
+] as const;
+const diaLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 function fmtMoney(v: number): string {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -98,24 +109,45 @@ export default function CrmContatosPage() {
   const [fClientType, setFClientType] = useState('');
   const [fSale, setFSale] = useState('');
 
+  // Período e origem vão para o SERVIDOR: a pergunta é "quantos leads Meta chegaram em 7
+  // dias", e contar só o que está carregado na tela daria menos gente do que existe.
+  const [fPeriodo, setFPeriodo] = useState('');
+  const [fDe, setFDe] = useState('');
+  const [fAte, setFAte] = useState('');
+  const [byOrigin, setByOrigin] = useState<Record<string, number> | null>(null);
+
+  const periodo = PERIODOS.find((p) => p.key === fPeriodo)!;
+  const createdFrom = fPeriodo === 'custom' ? fDe : periodo.dias > 0 ? diaLocal(new Date(Date.now() - (periodo.dias - 1) * 86_400_000)) : '';
+  const createdTo = fPeriodo === 'custom' ? fAte : '';
+  const temPeriodo = !!createdFrom || !!createdTo;
+
+  const filtrosServidor = useCallback((searchTerm?: string) => ({
+    ...(searchTerm ? { search: searchTerm } : {}),
+    ...(fOrigin ? { origin: fOrigin } : {}),
+    ...(createdFrom ? { createdFrom } : {}),
+    ...(createdTo ? { createdTo } : {}),
+  }), [fOrigin, createdFrom, createdTo]);
+
   const load = useCallback(async (searchTerm?: string) => {
     setLoading(true);
     try {
       const [st, cl, tg] = await Promise.all([
         apiService.getCrmStatus(),
-        apiService.getCrmClients({ take: PAGE, ...(searchTerm ? { search: searchTerm } : {}) }),
+        apiService.getCrmClients({ take: PAGE, ...filtrosServidor(searchTerm) }),
         apiService.getCrmTags().catch(() => ({ data: [] as CrmTagOption[] })),
       ]);
       setStatus(st.data);
       setClients(cl.data.clients);
       setTotal(cl.data.total);
+      setByOrigin(cl.data.byOrigin ?? null);
       setTags(tg.data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filtrosServidor]);
 
-  // Única fonte de carga: dispara no mount (search vazio) e a cada digitação (debounce)
+  // Única fonte de carga: dispara no mount (search vazio), a cada digitação (debounce) e
+  // quando muda período ou origem.
   useEffect(() => {
     const t = setTimeout(() => load(search.trim() || undefined), 350);
     return () => clearTimeout(t);
@@ -127,7 +159,7 @@ export default function CrmContatosPage() {
       const res = await apiService.getCrmClients({
         take: PAGE,
         skip: clients.length,
-        ...(search.trim() ? { search: search.trim() } : {}),
+        ...filtrosServidor(search.trim() || undefined),
       });
       setClients((prev) => [...prev, ...res.data.clients]);
       setTotal(res.data.total);
@@ -176,17 +208,19 @@ export default function CrmContatosPage() {
       (fSale === 'won' && c.sales.some((s) => s.status === 'WON')) ||
       (fSale === 'lost' && c.sales.some((s) => s.status === 'LOST')))
   );
-  const hasActiveFilter = fUnread || !!fResponsible || !!fTag || !!fOrigin || !!fClientType || !!fSale;
+  const hasActiveFilter = fUnread || !!fResponsible || !!fTag || !!fOrigin || !!fClientType || !!fSale || !!fPeriodo;
   const unreadCount = clients.filter(hasUnread).length;
-  const clearFilters = () => { setFUnread(false); setFResponsible(''); setFTag(''); setFOrigin(''); setFClientType(''); setFSale(''); };
+  const clearFilters = () => { setFUnread(false); setFResponsible(''); setFTag(''); setFOrigin(''); setFClientType(''); setFSale(''); setFPeriodo(''); setFDe(''); setFAte(''); };
 
   return (
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex-1 min-w-[200px]">
           <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Contatos</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            {total} cliente{total === 1 ? '' : 's'} na carteira · mostrando {clients.length}
+          <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+            {temPeriodo || fOrigin
+              ? <><strong>{total}</strong> contato{total === 1 ? '' : 's'}{fOrigin ? ` de ${originLabel(fOrigin as CrmOrigin)}` : ''}{temPeriodo ? ' chegaram no período' : ''} · mostrando {clients.length}</>
+              : <>{total} cliente{total === 1 ? '' : 's'} na carteira · mostrando {clients.length}</>}
           </p>
         </div>
         <a
@@ -229,6 +263,16 @@ export default function CrmContatosPage() {
             {tags.map((t) => <option key={t.id} value={t.label}>{t.label}</option>)}
           </select>
         )}
+        <select value={fPeriodo} onChange={(e) => setFPeriodo(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
+          {PERIODOS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+        </select>
+        {fPeriodo === 'custom' && (
+          <>
+            <input type="date" value={fDe} max={fAte || undefined} onChange={(e) => setFDe(e.target.value)} aria-label="Chegada a partir de" className="rounded-lg px-2.5 py-1.5 text-sm" style={input} />
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>até</span>
+            <input type="date" value={fAte} min={fDe || undefined} onChange={(e) => setFAte(e.target.value)} aria-label="Chegada até" className="rounded-lg px-2.5 py-1.5 text-sm" style={input} />
+          </>
+        )}
         <select value={fOrigin} onChange={(e) => setFOrigin(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
           <option value="">Origem: todas</option>
           {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
@@ -250,6 +294,28 @@ export default function CrmContatosPage() {
           </button>
         )}
       </div>
+
+      {/* Quantos chegaram de cada canal no período — clicar filtra a lista */}
+      {byOrigin && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Chegaram no período:</span>
+          {ORIGIN_OPTIONS.filter((o) => (byOrigin[o.key] ?? 0) > 0).map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setFOrigin(fOrigin === o.key ? '' : o.key)}
+              className="rounded-lg px-2.5 py-1 text-xs"
+              style={fOrigin === o.key
+                ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }
+                : { ...input }}
+            >
+              {o.label} <strong>{byOrigin[o.key]}</strong>
+            </button>
+          ))}
+          {Object.values(byOrigin).every((n) => n === 0) || Object.keys(byOrigin).length === 0 ? (
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>nenhum contato.</span>
+          ) : null}
+        </div>
+      )}
 
       <div className="rounded-xl p-4" style={card}>
         {filtered.length === 0 ? (

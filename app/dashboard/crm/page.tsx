@@ -510,6 +510,13 @@ export default function CrmPage() {
   const [filterOrigin, setFilterOrigin] = useState('');
   const [filterClientType, setFilterClientType] = useState('');
   const [filterSale, setFilterSale] = useState<'' | 'won' | 'lost'>('');
+  // Período de CHEGADA do card. Filtro do SERVIDOR, como o de não respondidos: a contagem
+  // ("11 leads Meta em 7 dias") não pode sair dos 100 cards carregados.
+  const [filterPeriod, setFilterPeriod] = useState('');
+  const [periodFrom, setPeriodFrom] = useState('');
+  const [periodTo, setPeriodTo] = useState('');
+  const periodRef = useRef<{ createdFrom?: string; createdTo?: string }>({});
+  const [periodByOrigin, setPeriodByOrigin] = useState<Record<string, number> | null>(null);
 
   // Drawer + modais
   const [detail, setDetail] = useState<CrmClientDetail | null>(null);
@@ -562,6 +569,7 @@ export default function CrmPage() {
           // Filtro no servidor: os não respondidos podem estar fora dos 100
           // cards mais recentes, e o filtro client-side não os enxergava.
           ...(filterUnreadRef.current ? { unread: true } : {}),
+          ...periodRef.current,
         }),
         apiService.getCrmTasks('open'),
         apiService.getCrmUnreadCount(),
@@ -574,8 +582,13 @@ export default function CrmPage() {
       if (cl.success) {
         setClients(cl.data.clients);
         setTotalClients(cl.data.total);
+        setPeriodByOrigin(cl.data.byOrigin ?? null);
+        const comPeriodo = !!(periodRef.current.createdFrom || periodRef.current.createdTo);
+        // Lista recortada por período não serve de base: ao limpar o filtro, todo card de
+        // fora do período pareceria "novo". Zera para a próxima lista completa refazer a base.
+        if (comPeriodo) knownIdsRef.current = null;
         // Aviso de card novo — só em lista completa (busca filtrada reintroduz ids e geraria falso positivo)
-        if (!searchTerm) {
+        if (!searchTerm && !comPeriodo) {
           const ids = new Set(cl.data.clients.map((c) => c.id));
           if (knownIdsRef.current) {
             const novos = cl.data.clients.filter((c) => !knownIdsRef.current!.has(c.id));
@@ -1101,7 +1114,20 @@ export default function CrmPage() {
       (filterSale === 'won' && c.sales.some((s) => s.status === 'WON')) ||
       (filterSale === 'lost' && c.sales.some((s) => s.status === 'LOST')))
   );
-  const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin || !!filterClientType || !!filterSale;
+  const hasActiveFilter = filterUnread || !!filterResponsible || !!filterTag || !!filterOrigin || !!filterClientType || !!filterSale || !!filterPeriod;
+
+  // Período: grava no ref e recarrega do servidor (mesmo caminho do filtro de não respondidos).
+  const diaLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // `de`/`ate` vêm do ref, não do estado: dois campos alterados em sequência veriam o estado velho.
+  const aplicarPeriodo = (chave: string, de = '', ate = '') => {
+    setFilterPeriod(chave);
+    const dias = Number(chave);
+    periodRef.current = chave === 'custom'
+      ? { ...(de ? { createdFrom: de } : {}), ...(ate ? { createdTo: ate } : {}) }
+      : dias > 0 ? { createdFrom: diaLocal(new Date(Date.now() - (dias - 1) * 86_400_000)) } : {};
+    void loadAll(searchRef.current.trim() || undefined, { force: true });
+  };
+  const temPeriodo = !!(periodRef.current.createdFrom || periodRef.current.createdTo);
   // Vem do banco (não de clients.filter): card não respondido pode estar fora
   // dos 100 carregados, e o chip mostraria menos gente esperando do que existe.
   const unreadCount = unreadTotal;
@@ -1280,6 +1306,31 @@ export default function CrmPage() {
         )}
         <Dropdown
           variant="pill"
+          label="Chegada"
+          value={filterPeriod}
+          onChange={(v) => aplicarPeriodo(v, periodFrom, periodTo)}
+          options={[
+            { value: '', label: 'qualquer data' },
+            { value: '1', label: 'hoje' },
+            { value: '7', label: 'últimos 7 dias' },
+            { value: '15', label: 'últimos 15 dias' },
+            { value: '30', label: 'últimos 30 dias' },
+            { value: 'custom', label: 'personalizado' },
+          ]}
+        />
+        {filterPeriod === 'custom' && (
+          <>
+            <input type="date" value={periodFrom} max={periodTo || undefined} aria-label="Chegada a partir de"
+              onChange={(e) => { setPeriodFrom(e.target.value); aplicarPeriodo('custom', e.target.value, periodRef.current.createdTo ?? ''); }}
+              className="text-xs px-2 py-1.5 rounded-full" style={{ ...card, color: 'var(--text-primary)' }} />
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>até</span>
+            <input type="date" value={periodTo} min={periodFrom || undefined} aria-label="Chegada até"
+              onChange={(e) => { setPeriodTo(e.target.value); aplicarPeriodo('custom', periodRef.current.createdFrom ?? '', e.target.value); }}
+              className="text-xs px-2 py-1.5 rounded-full" style={{ ...card, color: 'var(--text-primary)' }} />
+          </>
+        )}
+        <Dropdown
+          variant="pill"
           label="Origem"
           value={filterOrigin}
           onChange={setFilterOrigin}
@@ -1307,7 +1358,13 @@ export default function CrmPage() {
         />
         {hasActiveFilter && (
           <button
-            onClick={() => { setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); setFilterClientType(''); setFilterSale(''); }}
+            onClick={() => {
+              setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); setFilterClientType(''); setFilterSale('');
+              // Não respondidos e período são filtros do servidor: limpar exige recarregar.
+              filterUnreadRef.current = false;
+              setPeriodFrom(''); setPeriodTo('');
+              aplicarPeriodo('');
+            }}
             className="text-xs px-2 py-1.5"
             style={{ color: 'var(--text-muted)' }}
           >
@@ -1315,6 +1372,30 @@ export default function CrmPage() {
           </button>
         )}
       </div>
+
+      {/* Contagem do período — vem do servidor, não dos cards desenhados */}
+      {temPeriodo && periodByOrigin && (
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>{totalClients}</strong> contato{totalClients === 1 ? '' : 's'} chegaram no período:
+          </span>
+          {ORIGIN_OPTIONS.filter((o) => (periodByOrigin[o.key] ?? 0) > 0).map((o) => (
+            <button
+              key={o.key}
+              onClick={() => setFilterOrigin(filterOrigin === o.key ? '' : o.key)}
+              className="text-xs px-2.5 py-1 rounded-full"
+              style={filterOrigin === o.key
+                ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }
+                : { ...card, color: 'var(--text-secondary)' }}
+            >
+              {o.label} <strong style={{ color: 'var(--text-primary)' }}>{periodByOrigin[o.key]}</strong>
+            </button>
+          ))}
+          <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {totalClients > clients.length ? `O funil desenha os ${clients.length} mais recentes e só quem está em alguma etapa.` : 'O funil desenha só quem está em alguma etapa.'}
+          </span>
+        </div>
+      )}
 
       {/* Tarefas do dia — a rotina do vendedor (vencidas + hoje em destaque) */}
       <TasksPanel
