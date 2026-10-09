@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Fragment } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
 import { apiService } from '@/lib/api';
 import Sparkline from '@/components/charts/Sparkline';
 import AdminDashboard from '@/components/AdminDashboard';
-import { UserRole } from '@/types';
+import { UserRole, type CreativePerformance } from '@/types';
 import type { MetaInsight, GoogleAdsMetric } from '@/components/DashboardAnalytics';
 import Link from 'next/link';
 import { PrimeirosPassos } from '@/components/PrimeirosPassos';
@@ -705,15 +705,54 @@ function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa
 
 // ─── Campaign Drill-down Drawer ───────────────────────────────────────────────
 
+// Anúncios rastreados no CRM dentro de um conjunto: o que cada um trouxe e vendeu.
+function CreativeRows({ creatives }: { creatives: CreativePerformance[] }) {
+  if (creatives.length === 0) {
+    return (
+      <p className="px-4 py-3 text-xs" style={{ color: 'var(--text-secondary)' }}>
+        Nenhum lead rastreado veio de anúncio deste conjunto no período.
+      </p>
+    );
+  }
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+          {['Anúncio', 'Leads', 'Descartados', 'Em aberto', 'Vendas', 'Receita'].map((h) => (
+            <th key={h} className="px-3 py-2 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {[...creatives].sort((a, b) => b.wonValue - a.wonValue || b.leads - a.leads).map((c) => (
+          <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
+            <td className="px-3 py-2 max-w-[170px]" style={{ color: 'var(--text-primary)' }}>
+              <span className="block truncate" title={c.name}>{c.name}</span>
+            </td>
+            <td className="px-3 py-2 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
+            <td className="px-3 py-2 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{c.discarded}</td>
+            <td className="px-3 py-2 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(c.openValue)}</td>
+            <td className="px-3 py-2 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
+            <td className="px-3 py-2 tabular-nums font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{fmtMoney(c.wonValue)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 interface CampaignDrawerProps {
   campaign: { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number } | null;
   campaignRows: MetaInsight[];
   adsetRows: MetaInsight[];
   googleCampaignRows?: GoogleAdsMetric[];
+  /** Anúncios desta campanha rastreados no CRM. */
+  creatives: CreativePerformance[];
   onClose: () => void;
 }
 
-function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows, onClose }: CampaignDrawerProps) {
+function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows, creatives, onClose }: CampaignDrawerProps) {
+  const [openAdset, setOpenAdset] = useState<string | null>(null);
   const daily = useMemo(() => {
     const map = new Map<string, { date: string; spend: number; clicks: number; impressions: number }>();
     if (campaign?.platform === 'Google' && googleCampaignRows?.length) {
@@ -743,6 +782,11 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
   }, [adsetRows]);
 
   if (!campaign) return null;
+
+  // Anúncio cujo conjunto não aparece na lista (sem nome buscado na Meta, ou conjunto renomeado).
+  const nomesDosConjuntos = new Set(adsets.map((a) => a.name));
+  const semConjunto = creatives.filter((c) => !c.adsetName || !nomesDosConjuntos.has(c.adsetName));
+  const notaRastreio = 'Só entra lead que chegou pelo WhatsApp com o anúncio identificado. Leads e descartados: chegaram no período. Vendas e receita: fechadas no período. Em aberto: valor de hoje.';
 
   const totalSpend = campaign.spend;
   const totalImpr  = campaign.impressions;
@@ -848,31 +892,72 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                 <table className="w-full text-xs">
                   <thead>
                     <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
-                      {['Conjunto', 'Gasto', 'Impressões', 'Cliques', 'CTR', 'CPC'].map((h) => (
-                        <th key={h} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                      {['Conjunto', 'Gasto', 'Impressões', 'Leads', 'Em aberto', 'Vendas', 'Receita'].map((h) => (
+                        <th key={h} className="px-2 first:pl-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {adsets.map((a) => {
-                      const aCtr = a.impressions > 0 ? (a.clicks / a.impressions) * 100 : 0;
-                      const aCpc = a.clicks > 0 ? a.spend / a.clicks : 0;
+                      const doConjunto = creatives.filter((c) => c.adsetName === a.name);
+                      // Comercial do conjunto = soma dos anúncios rastreados dele.
+                      const soma = (f: (c: CreativePerformance) => number) => doConjunto.reduce((t, c) => t + f(c), 0);
+                      const aberto = openAdset === a.name;
                       return (
-                        <tr key={a.name} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td className="px-4 py-2.5 max-w-[180px]" style={{ color: 'var(--text-primary)' }}>
-                            <span className="block truncate">{a.name}</span>
+                        <Fragment key={a.name}>
+                        <tr
+                          onClick={() => setOpenAdset(aberto ? null : a.name)}
+                          className="cursor-pointer"
+                          aria-expanded={aberto}
+                          style={{ borderBottom: '1px solid var(--border)' }}
+                        >
+                          <td className="pl-4 pr-2 py-2.5 max-w-[150px]" style={{ color: 'var(--text-primary)' }}>
+                            <span className="flex items-center gap-1.5">
+                              <svg className="h-3 w-3 shrink-0 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+                                style={{ color: 'var(--text-secondary)', transform: aberto ? 'rotate(90deg)' : 'none' }}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                              </svg>
+                              <span className="block truncate">{a.name}</span>
+                            </span>
+                            <span className="block pl-[18px] text-[11px]" style={{ color: 'var(--text-secondary)' }}>
+                              {doConjunto.length === 0 ? 'sem anúncio rastreado' : `${doConjunto.length} anúncio${doConjunto.length > 1 ? 's' : ''}`}
+                            </span>
                           </td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(a.spend)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.impressions)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.clicks)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: aCtr >= 2 ? 'var(--badge-success-text)' : aCtr >= 1 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)' }}>{fmtPct(aCtr)}</td>
-                          <td className="px-4 py-2.5 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(aCpc)}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(a.spend)}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{fmtNum(a.impressions)}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{soma((c) => c.leads)}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(soma((c) => c.openValue))}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{soma((c) => c.wonCount)}</td>
+                          <td className="px-2 py-2.5 tabular-nums whitespace-nowrap font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(soma((c) => c.wonValue))}</td>
                         </tr>
+                        {aberto && (
+                          <tr style={{ borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)' }}>
+                            <td colSpan={7} className="p-0"><CreativeRows creatives={doConjunto} /></td>
+                          </tr>
+                        )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+              <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                Clique num conjunto para ver os anúncios dele. {notaRastreio}
+              </p>
+            </div>
+          )}
+
+          {semConjunto.length > 0 && (
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  Anúncios sem conjunto identificado ({semConjunto.length})
+                </p>
+              </div>
+              <div className="overflow-x-auto"><CreativeRows creatives={semConjunto} /></div>
+              {adsets.length === 0 && (
+                <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{notaRastreio}</p>
+              )}
             </div>
           )}
 
@@ -3330,6 +3415,11 @@ export default function DashboardPage() {
             selectedCampaign.platform === 'Google'
               ? googleAdsMetrics.filter((d) => d.campaignName === selectedCampaign.name)
               : undefined
+          }
+          creatives={
+            selectedCampaign.platform === 'Meta'
+              ? (funnelSummary?.byCreative ?? []).filter((c) => c.campaignName === selectedCampaign.name)
+              : []
           }
           onClose={() => setSelectedCampaign(null)}
         />

@@ -207,6 +207,19 @@ export interface FunnelChannelCounts {
   total: number;
 }
 
+/** Leads pela chegada do card · vendas pelo fechamento · em aberto é estado de hoje. */
+export interface CreativePerformance {
+  id: string;
+  name: string;
+  campaignName: string | null;
+  adsetName: string | null;
+  leads: number;
+  discarded: number;
+  openValue: number;
+  wonCount: number;
+  wonValue: number;
+}
+
 export interface FunnelSummary {
   period: { start: string; end: string };
   /** `null` quando a org não tem camada de contato na janela — a faixa some. */
@@ -219,6 +232,8 @@ export interface FunnelSummary {
   leadsByOrigin: Record<string, number> | null;
   /** Funil pelos cards: quantos leads do período alcançaram cada etapa do CRM. */
   cardFunnel: (FunnelChannelCounts & { name: string })[] | null;
+  /** Por anúncio rastreado no CRM. Ausente em backend antigo. */
+  byCreative?: CreativePerformance[];
   /** LEAD = dividiu por lead · OPPORTUNITY/PLATFORM_CONVERSION = base antiga. */
   cplBasis: 'LEAD' | 'OPPORTUNITY' | 'PLATFORM_CONVERSION';
   /** Desde quando existe contato — usado para explicar a faixa ausente. */
