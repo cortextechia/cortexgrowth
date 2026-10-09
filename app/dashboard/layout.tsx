@@ -309,6 +309,53 @@ function AvisoEmailNaoConfirmado() {
   );
 }
 
+// Lembrete de fim de assinatura. O acesso acaba no dia em que a fatura vence, sem
+// tolerância — sem isto o primeiro aviso seria a própria tela de bloqueio. Só para
+// ADMIN: é quem paga (vendedor não tem o que fazer com o aviso).
+const AVISAR_COM_DIAS = 5;
+
+function AvisoAssinaturaEncerrando() {
+  const { user } = useAuth();
+  const [fim, setFim] = useState<string | null>(null);
+  const ehAdmin = user?.role === UserRole.ADMIN;
+
+  useEffect(() => {
+    if (!ehAdmin) return;
+    apiService.getBillingStatus()
+      .then((r) => setFim(r.data.subscriptionEnds))
+      .catch(() => {}); // silencioso: o dashboard não pode quebrar por causa do lembrete
+  }, [ehAdmin]);
+
+  if (!ehAdmin || !fim) return null;
+
+  // Dias de calendário (no fuso de quem está olhando), não blocos de 24h: acesso que
+  // acaba hoje à noite tem que dizer "hoje", não "em 1 dia".
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const diaFim = new Date(fim);
+  diaFim.setHours(0, 0, 0, 0);
+  const dias = Math.round((diaFim.getTime() - hoje.getTime()) / 86_400_000);
+  if (dias < 0 || dias > AVISAR_COM_DIAS) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:px-6"
+      style={{ backgroundColor: 'var(--badge-warn-bg)', borderBottom: '1px solid var(--border)' }}>
+      {/* Texto em --text-primary: o amarelo de aviso sobre o fundo de aviso mede 2,74:1
+          no tema claro. A cor semântica fica só no marcador. */}
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: 'var(--badge-warn-text)' }} />
+      <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+        {dias === 0
+          ? 'Sua assinatura encerra hoje.'
+          : `Sua assinatura encerra em ${dias} dia${dias === 1 ? '' : 's'}.`}
+      </span>
+      <Link href="/dashboard/assinatura" className="text-sm font-semibold underline underline-offset-2"
+        style={{ color: 'var(--text-primary)' }}>
+        Ver assinatura
+      </Link>
+    </div>
+  );
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, organization, logout } = useAuth();
   const router = useRouter();
@@ -678,6 +725,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
 
           <AvisoEmailNaoConfirmado />
+          <AvisoAssinaturaEncerrando />
 
           <div className="p-4 sm:p-6">{children}</div>
         </main>
