@@ -129,3 +129,11 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+/* Tabela larga que só rola para o lado: a barra global (6px, quase transparente) não é
+   achável com mouse comum. Aqui ela é mais alta e usa --text-secondary: com --text-muted o
+   contraste contra o trilho mediu 2,1–2,5 nos dois temas. */
+.scroll-x-visivel::-webkit-scrollbar { height: 10px; }
+.scroll-x-visivel::-webkit-scrollbar-track { background: var(--bg-elevated); }
+.scroll-x-visivel::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 5px; }
+.scroll-x-visivel::-webkit-scrollbar-thumb:hover { background: var(--text-primary); }

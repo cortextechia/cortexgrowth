@@ -3160,7 +3160,11 @@ export default function DashboardPage() {
               {campaigns.length === 0 ? (
                 <div className="flex items-center justify-center py-8 text-sm" style={{ color: 'var(--text-muted)' }}>Sem dados de campanha</div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                {/* As notas ficam FORA da área que rola: dentro, a barra de rolagem ia parar embaixo
+                    delas, longe da tabela. A barra global tem 6px e é quase transparente; aqui ela
+                    precisa ser achada com mouse comum (ver .scroll-x-visivel em globals.css). */}
+                <div className="overflow-x-auto scroll-x-visivel">
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
@@ -3168,7 +3172,7 @@ export default function DashboardPage() {
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Plat.</th>
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Saúde</th>
                         {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key, label }) => (
-                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{label}</th>
+                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{label}</th>
                         ))}
                         <th />
                       </tr>
@@ -3221,7 +3225,7 @@ export default function DashboardPage() {
                               })()}
                             </td>
                             {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key }) => (
-                              <td key={key} className="px-4 py-2.5 tabular-nums">{cellVal[key]}</td>
+                              <td key={key} className="px-4 py-2.5 tabular-nums whitespace-nowrap">{cellVal[key]}</td>
                             ))}
                             <td className="px-4 py-2.5">
                               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--text-muted)' }}>
@@ -3233,6 +3237,7 @@ export default function DashboardPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
                   {(visibleCols.includes('result') || visibleCols.includes('cpr')) && (
                     <p className="px-4 py-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)', borderTop: '1px solid var(--border)' }}>
                       <strong>Resultado</strong> é o que a própria plataforma reporta: conversas iniciadas, leads ou compras na Meta; conversões no Google.
@@ -3247,7 +3252,7 @@ export default function DashboardPage() {
                       A coluna <strong>Leads</strong> é um piso: campanha com “—” pode ter trazido gente sem que dê para provar.
                     </p>
                   )}
-                </div>
+                </>
               )}
             </div>
 
