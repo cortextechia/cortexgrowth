@@ -454,7 +454,11 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
               {wonLeads.map((l) => (
                 <div key={l.externalId} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)' }}>
                   <div className="flex items-center gap-2 min-w-0">
-                    {l.kommoUrl ? (
+                    {l.crmUrl ? (
+                      <a href={l.crmUrl} className="text-xs truncate hover:underline" style={{ color: 'var(--text-primary)' }}>
+                        {l.name ?? '(sem nome)'}
+                      </a>
+                    ) : l.kommoUrl ? (
                       <a href={l.kommoUrl} target="_blank" rel="noopener noreferrer" className="text-xs truncate hover:underline" style={{ color: 'var(--text-primary)' }}>
                         {l.name ?? '(sem nome)'}
                       </a>

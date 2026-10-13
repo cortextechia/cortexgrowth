@@ -747,6 +747,7 @@ export interface WonLead {
   externalId: number;
   closedAt: string | null;
   kommoUrl: string | null;
+  crmUrl: string | null;
   utmSource: string | null;
 }
 
