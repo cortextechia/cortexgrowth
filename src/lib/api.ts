@@ -61,14 +61,14 @@ class ApiService {
           this.isRefreshing = true;
 
           try {
-            const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
-            this.setTokens(data.accessToken, data.refreshToken);
+            const sentAccessToken = String(original.headers.Authorization ?? '').replace('Bearer ', '');
+            const newAccessToken = await this.refreshAcrossTabs(sentAccessToken);
 
             // Resolve todas as requisições que estavam esperando
-            this.refreshQueue.forEach((cb) => cb(data.accessToken));
+            this.refreshQueue.forEach((cb) => cb(newAccessToken));
             this.refreshQueue = [];
 
-            original.headers.Authorization = `Bearer ${data.accessToken}`;
+            original.headers.Authorization = `Bearer ${newAccessToken}`;
             return this.client(original);
           } catch (refreshError: any) {
             const isNetworkError = !refreshError.response;
@@ -96,6 +96,25 @@ class ApiService {
         return Promise.reject(error);
       }
     );
+  }
+
+  // O refresh token gira a cada uso, e as abas dividem o mesmo localStorage. Sem trava,
+  // duas abas voltando do segundo plano renovavam juntas com o mesmo token: a primeira
+  // invalidava o da segunda, que caía no login. Com a trava, quem chega depois acha o
+  // token novo já salvo e só o reaproveita.
+  private async refreshAcrossTabs(sentAccessToken: string): Promise<string> {
+    const run = async (): Promise<string> => {
+      const stored = this.getAccessToken();
+      if (stored && stored !== sentAccessToken) return stored;
+
+      const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken: this.getRefreshToken() });
+      this.setTokens(data.accessToken, data.refreshToken);
+      return data.accessToken;
+    };
+    if (typeof navigator !== 'undefined' && navigator.locks) {
+      return navigator.locks.request('cortex-auth-refresh', run);
+    }
+    return run();
   }
 
   // ─── Token management ────────────────────────────────────────────────────────
@@ -147,7 +166,8 @@ class ApiService {
 
   async logout(): Promise<void> {
     try {
-      await this.client.post('/auth/logout');
+      // Manda o refresh token para o servidor encerrar só a sessão deste aparelho
+      await this.client.post('/auth/logout', { refreshToken: this.getRefreshToken() });
     } catch {
       // Mesmo com erro, limpa tokens locais
     } finally {
