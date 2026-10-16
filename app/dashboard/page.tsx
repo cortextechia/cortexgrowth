@@ -1925,9 +1925,19 @@ export default function DashboardPage() {
       kommoLeads.filter((l) => WON_STATUSES.includes(l.status)), monthStart, today,
     ).reduce((s, l) => s + (l.price ?? 0), 0);
     if (monthRevenue === 0) return null;
-    const fromPipeline = negotiatingTotal * 0.3;
-    return { projected: (monthRevenue / dayOfMonth) * daysInMonth + fromPipeline, fromPipeline, dayOfMonth, daysInMonth };
-  }, [kommoLeads, negotiatingTotal]);
+    // Conversão EM VALOR dos últimos 90 dias, na mesma base do pipeline (só CRM Cortex
+    // quando ativo). Por valor porque perdido sem preço (nunca recebeu orçamento) pesa
+    // zero — fica perto da conversão de quem já está em orçamento/negociação.
+    const usaCrmCortex = integrations.some((i) => i.type === 'CRM_CORTEX' && i.status === 'CONNECTED');
+    const base = kommoLeads.filter((l) => !usaCrmCortex || l.source === 'CRM_CORTEX');
+    const since = new Date(today.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const sum = (leads: KommoLead[]) => leads.reduce((s, l) => s + (l.price ?? 0), 0);
+    const won90 = sum(filterKommoByClosedRange(base.filter((l) => WON_STATUSES.includes(l.status)), since, today));
+    const lost90 = sum(filterKommoByClosedRange(base.filter((l) => LOST_STATUSES.includes(l.status)), since, today));
+    const conversionRate = won90 + lost90 > 0 ? won90 / (won90 + lost90) : null;
+    const fromPipeline = conversionRate === null ? 0 : negotiatingTotal * conversionRate;
+    return { projected: (monthRevenue / dayOfMonth) * daysInMonth + fromPipeline, fromPipeline, conversionRate, dayOfMonth, daysInMonth };
+  }, [kommoLeads, negotiatingTotal, integrations]);
 
   if (user?.role === UserRole.SUPER_ADMIN) {
     return <AdminDashboard />;
@@ -3356,7 +3366,11 @@ export default function DashboardPage() {
               {projection ? (
                 <>
                   <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
-                  <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>ritmo do mês corrente + 30% do pipeline em negociação</p>
+                  <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
+                    {projection.conversionRate === null
+                      ? 'ritmo do mês corrente (sem fechamentos nos últimos 90 dias para estimar o pipeline)'
+                      : 'ritmo do mês corrente + pipeline em negociação × conversão dos últimos 90 dias'}
+                  </p>
                   <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--border-md)' }}>
                     <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: 'var(--badge-success-text)', opacity: 0.7 }} />
                   </div>
@@ -3364,10 +3378,14 @@ export default function DashboardPage() {
                     <span>Dia {projection.dayOfMonth}</span>
                     <span>Fim do mês: dia {projection.daysInMonth}</span>
                   </div>
-                  <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
-                  <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                    Se 30% do pipeline fechar: <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(projection.fromPipeline)}</strong>
-                  </p>
+                  {projection.conversionRate !== null && (
+                    <>
+                      <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
+                      <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
+                        Se {Math.round(projection.conversionRate * 100)}% do pipeline fechar (conversão em valor, 90 dias): <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(projection.fromPipeline)}</strong>
+                      </p>
+                    </>
+                  )}
                 </>
               ) : (
                 <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>Sem receitas fechadas neste mês para projetar</p>
