@@ -1936,7 +1936,10 @@ export default function DashboardPage() {
     const lost90 = sum(filterKommoByClosedRange(base.filter((l) => LOST_STATUSES.includes(l.status)), since, today));
     const conversionRate = won90 + lost90 > 0 ? won90 / (won90 + lost90) : null;
     const fromPipeline = conversionRate === null ? 0 : negotiatingTotal * conversionRate;
-    return { projected: (monthRevenue / dayOfMonth) * daysInMonth + fromPipeline, fromPipeline, conversionRate, dayOfMonth, daysInMonth };
+    // O pipeline NÃO soma na projeção: as vendas do resto do mês saem dele, e o ritmo já
+    // as projeta — somar contava duas vezes (Galpão 16/10: R$ 122 mil projetados com
+    // ritmo de R$ 39,7 mil, meta R$ 50 mil). Fica no cartão só como potencial, sem prazo.
+    return { projected: (monthRevenue / dayOfMonth) * daysInMonth, fromPipeline, conversionRate, dayOfMonth, daysInMonth };
   }, [kommoLeads, negotiatingTotal, integrations]);
 
   if (user?.role === UserRole.SUPER_ADMIN) {
@@ -3367,9 +3370,7 @@ export default function DashboardPage() {
                 <>
                   <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
                   <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
-                    {projection.conversionRate === null
-                      ? 'ritmo do mês corrente (sem fechamentos nos últimos 90 dias para estimar o pipeline)'
-                      : 'ritmo do mês corrente + pipeline em negociação × conversão dos últimos 90 dias'}
+                    ritmo de vendas do mês corrente
                   </p>
                   <div className="h-2 rounded-full overflow-hidden mb-2" style={{ backgroundColor: 'var(--border-md)' }}>
                     <div className="h-full rounded-full" style={{ width: `${(projection.dayOfMonth / projection.daysInMonth) * 100}%`, backgroundColor: 'var(--badge-success-text)', opacity: 0.7 }} />
@@ -3382,7 +3383,7 @@ export default function DashboardPage() {
                     <>
                       <div className="mt-3 h-px" style={{ backgroundColor: 'var(--border)' }} />
                       <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>
-                        Se {Math.round(projection.conversionRate * 100)}% do pipeline fechar (conversão em valor, 90 dias): <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(projection.fromPipeline)}</strong>
+                        Pipeline: {fmtMoney(negotiatingTotal)} · se {Math.round(projection.conversionRate * 100)}% fechar (conversão em valor, 90 dias): <strong style={{ color: 'var(--badge-success-text)' }}>+ {fmtMoney(projection.fromPipeline)}</strong> sem prazo — não entra na projeção
                       </p>
                     </>
                   )}
