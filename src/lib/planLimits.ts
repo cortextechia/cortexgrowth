@@ -6,7 +6,8 @@ import { Plan } from '@/types';
 // a tela dizer "limite atingido" com a API já liberada.
 export const PLAN_USER_LIMITS: Record<Plan, number> = {
   [Plan.DEMO]:         4,
-  [Plan.STARTER]:      1,
+  [Plan.CRM]:          1,
+  [Plan.STARTER]:      3,
   [Plan.PROFESSIONAL]: 3,
   [Plan.ENTERPRISE]:   Infinity,
 };

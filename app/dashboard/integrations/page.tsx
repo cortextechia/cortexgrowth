@@ -265,7 +265,7 @@ function GoogleAccountNotice() {
 
 export default function IntegrationsPage() {
   const { organization } = useAuth();
-  const isStarter = organization?.plan === Plan.STARTER;
+  const isStarter = organization?.plan === Plan.STARTER || organization?.plan === Plan.CRM;
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

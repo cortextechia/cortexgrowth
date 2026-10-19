@@ -31,15 +31,22 @@ const IDENTIDADE: Record<string, {
     cor: 'var(--plano-demo)',
     corSuave: 'var(--plano-demo-soft)',
     chamada: 'Para conhecer a plataforma',
-    publico: '1 usuário · mensal',
+    publico: 'até 4 usuários · mensal',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
+  },
+  CRM: {
+    cor: 'var(--plano-pro)',
+    corSuave: 'var(--plano-pro-soft)',
+    chamada: 'Só o CRM',
+    publico: '1 usuário',
+    inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
   },
   STARTER: {
     cor: 'var(--plano-starter)',
     corSuave: 'var(--plano-starter-soft)',
-    chamada: 'Para quem toca sozinho',
-    publico: '1 usuário',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+    chamada: 'Growth + CRM',
+    publico: 'até 3 usuários',
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
     cor: 'var(--plano-pro)',
@@ -99,7 +106,7 @@ function BannerPlano({
             <span className="text-sm font-bold tracking-wide" style={{ color: selecionado ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
               {opcao.plan}
             </span>
-            {opcao.plan === 'PROFESSIONAL' && (
+            {opcao.plan === 'STARTER' && (
               <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                 style={{ backgroundColor: id.cor, color: 'var(--bg-base)' }}>
                 Mais escolhido
@@ -158,7 +165,7 @@ function RegisterContent() {
   const [claimToken, setClaimToken] = useState<string | null>(null);
   const [claimInfo, setClaimInfo] = useState<{ valid: boolean; organizationName?: string; managerName?: string | null } | null>(null);
   const [planos, setPlanos] = useState<PlanOption[]>([]);
-  const [plano, setPlano] = useState('PROFESSIONAL');
+  const [plano, setPlano] = useState('STARTER');
   const [ciclo, setCiclo] = useState<BillingCycle>('MONTHLY');
 
   // Quem chega por claim assume uma org que já existe (e já tem plano) — não escolhe nada.

@@ -25,10 +25,15 @@ const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: strin
     chamada: 'Para conhecer a plataforma', publico: 'até 4 usuários · mensal',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
+  CRM: {
+    cor: 'var(--plano-pro)', corSuave: 'var(--plano-pro-soft)',
+    chamada: 'Só o CRM', publico: '1 usuário',
+    inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
+  },
   STARTER: {
     cor: 'var(--plano-starter)', corSuave: 'var(--plano-starter-soft)',
-    chamada: 'Para quem toca sozinho', publico: '1 usuário',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex até 100 clientes', 'Relatórios e insights de IA'],
+    chamada: 'Growth + CRM', publico: 'até 3 usuários',
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
     cor: 'var(--plano-pro)', corSuave: 'var(--plano-pro-soft)',

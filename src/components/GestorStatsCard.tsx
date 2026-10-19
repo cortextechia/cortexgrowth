@@ -5,7 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import { apiService } from '@/lib/api';
 import type { ManagerStats } from '@/types';
 
-const PLAN_LABELS: Record<string, string> = { STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
+const PLAN_LABELS: Record<string, string> = { CRM: 'CRM', STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
 
 function fmtMoney(v: number): string {
