@@ -36,6 +36,7 @@ export enum IntegrationType {
   KOMMO = 'KOMMO',
   META_ADS = 'META_ADS',
   CRM_CORTEX = 'CRM_CORTEX',
+  META_FORMS = 'META_FORMS',
 }
 
 export enum IntegrationStatus {
@@ -1276,3 +1277,28 @@ export interface ReportSchedule {
   logs: ReportLog[];
 }
 
+// Formulário instantâneo da Meta (Lead Ads) → CRM
+export interface MetaFormsPage {
+  id: string;
+  name: string;
+  connected: boolean;
+  connectedElsewhere: boolean;
+  lastLeadAt: string | null;
+}
+
+export interface MetaFormsEntry {
+  id: string;
+  pageId: string;
+  formId: string | null;
+  clientId: string | null;
+  status: 'RECEIVED' | 'CREATED' | 'UPDATED' | 'SKIPPED' | 'FAILED';
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface MetaFormsStatus {
+  connected: boolean;
+  accountName: string | null;
+  pages: { pageId: string; pageName: string; lastLeadAt: string | null; createdAt: string }[];
+  entries: MetaFormsEntry[];
+}

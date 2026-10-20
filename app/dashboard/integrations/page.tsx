@@ -4,11 +4,11 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus } from '@/types';
+import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus, MetaFormsStatus, MetaFormsPage } from '@/types';
 
 // ─── Provider config ──────────────────────────────────────────────────────────
 
-type OAuthProvider = 'meta' | 'google_ads' | 'google_analytics' | 'kommo';
+type OAuthProvider = 'meta' | 'meta_forms' | 'google_ads' | 'google_analytics' | 'kommo';
 
 interface ProviderConfig {
   type: IntegrationType;
@@ -262,6 +262,247 @@ function GoogleAccountNotice() {
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
+
+// Formulário instantâneo da Meta → card no CRM. Login separado do Meta Ads
+// (permissões diferentes), e cada página do Facebook é ligada à parte.
+const ENTRY_LABEL: Record<string, string> = {
+  CREATED: 'Novo card',
+  UPDATED: 'Card existente atualizado',
+  SKIPPED: 'Não virou card',
+  FAILED: 'Falhou',
+  RECEIVED: 'Processando',
+};
+
+const fmtDataHora = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+function MetaFormsCard({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  // Mesma fonte do menu (layout.tsx) para "CRM ativo" — as duas telas não podem discordar.
+  const [crmEnabled, setCrmEnabled] = useState(false);
+  const [status, setStatus] = useState<MetaFormsStatus | null>(null);
+  const [pages, setPages] = useState<MetaFormsPage[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const errMsg = (e: unknown, fallback: string) =>
+    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await apiService.getMetaFormsStatus();
+      setStatus(data);
+    } catch {
+      setStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    apiService.getCrmStatus()
+      .then((res) => setCrmEnabled(res.success && res.data.enabled))
+      .catch(() => setCrmEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (!crmEnabled) return;
+    void load();
+    // A autorização acontece num pop-up: ao voltar para esta aba, relê o estado.
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [crmEnabled, load]);
+
+  const authorize = async () => {
+    setBusy('auth');
+    try {
+      const url = await apiService.getOAuthUrl('meta_forms');
+      window.open(url, '_blank', 'width=600,height=700,noopener,noreferrer');
+    } catch (e) {
+      showToast(errMsg(e, 'Erro ao iniciar autorização'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const loadPages = async () => {
+    setBusy('pages');
+    try {
+      const { data } = await apiService.getMetaFormsPages();
+      setPages(data);
+    } catch (e) {
+      showToast(errMsg(e, 'Não foi possível listar as páginas.'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const connect = async (pageId: string) => {
+    setBusy(pageId);
+    try {
+      await apiService.connectMetaFormsPage(pageId);
+      showToast('Página conectada — os próximos formulários entram no CRM.');
+      await Promise.all([load(), loadPages()]);
+    } catch (e) {
+      showToast(errMsg(e, 'Erro ao conectar a página.'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const disconnect = async (pageId: string, name: string) => {
+    if (!confirm(`Parar de receber os formulários da página "${name}"? Os cards já criados continuam no CRM.`)) return;
+    setBusy(pageId);
+    try {
+      await apiService.disconnectMetaFormsPage(pageId);
+      showToast('Página desconectada.');
+      await load();
+      if (pages) await loadPages();
+    } catch (e) {
+      showToast(errMsg(e, 'Erro ao desconectar a página.'), 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const btnPrimary = { backgroundColor: 'var(--accent)', color: '#fff' };
+  const btnGhost = { border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' };
+  const disponiveis = (pages ?? []).filter((p) => !p.connected);
+
+  return (
+    <div className="mt-6">
+      <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+        Leads para o CRM
+      </p>
+      <div className="rounded-2xl p-5 shadow-sm" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+            <MetaIcon />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Formulários da Meta</p>
+            <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Quem preenche o formulário do anúncio no Facebook ou Instagram vira card em “Novos contatos”, mesmo sem abrir o WhatsApp.
+              As respostas ficam numa nota fixada no card.
+            </p>
+            {status?.accountName && (
+              <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Conta do Facebook: <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{status.accountName}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        {!crmEnabled ? (
+          <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            Ative o CRM Cortex para receber os formulários.
+          </p>
+        ) : !status?.connected ? (
+          <button
+            onClick={authorize}
+            disabled={busy === 'auth'}
+            className="mt-4 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium disabled:opacity-60"
+            style={btnPrimary}
+          >
+            {busy === 'auth' ? <><Spinner /> Aguardando...</> : 'Conectar Facebook'}
+          </button>
+        ) : (
+          <>
+            {/* Páginas ligadas */}
+            {status.pages.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {status.pages.map((p) => (
+                  <li key={p.pageId} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{p.pageName}</p>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        <span style={{ color: 'var(--badge-success-text)' }}>●</span>{' '}
+                        {p.lastLeadAt ? `Recebendo — último lead ${fmtDataHora(p.lastLeadAt)}` : 'Recebendo — nenhum lead ainda'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => disconnect(p.pageId, p.pageName)}
+                      disabled={busy === p.pageId}
+                      className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                      style={btnGhost}
+                    >
+                      {busy === p.pageId ? <Spinner /> : 'Desconectar'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Escolher páginas */}
+            {pages === null ? (
+              <button
+                onClick={loadPages}
+                disabled={busy === 'pages'}
+                className="mt-4 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium disabled:opacity-60"
+                style={status.pages.length ? btnGhost : btnPrimary}
+              >
+                {busy === 'pages' ? <><Spinner /> Carregando...</> : status.pages.length ? 'Conectar outra página' : 'Escolher página'}
+              </button>
+            ) : disponiveis.length === 0 ? (
+              <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {pages.length === 0 ? 'Esta conta do Facebook não administra nenhuma página.' : 'Todas as páginas desta conta já estão conectadas.'}
+              </p>
+            ) : (
+              <ul className="mt-4 space-y-2">
+                {disponiveis.map((p) => (
+                  <li key={p.id} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ border: '1px solid var(--border)' }}>
+                    <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{p.name}</p>
+                    {p.connectedElsewhere ? (
+                      <span className="shrink-0 text-xs" style={{ color: 'var(--text-secondary)' }}>Ligada ao CRM de outra empresa</span>
+                    ) : (
+                      <button
+                        onClick={() => connect(p.id)}
+                        disabled={busy === p.id}
+                        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                        style={btnPrimary}
+                      >
+                        {busy === p.id ? <Spinner /> : 'Conectar'}
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Últimos formulários recebidos */}
+            {status.entries.length > 0 && (
+              <div className="mt-5">
+                <p className="text-xs font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Últimos formulários recebidos</p>
+                <ul className="space-y-1.5">
+                  {status.entries.slice(0, 5).map((e) => {
+                    const problema = e.status === 'SKIPPED' || e.status === 'FAILED';
+                    return (
+                      <li key={e.id} className="flex items-start justify-between gap-3 text-xs">
+                        <div className="min-w-0">
+                          <span style={{ color: 'var(--text-secondary)' }}>{fmtDataHora(e.createdAt)} · </span>
+                          <span className="font-medium" style={{ color: problema ? 'var(--badge-error-text)' : 'var(--text-primary)' }}>
+                            {ENTRY_LABEL[e.status] ?? e.status}
+                          </span>
+                          {e.reason && <span style={{ color: 'var(--text-secondary)' }}> — {e.reason}</span>}
+                        </div>
+                        {e.clientId && (
+                          <Link
+                            href={`/dashboard/crm?client=${e.clientId}`}
+                            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium"
+                            style={btnGhost}
+                          >
+                            Abrir card
+                          </Link>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function IntegrationsPage() {
   const { organization } = useAuth();
@@ -672,6 +913,8 @@ export default function IntegrationsPage() {
           })}
         </div>
       )}
+
+      {!loading && <MetaFormsCard showToast={showToast} />}
 
       {/* Dados Manuais — alternativa ao CRM */}
       {!loading && (

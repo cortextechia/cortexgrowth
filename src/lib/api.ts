@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -281,6 +281,27 @@ class ApiService {
     return response.data;
   }
 
+  // Formulário instantâneo da Meta (Lead Ads) → CRM. Prefixo sem "ads" (ad blocker).
+  async getMetaFormsStatus(): Promise<{ success: boolean; data: MetaFormsStatus }> {
+    const response = await this.client.get('/meta-forms/status');
+    return response.data;
+  }
+
+  async getMetaFormsPages(): Promise<{ success: boolean; data: MetaFormsPage[] }> {
+    const response = await this.client.get('/meta-forms/pages');
+    return response.data;
+  }
+
+  async connectMetaFormsPage(pageId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/meta-forms/pages/${encodeURIComponent(pageId)}`);
+    return response.data;
+  }
+
+  async disconnectMetaFormsPage(pageId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete(`/meta-forms/pages/${encodeURIComponent(pageId)}`);
+    return response.data;
+  }
+
   // Contas de anúncio Meta acessíveis (para escolher a conta quando o OAuth não auto-seleciona)
   async getMetaAccounts(): Promise<{ success: boolean; data: { connected: boolean; accounts: { externalId: string; name: string }[]; currentExternalId: string | null } }> {
     const response = await this.client.get('/integrations/meta/accounts');
@@ -412,9 +433,10 @@ class ApiService {
    * Retorna a URL de autorização OAuth do provedor.
    * O backend gera o state JWT anti-CSRF e a URL completa.
    */
-  async getOAuthUrl(provider: 'meta' | 'google_ads' | 'google_analytics' | 'kommo'): Promise<string> {
+  async getOAuthUrl(provider: 'meta' | 'meta_forms' | 'google_ads' | 'google_analytics' | 'kommo'): Promise<string> {
     const endpointMap: Record<string, string> = {
       meta: '/auth/meta/authorize',
+      meta_forms: '/auth/meta-forms/authorize',
       google_ads: '/auth/google/authorize?type=GOOGLE_ADS',
       google_analytics: '/auth/google/authorize?type=GOOGLE_ANALYTICS',
       kommo: '/auth/kommo/authorize',

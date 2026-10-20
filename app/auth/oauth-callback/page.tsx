@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 
 const PROVIDER_LABELS: Record<string, string> = {
   meta: 'Meta Ads',
+  meta_forms: 'Formulários da Meta',
   google_ads: 'Google Ads',
   google_analytics: 'Google Analytics',
   kommo: 'Kommo CRM',
