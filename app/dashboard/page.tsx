@@ -58,6 +58,7 @@ const ORIGENS_CRM = [
   { key: 'INDICACAO', label: 'Indicação',   color: '#fbbf24' },
   { key: 'FACHADA',   label: 'Na loja',     color: '#f472b6' },
   { key: 'LINK_BIO',  label: 'Link da bio', color: '#c084fc' },
+  { key: 'INSTAGRAM', label: 'Direct do Instagram', color: '#fb7185' },
   { key: 'ORGANICO',  label: 'Orgânico',    color: '#22d3ee' },
   { key: 'OUTRO',     label: 'Outro',       color: 'var(--text-muted)' },
 ];

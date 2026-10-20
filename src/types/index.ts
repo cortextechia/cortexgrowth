@@ -852,7 +852,7 @@ export interface SellersRanking {
 }
 
 // ===== CRM PRÓPRIO (CRM CORTEX) =====
-export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'LINK_BIO' | 'ORGANICO' | 'OUTRO';
+export type CrmOrigin = 'META' | 'GOOGLE' | 'WHATSAPP' | 'INDICACAO' | 'FACHADA' | 'LINK_BIO' | 'INSTAGRAM' | 'ORGANICO' | 'OUTRO';
 export type CrmSaleStatus = 'OPEN' | 'WON' | 'LOST';
 
 // Motivo de perda configurável por org — a venda guarda o rótulo como texto
@@ -981,7 +981,10 @@ export interface CrmSale {
 export interface CrmClientSummary {
   id: string;
   name: string;
-  phone: string;
+  /** null = contato do Direct do Instagram sem telefone (identificado por igUserId). */
+  phone: string | null;
+  igUserId: string | null;
+  igUsername: string | null;
   origin: CrmOrigin;
   notes: string | null;
   company: string | null;
@@ -1301,4 +1304,25 @@ export interface MetaFormsStatus {
   accountName: string | null;
   pages: { pageId: string; pageName: string; lastLeadAt: string | null; createdAt: string }[];
   entries: MetaFormsEntry[];
+}
+
+// Direct do Instagram (v1: só recebimento — responder é pelo app do Instagram)
+export interface InstagramStatus {
+  connected: boolean;
+  username?: string;
+  tokenExpires?: string | null;
+  expired?: boolean;
+  lastMessageAt?: string | null;
+}
+
+export interface IgMessage {
+  id: string;
+  /** true = enviada pela empresa no app do Instagram (eco). */
+  fromMe: boolean;
+  text: string | null;
+  deleted: boolean;
+  isStoryReply: boolean;
+  /** url só vem para post/reel compartilhado; o resto abre pela rota de mídia. */
+  attachments: { index: number; type: string; url: string | null }[];
+  sentAt: string;
 }

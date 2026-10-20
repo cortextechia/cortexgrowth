@@ -19,6 +19,7 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
   { key: 'INDICACAO', label: 'Indicação' },
   { key: 'FACHADA',   label: 'Na loja' },
   { key: 'LINK_BIO',  label: 'Link da bio' },
+  { key: 'INSTAGRAM', label: 'Direct do Instagram' },
   { key: 'ORGANICO',  label: 'Orgânico' },
   { key: 'OUTRO',     label: 'Outro' },
 ];
@@ -362,7 +363,7 @@ export default function CrmContatosPage() {
                         )}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{fmtPhone(c.phone)}</td>
+                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{c.phone ? fmtPhone(c.phone) : c.igUsername ? `@${c.igUsername}` : '—'}</td>
                     <td className="py-2.5 pr-4">
                       <span className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                         {originLabel(c.origin)}

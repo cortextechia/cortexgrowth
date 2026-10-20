@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage, InstagramStatus, IgMessage } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -297,6 +297,26 @@ class ApiService {
     return response.data;
   }
 
+  async getInstagramStatus(): Promise<{ success: boolean; data: InstagramStatus }> {
+    const response = await this.client.get('/crm/instagram/status');
+    return response.data;
+  }
+
+  async disconnectInstagram(): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/crm/instagram/account');
+    return response.data;
+  }
+
+  async getCrmIgMessages(clientId: string): Promise<{ success: boolean; data: { available: boolean; username?: string | null; messages: IgMessage[] } }> {
+    const response = await this.client.get(`/crm/instagram/clients/${clientId}/messages`);
+    return response.data;
+  }
+
+  async getCrmIgMedia(clientId: string, messageId: string, index: number): Promise<{ success: boolean; data: { base64: string; mimetype: string } }> {
+    const response = await this.client.get(`/crm/instagram/clients/${clientId}/messages/${messageId}/media/${index}`);
+    return response.data;
+  }
+
   async disconnectMetaFormsPage(pageId: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.delete(`/meta-forms/pages/${encodeURIComponent(pageId)}`);
     return response.data;
@@ -433,10 +453,11 @@ class ApiService {
    * Retorna a URL de autorização OAuth do provedor.
    * O backend gera o state JWT anti-CSRF e a URL completa.
    */
-  async getOAuthUrl(provider: 'meta' | 'meta_forms' | 'google_ads' | 'google_analytics' | 'kommo'): Promise<string> {
+  async getOAuthUrl(provider: 'meta' | 'meta_forms' | 'instagram' | 'google_ads' | 'google_analytics' | 'kommo'): Promise<string> {
     const endpointMap: Record<string, string> = {
       meta: '/auth/meta/authorize',
       meta_forms: '/auth/meta-forms/authorize',
+      instagram: '/auth/instagram/authorize',
       google_ads: '/auth/google/authorize?type=GOOGLE_ADS',
       google_analytics: '/auth/google/authorize?type=GOOGLE_ANALYTICS',
       kommo: '/auth/kommo/authorize',
@@ -1034,7 +1055,7 @@ class ApiService {
     return response.data;
   }
 
-  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; tags?: string[] }): Promise<{ success: boolean; message: string }> {
+  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; tags?: string[]; phone?: string }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${id}`, data);
     return response.data;
   }

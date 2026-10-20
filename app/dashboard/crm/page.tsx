@@ -11,7 +11,7 @@ import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
-  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage,
+  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -44,6 +44,7 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
   { key: 'INDICACAO', label: 'Indicação' },
   { key: 'FACHADA',   label: 'Na loja' },
   { key: 'LINK_BIO',  label: 'Link da bio' },
+  { key: 'INSTAGRAM', label: 'Direct do Instagram' },
   { key: 'ORGANICO',  label: 'Orgânico' },
   { key: 'OUTRO',     label: 'Outro' },
 ];
@@ -130,6 +131,26 @@ function fmtPhone(p: string): string {
   if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return p;
+}
+
+function IgGlyph({ className = 'w-3 h-3' }: { className?: string }) {
+  return (
+    <svg className={`${className} shrink-0`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+    </svg>
+  );
+}
+
+// Linha de contato do card: telefone, ou o @ quando o contato veio pelo Direct sem telefone.
+function ContactLine({ phone, igUsername }: { phone: string | null; igUsername: string | null }) {
+  if (phone) return <>{fmtPhone(phone)}</>;
+  return (
+    <span className="inline-flex items-center gap-1 min-w-0" title="Contato do Direct do Instagram">
+      <IgGlyph />
+      <span className="truncate">{igUsername ? `@${igUsername}` : 'Instagram'}</span>
+    </span>
+  );
 }
 
 function fmtDate(iso: string): string {
@@ -1448,7 +1469,7 @@ export default function CrmPage() {
                       </div>
                     </div>
                     <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-                      {fmtPhone(client.phone)}
+                      <ContactLine phone={client.phone} igUsername={client.igUsername} />
                     </div>
                     <DiscardBadge client={client} />
                   </button>
@@ -1513,7 +1534,7 @@ export default function CrmPage() {
                       </div>
                     </div>
                     <div className="text-xs mb-2 flex items-center justify-between gap-2" style={{ color: 'var(--text-muted)' }}>
-                      <span className="truncate">{fmtPhone(client.phone)}</span>
+                      <span className="truncate"><ContactLine phone={client.phone} igUsername={client.igUsername} /></span>
                       <span className="whitespace-nowrap" title="Total já comprado (LTV)">{fmtMoney(client.ltv)}</span>
                     </div>
                   </button>
@@ -2992,7 +3013,7 @@ function ClientDrawer(props: {
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
   onChangeSaleClosedDate: (saleId: string, closedDate: string) => Promise<void>;
-  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[] }) => Promise<void>;
+  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[]; phone?: string }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
   onEditNote: (eventId: string, text: string) => Promise<void>;
@@ -3003,6 +3024,28 @@ function ClientDrawer(props: {
   // Sinal do stream só interessa se for do cliente aberto neste drawer
   const waRefresh =
     props.liveSignal && detail && props.liveSignal.clientId === detail.id ? props.liveSignal.seq : 0;
+  // Card do Direct abre na conversa do Instagram; se ganhar telefone, dá para trocar.
+  const [convChannel, setConvChannel] = useState<'ig' | 'wa'>('ig');
+  useEffect(() => { setConvChannel('ig'); }, [detail?.id]);
+  const showIg = !!detail?.igUserId && (convChannel === 'ig' || !detail.phone);
+  const convSwitch = detail?.igUserId && detail.phone ? (
+    <div className="flex gap-1 mb-2" role="tablist" aria-label="Canal da conversa">
+      {([['ig', 'Instagram'], ['wa', 'WhatsApp']] as const).map(([k, label]) => (
+        <button
+          key={k}
+          role="tab"
+          aria-selected={(k === 'ig') === showIg}
+          onClick={() => setConvChannel(k)}
+          className="rounded-md px-2.5 py-1 text-xs font-medium"
+          style={(k === 'ig') === showIg
+            ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }
+            : { backgroundColor: 'var(--bg-surface)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  ) : null;
   const [showEvents, setShowEvents] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // Editar o valor de uma venda aberta sem recriar o card: contato novo entra na
@@ -3316,7 +3359,9 @@ function ClientDrawer(props: {
                 do card: contato novo do WhatsApp aguardando decisão antes de entrar no funil. */}
             {detail.triageStatus === 'PENDING' && (
               <div className="mt-4 rounded-lg p-3" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)' }}>
-                <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>Contato novo do WhatsApp</p>
+                <p className="text-sm font-semibold" style={{ color: 'var(--accent)' }}>
+                  {detail.igUserId ? 'Contato novo do Instagram' : 'Contato novo do WhatsApp'}
+                </p>
                 <p className="text-xs mt-0.5 mb-2.5" style={{ color: 'var(--text-secondary)' }}>
                   Aceite para entrar no funil (Novo Lead) ou descarte informando por que o lead não qualificou.
                 </p>
@@ -3547,9 +3592,40 @@ function ClientDrawer(props: {
                 />
               </div>
 
+              {detail.igUserId && (
+                <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+                  <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Instagram</span>
+                  {detail.igUsername ? (
+                    <a
+                      href={`https://www.instagram.com/${encodeURIComponent(detail.igUsername)}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm truncate hover:underline"
+                      style={{ color: 'var(--accent)' }}
+                      title="Abrir o perfil no Instagram"
+                    >
+                      @{detail.igUsername}
+                    </a>
+                  ) : (
+                    <span className="text-sm" style={{ color: 'var(--text-muted)' }}>perfil sem @ disponível</span>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Telefone</span>
-                <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{fmtPhone(detail.phone)}</span>
+                {detail.phone ? (
+                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{fmtPhone(detail.phone)}</span>
+                ) : (
+                  // Contato do Direct nasce sem telefone; só dá para ADICIONAR (o backend
+                  // recusa número que já é de outro card e diz qual).
+                  <InlineField
+                    value={null}
+                    placeholder="sem telefone · adicionar"
+                    maxLength={25}
+                    onSave={(v) => { if (v) void props.onUpdateClient({ phone: v }); }}
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
@@ -3852,7 +3928,16 @@ function ClientDrawer(props: {
             )}
 
             {/* Conversa WhatsApp no fluxo — só no mobile (desktop usa o painel lateral) */}
-            {!isDesktop && (
+            {!isDesktop && convSwitch && <div className="mt-6">{convSwitch}</div>}
+            {!isDesktop && showIg && (
+              <IgConversation
+                clientId={detail.id}
+                clientName={detail.name}
+                igUsername={detail.igUsername}
+                refreshSignal={waRefresh}
+              />
+            )}
+            {!isDesktop && !showIg && (
               <WaConversation
                 clientId={detail.id}
                 clientName={detail.name}
@@ -3882,6 +3967,16 @@ function ClientDrawer(props: {
               className="shrink-0 flex flex-col min-h-0"
               style={{ width: waWidth, backgroundColor: 'var(--bg-elevated)' }}
             >
+              {convSwitch && <div className="px-4 pt-4 -mb-3">{convSwitch}</div>}
+              {showIg ? (
+                <IgConversation
+                  clientId={detail.id}
+                  clientName={detail.name}
+                  igUsername={detail.igUsername}
+                  refreshSignal={waRefresh}
+                  variant="panel"
+                />
+              ) : (
               <WaConversation
                 clientId={detail.id}
                 clientName={detail.name}
@@ -3893,6 +3988,7 @@ function ClientDrawer(props: {
                 refreshSignal={waRefresh}
                 variant="panel"
               />
+              )}
             </div>
             </>
           )}
@@ -4517,6 +4613,248 @@ function WaMediaBubble({ clientId, msg }: { clientId: string; msg: CrmWaMessage 
         {loading ? 'Carregando...' : mediaType === 'document' && msg.fileName ? `📎 ${msg.fileName}` : MEDIA_BUTTON_LABEL[mediaType]}
       </button>
       {error && <p className="text-[10px] mt-0.5" style={{ color: 'var(--badge-error-text)' }}>Mídia indisponível (pode ter expirado).</p>}
+    </div>
+  );
+}
+
+// ─── Conversa do Direct do Instagram (v1: só leitura) ─────────────────────
+// As mensagens ficam no nosso banco (CrmIgMessage): as recebidas e as respondidas
+// pelo app do Instagram. Responder pelo CRM é a v2.
+
+const IG_MEDIA_LABEL: Record<string, string> = {
+  image: '📷 Ver imagem',
+  video: '🎬 Ver vídeo',
+  audio: '▶ Ouvir áudio',
+  file: '📎 Baixar arquivo',
+  story_mention: '📷 Ver story',
+  story_reply: '📷 Ver story',
+};
+
+function IgMediaBubble({ clientId, messageId, att }: {
+  clientId: string;
+  messageId: string;
+  att: IgMessage['attachments'][number];
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [raw, setRaw] = useState<{ base64: string; mimetype: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [zoom, setZoom] = useState(false);
+  const known = att.type in IG_MEDIA_LABEL;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await apiService.getCrmIgMedia(clientId, messageId, att.index);
+      if (att.type === 'file') {
+        baixarBlob(base64ToBlob(res.data.base64, res.data.mimetype), downloadFileName(undefined, res.data.mimetype));
+      } else {
+        setSrc(`data:${res.data.mimetype};base64,${res.data.base64}`);
+        setRaw(res.data);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId, messageId, att.index, att.type]);
+
+  // Imagem e story são leves e somem rápido na Meta: carregam sozinhos.
+  const autoLoad = att.type === 'image' || att.type === 'story_mention' || att.type === 'story_reply';
+  useEffect(() => {
+    if (autoLoad) void load();
+  }, [autoLoad, load]);
+
+  // Post/reel compartilhado é público: abre no Instagram.
+  if (!known) {
+    return att.url ? (
+      <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{ color: 'var(--accent)' }}>
+        Publicação compartilhada
+      </a>
+    ) : (
+      <p className="text-[11px] italic" style={{ color: 'var(--text-muted)' }}>Conteúdo que o Instagram não entrega por aqui</p>
+    );
+  }
+
+  if (src && raw) {
+    if (att.type === 'audio') return <WaAudioPlayer src={src} />;
+    if (att.type === 'video' || raw.mimetype.startsWith('video/')) {
+      return <video controls src={src} className="max-w-full rounded-md" style={{ maxHeight: 240 }} />;
+    }
+    return (
+      <>
+        <button onClick={() => setZoom(true)} className="block w-full cursor-zoom-in" title="Clique para ampliar">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src} alt="Imagem recebida no Instagram" className="max-w-full rounded-md" style={{ maxHeight: 240 }} />
+        </button>
+        {zoom && <WaImageLightbox src={src} raw={raw} onClose={() => setZoom(false)} />}
+      </>
+    );
+  }
+  if (autoLoad && !error) {
+    return <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Carregando mídia...</p>;
+  }
+  return (
+    <div>
+      <button
+        onClick={() => void load()}
+        disabled={loading}
+        className="text-xs underline underline-offset-2 disabled:opacity-60"
+        style={{ color: 'var(--accent)' }}
+      >
+        {loading ? 'Carregando...' : IG_MEDIA_LABEL[att.type]}
+      </button>
+      {error && <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Mídia indisponível (pode ter expirado).</p>}
+    </div>
+  );
+}
+
+function IgConversation({ clientId, clientName, igUsername, refreshSignal = 0, variant = 'inline' }: {
+  clientId: string;
+  clientName: string;
+  igUsername: string | null;
+  refreshSignal?: number; // incrementa quando o stream SSE avisa mensagem deste cliente
+  variant?: 'inline' | 'panel';
+}) {
+  const isPanel = variant === 'panel';
+  const [open, setOpen] = useState(isPanel);
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState<IgMessage[] | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await apiService.getCrmIgMessages(clientId);
+      setMessages(res.data.messages);
+    } catch {
+      if (!silent) setMessages([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    if (isPanel) void load();
+  }, [isPanel, load]);
+
+  // Fallback do stream SSE, igual à conversa do WhatsApp
+  useEffect(() => {
+    if (!open) return;
+    const id = setInterval(() => {
+      if (!document.hidden) void load(true);
+    }, 5000);
+    return () => clearInterval(id);
+  }, [open, load]);
+
+  useEffect(() => {
+    if (refreshSignal > 0 && open) void load(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages?.length]);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && messages === null) void load();
+  };
+
+  const fmtTs = (iso: string) =>
+    new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const abrirNoInstagram = igUsername ? `https://ig.me/m/${encodeURIComponent(igUsername)}` : 'https://www.instagram.com/direct/inbox/';
+  const firstName = clientName.trim().split(/\s+/)[0] ?? '';
+  const lista = messages ?? [];
+
+  return (
+    <div className={isPanel ? 'flex flex-col h-full min-h-0 p-4' : ''}>
+      <div className={`flex items-center justify-between ${isPanel ? 'mb-1' : 'mt-6'}`}>
+        {isPanel ? (
+          <p className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+            <IgGlyph className="w-3.5 h-3.5" /> Direct do Instagram
+          </p>
+        ) : (
+          <button onClick={toggle} className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+            <IgGlyph className="w-3.5 h-3.5" /> Direct do Instagram {open ? '▾' : '▸'}
+          </button>
+        )}
+        {open && (
+          <button onClick={() => void load()} className="text-xs" style={{ color: 'var(--text-muted)' }} disabled={loading}>
+            {loading ? 'Carregando...' : 'Atualizar'}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className={isPanel ? 'mt-2 flex-1 min-h-0 flex flex-col' : 'mt-2'}>
+          {loading && messages === null && (
+            <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>Buscando conversa...</p>
+          )}
+          {messages !== null && lista.length === 0 && !loading && (
+            <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>Nenhuma mensagem do Direct ainda.</p>
+          )}
+          {isPanel && lista.length === 0 && <div className="flex-1" />}
+          {lista.length > 0 && (
+            <div
+              ref={listRef}
+              className={`space-y-1.5 overflow-y-auto overscroll-contain rounded-lg p-2.5 ${isPanel ? 'flex-1 min-h-0 flex flex-col' : 'max-h-72'}`}
+              style={{ backgroundColor: isPanel ? 'var(--bg-base)' : 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+            >
+              {isPanel && <div className="flex-1" />}
+              {lista.map((m) => (
+                <div key={m.id} className={`flex ${m.fromMe ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className="max-w-[85%] rounded-lg px-2.5 py-1.5"
+                    style={m.fromMe
+                      ? { backgroundColor: 'var(--accent-dim)', border: '1px solid var(--border)' }
+                      : { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+                  >
+                    {m.isStoryReply && (
+                      <p className="text-[10px] font-semibold mb-1" style={{ color: 'var(--text-secondary)' }}>Respondeu ao seu story</p>
+                    )}
+                    {m.attachments.map((a) => (
+                      <div key={a.index} className="mb-1">
+                        <IgMediaBubble clientId={clientId} messageId={m.id} att={a} />
+                      </div>
+                    ))}
+                    {m.deleted ? (
+                      <p className="text-xs italic" style={{ color: 'var(--text-muted)' }}>
+                        {m.fromMe ? 'Mensagem apagada' : `Mensagem apagada por ${firstName}`}
+                      </p>
+                    ) : m.text ? (
+                      <p className="text-xs whitespace-pre-wrap break-words" style={{ color: 'var(--text-primary)' }}>{m.text}</p>
+                    ) : null}
+                    <div className="text-right mt-0.5">
+                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                        {fmtTs(m.sentAt)}{m.fromMe ? ' · pelo app' : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 rounded-lg px-2.5 py-2 flex items-center justify-between gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Responder pelo CRM chega na próxima versão.
+            </span>
+            <a
+              href={abrirNoInstagram}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-md)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+            >
+              Abrir no Instagram
+            </a>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

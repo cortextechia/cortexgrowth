@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus, MetaFormsStatus, MetaFormsPage } from '@/types';
+import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus, MetaFormsStatus, MetaFormsPage, InstagramStatus } from '@/types';
 
 // ─── Provider config ──────────────────────────────────────────────────────────
 
@@ -504,6 +504,143 @@ function MetaFormsCard({ showToast }: { showToast: (m: string, t?: 'success' | '
   );
 }
 
+// Direct do Instagram → card no CRM. Login do Instagram (não o do Facebook): uma
+// conta profissional por empresa; quem manda mensagem vira card sem telefone.
+function InstagramIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="#d62976" strokeWidth={2} aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="#d62976" stroke="none" />
+    </svg>
+  );
+}
+
+function InstagramDirectCard({ showToast }: { showToast: (m: string, t?: 'success' | 'error') => void }) {
+  const [crmEnabled, setCrmEnabled] = useState(false);
+  const [status, setStatus] = useState<InstagramStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const errMsg = (e: unknown, fallback: string) =>
+    (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? fallback;
+
+  const load = useCallback(async () => {
+    try {
+      const { data } = await apiService.getInstagramStatus();
+      setStatus(data);
+    } catch {
+      setStatus(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    apiService.getCrmStatus()
+      .then((res) => setCrmEnabled(res.success && res.data.enabled))
+      .catch(() => setCrmEnabled(false));
+  }, []);
+
+  useEffect(() => {
+    if (!crmEnabled) return;
+    void load();
+    // A autorização acontece num pop-up: ao voltar para esta aba, relê o estado.
+    const onFocus = () => { void load(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [crmEnabled, load]);
+
+  const authorize = async () => {
+    setBusy(true);
+    try {
+      const url = await apiService.getOAuthUrl('instagram');
+      window.open(url, '_blank', 'width=600,height=700,noopener,noreferrer');
+    } catch (e) {
+      showToast(errMsg(e, 'Erro ao iniciar autorização'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!confirm(`Parar de receber o Direct de @${status?.username ?? ''}? Os cards e conversas já recebidos continuam no CRM.`)) return;
+    setBusy(true);
+    try {
+      await apiService.disconnectInstagram();
+      showToast('Instagram desconectado.');
+      await load();
+    } catch (e) {
+      showToast(errMsg(e, 'Erro ao desconectar o Instagram.'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const btnPrimary = { backgroundColor: 'var(--accent)', color: '#fff' };
+  const btnGhost = { border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' };
+
+  return (
+    <div className="mt-3 rounded-2xl p-5 shadow-sm" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+          <InstagramIcon />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Direct do Instagram</p>
+          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            Quem manda mensagem no Direct vira card em “Novos contatos”, identificado pelo @ do Instagram, e a conversa aparece no card.
+            Por enquanto a resposta é pelo app do Instagram.
+          </p>
+        </div>
+      </div>
+
+      {!crmEnabled ? (
+        <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          Ative o CRM Cortex para receber o Direct.
+        </p>
+      ) : !status?.connected ? (
+        <>
+          <button
+            onClick={authorize}
+            disabled={busy}
+            className="mt-4 flex items-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium disabled:opacity-60"
+            style={btnPrimary}
+          >
+            {busy ? <><Spinner /> Aguardando...</> : 'Conectar Instagram'}
+          </button>
+          <p className="mt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
+            Precisa ser uma conta profissional (empresa ou criador). Só chegam as mensagens novas, depois de conectar.
+          </p>
+        </>
+      ) : (
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+          <div className="min-w-0">
+            <p className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>@{status.username}</p>
+            {status.expired ? (
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <span style={{ color: 'var(--badge-error-text)' }}>●</span> A conexão venceu — conecte de novo para voltar a receber.
+              </p>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                <span style={{ color: 'var(--badge-success-text)' }}>●</span>{' '}
+                {status.lastMessageAt ? `Recebendo — última mensagem ${fmtDataHora(status.lastMessageAt)}` : 'Recebendo — nenhuma mensagem ainda'}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-2">
+            {status.expired && (
+              <button onClick={authorize} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60" style={btnPrimary}>
+                Reconectar
+              </button>
+            )}
+            <button onClick={disconnect} disabled={busy} className="rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-60" style={btnGhost}>
+              {busy ? <Spinner /> : 'Desconectar'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function IntegrationsPage() {
   const { organization } = useAuth();
   const isStarter = organization?.plan === Plan.STARTER || organization?.plan === Plan.CRM;
@@ -915,6 +1052,7 @@ export default function IntegrationsPage() {
       )}
 
       {!loading && <MetaFormsCard showToast={showToast} />}
+      {!loading && <InstagramDirectCard showToast={showToast} />}
 
       {/* Dados Manuais — alternativa ao CRM */}
       {!loading && (
