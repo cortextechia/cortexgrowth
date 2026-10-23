@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
+import { usePlano } from '@/hooks/useApi';
+import { IconeCadeado } from '@/components/RecursoBloqueado';
 import type { ReportSchedule, ReportConfig, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
 
 // ─── WhatsApp status badge ────────────────────────────────────────────────────
@@ -1181,6 +1183,9 @@ const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fie
 };
 
 const ALL_RULES = Object.keys(RULE_META) as AnomalyRuleId[];
+// As únicas que não dependem de anúncio — no plano CRM as outras aparecem com cadeado
+// (o backend também só roda estas para o plano CRM).
+const REGRAS_DO_CRM: AnomalyRuleId[] = ['CRM_UNANSWERED', 'CRM_FOLLOWUP_DIGEST'];
 
 // Defaults espelhando o backend — usados quando a regra ainda não tem config salva no banco
 const RULE_DEFAULTS: Record<AnomalyRuleId, Record<string, number>> = {
@@ -1195,6 +1200,7 @@ const RULE_DEFAULTS: Record<AnomalyRuleId, Record<string, number>> = {
 };
 
 function AlertConfigSection() {
+  const { temGrowth } = usePlano();
   const [config, setConfig]     = useState<AlertConfig | null>(null);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -1301,7 +1307,8 @@ function AlertConfigSection() {
       <div className="space-y-2">
         {ALL_RULES.map(rule => {
           const meta = RULE_META[rule];
-          const isOn = enabled.has(rule);
+          const travada = !temGrowth && !REGRAS_DO_CRM.includes(rule);
+          const isOn = enabled.has(rule) && !travada;
           return (
             <div
               key={rule}
@@ -1315,7 +1322,9 @@ function AlertConfigSection() {
                 {/* Toggle */}
                 <button
                   onClick={() => toggleRule(rule)}
-                  className="shrink-0 mt-0.5 rounded-full transition-colors"
+                  disabled={travada}
+                  title={travada ? 'Não faz parte do plano CRM' : undefined}
+                  className="shrink-0 mt-0.5 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   style={{ width: 32, height: 18, backgroundColor: isOn ? '#3b82f6' : '#94a3b8', position: 'relative' }}
                 >
                   <span style={{
@@ -1357,6 +1366,12 @@ function AlertConfigSection() {
                 </div>
 
                 {/* Badge status */}
+                {travada ? (
+                  <span className="shrink-0 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
+                    <IconeCadeado className="h-3 w-3" /> Growth + CRM
+                  </span>
+                ) : (
                 <span
                   className="shrink-0 text-xs px-2 py-0.5 rounded-full"
                   style={{
@@ -1366,19 +1381,25 @@ function AlertConfigSection() {
                 >
                   {isOn ? 'Ativo' : 'Off'}
                 </span>
+                )}
               </div>
             </div>
           );
         })}
       </div>
 
-      {config && (
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          {enabled.size === 0
-            ? 'Nenhuma regra ativa — alertas suprimidos.'
-            : `${enabled.size} de ${ALL_RULES.length} regras ativas.`}
-        </p>
-      )}
+      {config && (() => {
+        // No plano CRM só as regras do CRM contam: as de anúncio não rodam, mesmo ligadas no banco.
+        const disponiveis = temGrowth ? ALL_RULES : REGRAS_DO_CRM;
+        const ativas = disponiveis.filter((r) => enabled.has(r)).length;
+        return (
+          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            {ativas === 0
+              ? 'Nenhuma regra ativa — alertas suprimidos.'
+              : `${ativas} de ${disponiveis.length} regras ativas.`}
+          </p>
+        );
+      })()}
     </div>
   );
 }

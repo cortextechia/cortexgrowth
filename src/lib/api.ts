@@ -361,6 +361,12 @@ class ApiService {
     return response.data;
   }
 
+  // Plano da org aberta na tela (para o gestor, a do cliente selecionado).
+  async getOrgPlan(): Promise<{ success: boolean; data: { plan: import('@/types').Plan; temGrowth: boolean } }> {
+    const response = await this.client.get('/organizations/current/plan');
+    return response.data;
+  }
+
   async getBillingPayments(): Promise<{ success: boolean; data: import('@/types').PaymentRecord[] }> {
     const response = await this.client.get('/billing/payments');
     return response.data;

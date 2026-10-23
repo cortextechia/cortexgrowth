@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { AiAnalysis, AttributionSummary, FunnelSummary, HistoricoData } from '@/types';
+import { Plan, type AiAnalysis, type AttributionSummary, type FunnelSummary, type HistoricoData } from '@/types';
 
 // Hook para gerenciar usuários
 export function useUsers() {
@@ -397,4 +397,33 @@ export function useHistorico() {
   }, [isAuthenticated]);
 
   return { data, isLoading, error, fetchHistorico };
+}
+// Plano da org aberta na tela: `temGrowth` false = plano CRM (só o CRM; anúncio, SEO e IA
+// ficam com cadeado). A resposta fica guardada por org na sessão — o layout, o dashboard e
+// Integrações perguntam a mesma coisa. Enquanto não chega, o palpite é o plano da própria
+// org (o gestor olhando um cliente só sabe depois da resposta). Quem barra de verdade é a
+// API (403 PLAN_FEATURE_LOCKED); isto só desenha o cadeado.
+const planoPorOrg = new Map<string, Promise<boolean>>();
+
+export function usePlano(): { temGrowth: boolean; carregado: boolean } {
+  const { organization, isAuthenticated } = useAuth();
+  const chave = apiService.getSelectedClientOrgId() ?? organization?.id ?? '';
+  const [estado, setEstado] = useState<{ chave: string; temGrowth: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated || !chave) return;
+    let vivo = true;
+    let req = planoPorOrg.get(chave);
+    if (!req) {
+      req = apiService.getOrgPlan().then((r) => r.data.temGrowth);
+      planoPorOrg.set(chave, req);
+      // Falha não pode virar cadeado: some do cache para a próxima tela tentar de novo.
+      req.catch(() => planoPorOrg.delete(chave));
+    }
+    req.then((temGrowth) => { if (vivo) setEstado({ chave, temGrowth }); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [chave, isAuthenticated]);
+
+  if (estado && estado.chave === chave) return { temGrowth: estado.temGrowth, carregado: true };
+  return { temGrowth: organization?.plan !== Plan.CRM, carregado: false };
 }

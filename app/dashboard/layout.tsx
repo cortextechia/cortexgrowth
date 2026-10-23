@@ -9,6 +9,20 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import BetaBadge from '@/components/BetaBadge';
 import { apiService } from '@/lib/api';
 import { TrafficManagerClient, UserRole } from '@/types';
+import { usePlano } from '@/hooks/useApi';
+import { IconeCadeado, RecursoBloqueado } from '@/components/RecursoBloqueado';
+
+// Telas do Growth: no plano CRM continuam no menu, com cadeado, e abrem a explicação em vez
+// da tela. A API barra as rotas delas do mesmo jeito (403 PLAN_FEATURE_LOCKED).
+const TELAS_DO_GROWTH: Record<string, { titulo: string; texto: string }> = {
+  '/dashboard/historico': { titulo: 'Evolução', texto: 'Evolução mês a mês do investimento, dos leads e do retorno dos anúncios. Faz parte do plano Growth + CRM.' },
+  '/dashboard/reports': { titulo: 'Relatórios de campanha', texto: 'Análise das campanhas do Meta Ads e do Google Ads feita pela IA. Faz parte do plano Growth + CRM.' },
+  '/dashboard/criativo': { titulo: 'Criativos', texto: 'Análise dos criativos, ideias, briefing e textos de anúncio gerados pela IA. Faz parte do plano Growth + CRM.' },
+  '/dashboard/seo': { titulo: 'SEO / AIO', texto: 'Diagnóstico mensal do seu site no Google e nas IAs. Faz parte do plano Growth + CRM.' },
+  '/dashboard/crm/criativos': { titulo: 'Rastreio de anúncios', texto: 'Mostra de qual anúncio veio cada lead do WhatsApp. Faz parte do plano Growth + CRM.' },
+};
+const telaDoGrowth = (pathname: string) =>
+  Object.keys(TELAS_DO_GROWTH).find((href) => pathname === href || pathname.startsWith(href + '/'));
 
 // Classificação visual de cada cliente no seletor do gestor
 function clientDot(c: TrafficManagerClient): { color: string; label: string } {
@@ -365,6 +379,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // Estado para TRAFFIC_MANAGER: lista de clientes e org selecionada
   const isTrafficManager = user?.role === UserRole.TRAFFIC_MANAGER;
+  const { temGrowth } = usePlano();
+  const telaBloqueada = temGrowth ? undefined : telaDoGrowth(pathname);
   // Subitens só-admin do menu (ex: Disparos)
   const canBroadcast = !!user && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TRAFFIC_MANAGER].includes(user.role);
   const [clientOrgs, setClientOrgs] = useState<TrafficManagerClient[]>([]);
@@ -496,6 +512,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   onMouseLeave={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
                 >
                   {child.label}
+                  {!temGrowth && child.href in TELAS_DO_GROWTH && (
+                    <span className="ml-auto" title="Não faz parte do plano CRM"><IconeCadeado className="h-3.5 w-3.5" /></span>
+                  )}
                 </Link>
               );
             })}
@@ -519,7 +538,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
           onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
           onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
-          title={!expanded ? item.label : undefined}
+          title={!expanded ? (!temGrowth && item.href in TELAS_DO_GROWTH ? `${item.label} — não faz parte do plano CRM` : item.label) : undefined}
         >
           {/* Sidebar recolhida: o número não cabe, então vira um ponto sobre o
               ícone — o aviso não pode depender de o menu estar aberto. */}
@@ -536,6 +555,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           )}
           {expanded && <span>{item.label}</span>}
           {expanded && item.href === '/dashboard/crm' && <UnreadBadge count={unreadCrm} />}
+          {expanded && !temGrowth && item.href in TELAS_DO_GROWTH && (
+            <span className="ml-auto" title="Não faz parte do plano CRM"><IconeCadeado className="h-3.5 w-3.5" /></span>
+          )}
         </Link>
       );
 
@@ -727,7 +749,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <AvisoEmailNaoConfirmado />
           <AvisoAssinaturaEncerrando />
 
-          <div className="p-4 sm:p-6">{children}</div>
+          <div className="p-4 sm:p-6">
+            {telaBloqueada
+              ? <RecursoBloqueado titulo={TELAS_DO_GROWTH[telaBloqueada]!.titulo} texto={TELAS_DO_GROWTH[telaBloqueada]!.texto} />
+              : children}
+          </div>
         </main>
       </div>
     </ProtectedRoute>

@@ -3,7 +3,8 @@
 import { useEffect, useState, useMemo, Fragment } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
-import { useIntegrations, useDashboard, useAiInsights } from '@/hooks/useApi';
+import { useIntegrations, useDashboard, useAiInsights, usePlano } from '@/hooks/useApi';
+import { RecursoBloqueado } from '@/components/RecursoBloqueado';
 import { apiService } from '@/lib/api';
 import Sparkline from '@/components/charts/Sparkline';
 import AdminDashboard from '@/components/AdminDashboard';
@@ -1018,9 +1019,13 @@ export default function DashboardPage() {
     metaInsights, googleAdsMetrics, kommoLeads: rawKommoLeads,
     attributionSummary, fetchAllDashboardData, fetchAttributionSummary,
     funnelSummary, fetchFunnelSummary, isLoading: dashLoading,
+    fetchStats, fetchKommoLeads,
   } = useDashboard();
   const kommoLeads = rawKommoLeads as KommoLead[];
   const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
+  // Plano CRM: marketing, campanhas, ROAS/CPL e a análise da IA ficam com cadeado — o resto
+  // do painel (funil, vendas, meta, ranking) é o CRM e segue igual.
+  const { temGrowth } = usePlano();
 
   const [range, setRange]             = useState<Range>('30D');
   const [customStart, setCustomStart] = useState('');
@@ -1081,6 +1086,8 @@ export default function DashboardPage() {
     { key: 'ticket',    label: 'Ticket médio'    },
   ] as const;
   type BottomKpiKey = typeof BOTTOM_KPI_OPTIONS[number]['key'];
+  // Os três que dividem por gasto em anúncio: não existem no plano CRM.
+  const KPIS_DE_ANUNCIO: BottomKpiKey[] = ['roas', 'cac', 'cpl'];
   const DEFAULT_BOTTOM_KPIS: BottomKpiKey[] = ['roas', 'cac', 'receita', 'vendas', 'pipeline'];
   const [visibleBottomKpis, setVisibleBottomKpis] = useState<BottomKpiKey[]>(() => {
     if (typeof window === 'undefined') return DEFAULT_BOTTOM_KPIS;
@@ -1118,6 +1125,7 @@ export default function DashboardPage() {
   };
 
   const [bottomKpiPickerOpen, setBottomKpiPickerOpen] = useState(false);
+  const kpisFundo = temGrowth ? visibleBottomKpis : visibleBottomKpis.filter((k) => !KPIS_DE_ANUNCIO.includes(k));
   const toggleBottomKpi = (key: BottomKpiKey) => {
     setVisibleBottomKpis((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
@@ -1196,8 +1204,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchIntegrations();
-    fetchAllDashboardData(30);
-    fetchLatestInsight();
+    // Plano CRM: anúncio e análise da IA respondem 403 — nem pede.
+    if (temGrowth) {
+      fetchAllDashboardData(30);
+      fetchLatestInsight();
+    } else {
+      fetchStats();
+      fetchKommoLeads();
+    }
     apiService.getManualRevenueSummary(3).then((r) => { if (r.success) setManualRevenueSummary(r.data); }).catch(() => {});
     loadGoalProgress();
     apiService.getCrmHygiene().then((r) => { if (r.success && r.data.hasData) setCrmHygiene(r.data); }).catch(() => {});
@@ -2176,6 +2190,10 @@ export default function DashboardPage() {
       )}
 
       {/* ── 3. KPIs TOPO DE FUNIL ─────────────────────────────────────────────── */}
+      {!temGrowth ? (
+        <RecursoBloqueado titulo="Marketing — Meta Ads e Google Ads"
+          texto="Gasto, impressões, cliques, CPL e ROAS das campanhas. Faz parte do plano Growth + CRM." />
+      ) : (
       <div>
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>marketing — topo de funil · {rangeLabel.toLowerCase()}</p>
@@ -2295,6 +2313,7 @@ export default function DashboardPage() {
           </>
         )}
       </div>
+      )}
 
       {/* ── LEMBRETE DE CRM — argumento é o dinheiro do próprio cliente ───────
           Sem estatística de mercado: o número dele investido, contra o que a
@@ -2509,7 +2528,7 @@ export default function DashboardPage() {
                   className="absolute right-0 top-full mt-1 z-20 rounded-xl p-3 flex flex-wrap gap-2"
                   style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', minWidth: 248, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}
                 >
-                  {BOTTOM_KPI_OPTIONS.map(({ key, label }) => {
+                  {BOTTOM_KPI_OPTIONS.filter(({ key }) => temGrowth || !KPIS_DE_ANUNCIO.includes(key)).map(({ key, label }) => {
                     const on = visibleBottomKpis.includes(key);
                     return (
                       <button
@@ -2530,7 +2549,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {visibleBottomKpis.includes('roas') && (
+            {kpisFundo.includes('roas') && (
               <BottomKpiCard
                 title="ROAS atribuído"
                 value={mktRoas != null ? `${mktRoas.toFixed(2).replace('.', ',')}x` : '—'}
@@ -2543,7 +2562,7 @@ export default function DashboardPage() {
                 info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro."
               />
             )}
-            {visibleBottomKpis.includes('cac') && (
+            {kpisFundo.includes('cac') && (
               <BottomKpiCard
                 title="CPL"
                 value={cplPorLead != null ? fmtBRL(cplPorLead) : '—'}
@@ -2601,7 +2620,7 @@ export default function DashboardPage() {
                 info="Total de leads que entraram no CRM no período, de todos os canais (pago, WhatsApp, orgânico)."
               />
             )}
-            {visibleBottomKpis.includes('cpl') && (
+            {kpisFundo.includes('cpl') && (
               <BottomKpiCard
                 title="Custo por oportunidade"
                 value={custoPorOportunidade != null ? fmtBRL(custoPorOportunidade) : '—'}
@@ -3111,7 +3130,7 @@ export default function DashboardPage() {
       )}
 
       {/* ── 6. CAMPANHAS + CPL POR CANAL ─────────────────────────────────────── */}
-      {(campaigns.length > 0 || cplByChannel.meta.spend > 0 || cplByChannel.google.spend > 0) && (
+      {temGrowth && (campaigns.length > 0 || cplByChannel.meta.spend > 0 || cplByChannel.google.spend > 0) && (
         <div>
           <SectionLabel>campanhas e performance por canal</SectionLabel>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -3312,11 +3331,11 @@ export default function DashboardPage() {
       {attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>saúde financeira e projeção</SectionLabel>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 gap-3 ${temGrowth ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
 
             {/* LTV & LTV/CAC */}
             <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>LTV & relação LTV/CAC</p>
+              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{temGrowth ? 'LTV & relação LTV/CAC' : 'LTV e recorrência'}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   {
@@ -3351,7 +3370,8 @@ export default function DashboardPage() {
                     sub: 'tag carteira no período',
                     info: `Leads marcados com a tag Carteira no ${crmLabel} — clientes que voltaram a comprar no período.`,
                   },
-                ].map((item, i) => (
+                // CAC e LTV/CAC dividem por gasto em anúncio: fora do plano CRM.
+                ].filter((item) => temGrowth || (item.label !== 'CAC real' && item.label !== 'Relação LTV/CAC')).map((item, i) => (
                   <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-1 mb-1">
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
@@ -3395,6 +3415,7 @@ export default function DashboardPage() {
             </div>
 
             {/* ROAS por canal */}
+            {temGrowth && (
             <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>ROAS por canal</p>
               <div className="space-y-4">
@@ -3435,11 +3456,16 @@ export default function DashboardPage() {
                     agentes em aiInsightsService.ts. */}
               </div>
             </div>
+            )}
           </div>
         </div>
       )}
 
       {/* ── 8. INTELIGÊNCIA DE IA ─────────────────────────────────────────────── */}
+      {!temGrowth ? (
+        <RecursoBloqueado titulo="Inteligência de IA"
+          texto="Análise do período escrita pela IA, com recomendações sobre marketing e vendas. Faz parte do plano Growth + CRM." />
+      ) : (
       <div>
         <div className="flex items-center justify-between mb-3">
           <SectionLabel>inteligência de ia — análise do período</SectionLabel>
@@ -3512,6 +3538,7 @@ export default function DashboardPage() {
 
         </div>
       </div>
+      )}
 
       {/* ── Toast ─────────────────────────────────────────────────────────────── */}
       {generateToast && (

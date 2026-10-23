@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
+import { usePlano } from '@/hooks/useApi';
 
 // Cartão de primeiros passos: aparece só enquanto a org não concluiu a configuração
 // e some sozinho depois. Substitui o item fixo "Configuração Inicial" na sidebar, que
@@ -29,9 +30,12 @@ export function PrimeirosPassos() {
   const jaMarcou = useRef(false);
 
   const concluido = Boolean(organization?.onboardingCompletedAt);
+  // Os três passos são do Growth (anúncio e SEO). No plano CRM a lista fica vazia e o
+  // cartão não aparece. Espera a resposta do plano: o palpite inicial podia marcar errado.
+  const { temGrowth, carregado } = usePlano();
 
   useEffect(() => {
-    if (concluido) return;
+    if (concluido || !carregado) return;
 
     Promise.all([
       apiService.getIntegrations().catch(() => ({ integrations: [] as { type: string; status: string }[] })),
@@ -59,7 +63,7 @@ export function PrimeirosPassos() {
           href: '/dashboard/seo',
           feito: Boolean(seo.data?.websiteUrl),
         },
-      ];
+      ].filter(() => temGrowth);
       setPassos(lista);
 
       if (!lista.every((p) => p.feito)) return;
@@ -78,7 +82,7 @@ export function PrimeirosPassos() {
         void apiService.completeOnboarding().catch(() => {});
       }
     });
-  }, [concluido, user?.role]);
+  }, [concluido, user?.role, carregado, temGrowth]);
 
   if (concluido || concluidoAgora || !passos) return null;
 

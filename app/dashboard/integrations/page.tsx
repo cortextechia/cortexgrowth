@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { usePlano } from '@/hooks/useApi';
+import { RecursoBloqueado } from '@/components/RecursoBloqueado';
 import { Integration, IntegrationType, Plan, BudgetStatus, GoogleBudgetStatus, MetaFormsStatus, MetaFormsPage, InstagramStatus } from '@/types';
 
 // ─── Provider config ──────────────────────────────────────────────────────────
@@ -644,6 +646,8 @@ function InstagramDirectCard({ showToast }: { showToast: (m: string, t?: 'succes
 export default function IntegrationsPage() {
   const { organization } = useAuth();
   const isStarter = organization?.plan === Plan.STARTER || organization?.plan === Plan.CRM;
+  // Plano CRM: Meta Ads, Google Ads e Formulários da Meta ficam com cadeado.
+  const { temGrowth } = usePlano();
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -677,10 +681,14 @@ export default function IntegrationsPage() {
 
   useEffect(() => {
     loadIntegrations();
+  }, [loadIntegrations]);
+
+  useEffect(() => {
+    if (!temGrowth) return; // saldo de anúncio não existe no plano CRM (a rota responde 403)
     apiService.getBudgetStatus()
       .then(({ data }) => { setMetaBudget(data.meta); setGoogleBudget(data.google); })
       .catch(() => {/* silencia — budget é info extra, não crítico */});
-  }, [loadIntegrations]);
+  }, [temGrowth]);
 
   const handleConnect = async (provider: OAuthProvider) => {
     setConnectingProvider(provider);
@@ -827,7 +835,8 @@ export default function IntegrationsPage() {
             const supportsBackfill = config.type === IntegrationType.GOOGLE_ADS || config.type === IntegrationType.META_ADS;
             const isConnecting = connectingProvider === config.provider;
             const isDisconnecting = disconnectingId === integration?.id;
-            const isLocked = isStarter && config.type === IntegrationType.KOMMO;
+            const isGrowthLocked = !temGrowth && (config.type === IntegrationType.META_ADS || config.type === IntegrationType.GOOGLE_ADS);
+            const isLocked = (isStarter && config.type === IntegrationType.KOMMO) || isGrowthLocked;
 
             return (
               <div
@@ -868,7 +877,7 @@ export default function IntegrationsPage() {
                     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                     </svg>
-                    Disponível no Professional ou superior
+                    {isGrowthLocked ? 'Disponível no plano Growth + CRM' : 'Disponível no Professional ou superior'}
                   </span>
                 )}
 
@@ -891,19 +900,19 @@ export default function IntegrationsPage() {
                 )}
 
                 {/* Budget badges — só quando conectado */}
-                {config.type === IntegrationType.META_ADS && metaBudget?.connected && (
+                {!isLocked && config.type === IntegrationType.META_ADS && metaBudget?.connected && (
                   <div className="mt-2">
                     <MetaBudgetBadge budget={metaBudget} />
                   </div>
                 )}
-                {config.type === IntegrationType.GOOGLE_ADS && googleBudget?.connected && (
+                {!isLocked && config.type === IntegrationType.GOOGLE_ADS && googleBudget?.connected && (
                   <div className="mt-2">
                     <GoogleBudgetBadge budget={googleBudget} />
                   </div>
                 )}
 
                 {/* Seletor de conta de anúncio Meta (quando conectado) */}
-                {config.type === IntegrationType.META_ADS && isConnected && (
+                {!isLocked && config.type === IntegrationType.META_ADS && isConnected && (
                   <MetaAccountSelector
                     currentExternalId={integration?.externalId ?? null}
                     showToast={showToast}
@@ -917,7 +926,7 @@ export default function IntegrationsPage() {
                 )}
 
                 {/* Aviso de conta Google Ads não vinculada (quando conectado sem externalId) */}
-                {config.type === IntegrationType.GOOGLE_ADS && isConnected && !integration?.externalId && (
+                {!isLocked && config.type === IntegrationType.GOOGLE_ADS && isConnected && !integration?.externalId && (
                   <GoogleAccountNotice />
                 )}
 
@@ -932,7 +941,7 @@ export default function IntegrationsPage() {
                       <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
-                      Bloqueado no Starter
+                      {organization?.plan === Plan.CRM ? 'Bloqueado no plano CRM' : 'Bloqueado no Starter'}
                     </button>
                   ) : !isConnected && !isExpired ? (
                     <button
@@ -1051,11 +1060,19 @@ export default function IntegrationsPage() {
         </div>
       )}
 
-      {!loading && <MetaFormsCard showToast={showToast} />}
+      {!loading && (temGrowth ? <MetaFormsCard showToast={showToast} /> : (
+        <div className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
+            Leads para o CRM
+          </p>
+          <RecursoBloqueado compacto titulo="Formulários da Meta"
+            texto="Leva os leads dos formulários de anúncio da Meta direto para o CRM. Faz parte do plano Growth + CRM." />
+        </div>
+      ))}
       {!loading && <InstagramDirectCard showToast={showToast} />}
 
-      {/* Dados Manuais — alternativa ao CRM */}
-      {!loading && (
+      {/* Dados Manuais — alternativa ao CRM. Serve para ROAS e CAC, que não existem no plano CRM. */}
+      {!loading && temGrowth && (
         <div className="mt-6">
           <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>
             Alternativa sem CRM
