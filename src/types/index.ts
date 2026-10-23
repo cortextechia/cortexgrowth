@@ -16,7 +16,7 @@ export enum UserStatus {
 export enum Plan {
   // Porta de entrada de R$ 10/mês, só no ciclo mensal (2026-08-05).
   DEMO = 'DEMO',
-  // Só o CRM Cortex, R$ 197, 1 usuário (2026-10-19).
+  // Só o CRM Cortex, R$ 149, 1 usuário (2026-10-19; preço de 2026-10-23).
   CRM = 'CRM',
   STARTER = 'STARTER',
   PROFESSIONAL = 'PROFESSIONAL',

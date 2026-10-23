@@ -10,7 +10,7 @@ import GestorStatsCard from '@/components/GestorStatsCard';
 import { QRCodeSVG } from 'qrcode.react';
 
 const PLAN_LABELS: Record<string, string> = { CRM: 'CRM', STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
-const PLAN_PRICES: Record<string, number> = { CRM: 197, STARTER: 297, PROFESSIONAL: 597, ENTERPRISE: 1497 };
+const PLAN_PRICES: Record<string, number> = { CRM: 149, STARTER: 297, PROFESSIONAL: 597, ENTERPRISE: 1497 };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
 
 const BRIEFING_DAY_OPTIONS = [
