@@ -1352,7 +1352,7 @@ class ApiService {
     return response.data;
   }
 
-  async getCrmWhatsappMessages(clientId: string): Promise<{ success: boolean; data: { available: boolean; messages: import('@/types').CrmWaMessage[] } }> {
+  async getCrmWhatsappMessages(clientId: string): Promise<{ success: boolean; data: { available: boolean; stale?: boolean; messages: import('@/types').CrmWaMessage[] } }> {
     const response = await this.client.get(`/crm/whatsapp/clients/${clientId}/messages`);
     return response.data;
   }

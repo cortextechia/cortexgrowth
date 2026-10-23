@@ -4878,6 +4878,8 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
   const [open, setOpen] = useState(isPanel);
   const [loading, setLoading] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
+  // Servidor do WhatsApp não respondeu (stale) — diferente de "sem WhatsApp conectado"
+  const [offline, setOffline] = useState(false);
   const [messages, setMessages] = useState<CrmWaMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -4902,6 +4904,10 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
     if (!silent) setLoading(true);
     try {
       const res = await apiService.getCrmWhatsappMessages(clientId);
+      const fora = res.data.stale === true;
+      setOffline(fora);
+      // Queda no meio do polling não apaga a conversa que já está na tela
+      if (fora && silent) return;
       setAvailable(res.data.available);
       setMessages(res.data.messages);
     } catch {
@@ -4923,12 +4929,13 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
   // (fallback do stream SSE — quando o stream está de pé a atualização
   // instantânea vem pelo refreshSignal abaixo)
   useEffect(() => {
-    if (!open || !available) return;
+    // Servidor fora também faz polling: é o que traz a conversa de volta sozinha
+    if (!open || (!available && !offline)) return;
     const id = setInterval(() => {
       if (!document.hidden) void load(true);
     }, 5000);
     return () => clearInterval(id);
-  }, [open, available, load]);
+  }, [open, available, offline, load]);
 
   // Sinal do stream: mensagem nova deste cliente → refetch imediato
   useEffect(() => {
@@ -5087,13 +5094,28 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
           {loading && messages.length === 0 && (
             <p className="text-xs py-3 text-center" style={{ color: 'var(--text-muted)' }}>Buscando conversa...</p>
           )}
+          {offline && available && (
+            <p
+              className="text-xs px-2 py-1.5 mb-2 rounded"
+              style={{ background: 'var(--badge-warn-bg)', color: 'var(--text-primary)', borderLeft: '3px solid var(--badge-warn-text)' }}
+            >
+              Servidor do WhatsApp fora do ar — mostrando a última conversa carregada. Tentando de novo...
+            </p>
+          )}
           {!loading && available === false && (
             <div className={isPanel ? 'flex-1 flex items-center justify-center px-4' : ''}>
-              <p className="text-xs py-3 text-center max-w-[260px] mx-auto" style={{ color: 'var(--text-muted)' }}>
-                Sem WhatsApp disponível neste card — a conversa usa o WhatsApp de quem aparece
-                em &quot;Responsável&quot;. Conecte um WhatsApp no botão do topo da página para
-                conversar e responder por aqui.
-              </p>
+              {offline ? (
+                <p className="text-xs py-3 px-3 max-w-[260px] mx-auto rounded" style={{ background: 'var(--badge-warn-bg)', color: 'var(--text-primary)', borderLeft: '3px solid var(--badge-warn-text)' }}>
+                  Servidor do WhatsApp fora do ar no momento — a conversa não pôde ser carregada.
+                  Tentando de novo automaticamente.
+                </p>
+              ) : (
+                <p className="text-xs py-3 text-center max-w-[260px] mx-auto" style={{ color: 'var(--text-muted)' }}>
+                  Sem WhatsApp disponível neste card — a conversa usa o WhatsApp de quem aparece
+                  em &quot;Responsável&quot;. Conecte um WhatsApp no botão do topo da página para
+                  conversar e responder por aqui.
+                </p>
+              )}
             </div>
           )}
           {available && messages.length === 0 && !loading && (
