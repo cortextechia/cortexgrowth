@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage, InstagramStatus, IgMessage } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage, InstagramStatus, IgMessage, AiUsage } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -204,6 +204,11 @@ class ApiService {
 
   async updateOrganization(id: string, data: Partial<Organization>): Promise<{ success: boolean; organization: Organization }> {
     const response = await this.client.put(`/organizations/${id}`, data);
+    return response.data;
+  }
+
+  async getOrganizationAiUsage(id: string): Promise<{ success: boolean; data: AiUsage }> {
+    const response = await this.client.get(`/organizations/${id}/ai-usage`);
     return response.data;
   }
 

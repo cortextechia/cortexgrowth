@@ -75,10 +75,15 @@ export interface Organization {
   subscriptionEnds?: Date;
   websiteUrl?: string;
   onboardingCompletedAt?: string;
+  // Cota mensal de IA liberada pelo suporte; chave ausente = padrão (AI_QUOTA_PADRAO no backend).
+  aiQuota?: Partial<Record<AiQuotaKind, number>> | null;
   createdAt: Date;
   updatedAt: Date;
   _count?: { users: number; integrations: number };
 }
+
+export type AiQuotaKind = 'REPORT' | 'CREATIVE' | 'BRIEFING' | 'COPY';
+export type AiUsage = Record<AiQuotaKind, { usado: number; limite: number }>;
 
 // ===== INTEGRAÇÃO =====
 export interface Integration {

@@ -344,20 +344,25 @@ export function useAiInsights() {
     }
   }, [isAuthenticated]);
 
-  const generateInsights = useCallback(async (): Promise<boolean> => {
-    if (!isAuthenticated) return false;
+  // Devolve a mensagem de erro em vez de só `false`: o `error` do estado chega um render
+  // depois, e quem chama lia o valor antigo (o toast caía sempre na mensagem genérica).
+  const generateInsights = useCallback(async (): Promise<{ ok: boolean; message?: string }> => {
+    if (!isAuthenticated) return { ok: false };
     setIsGenerating(true);
     setError(null);
     try {
       const response = await apiService.generateInsights();
       if (response.success) {
         await fetchLatestInsight();
-        return true;
+        return { ok: true };
       }
-      return false;
+      return { ok: false, ...(response.message ? { message: response.message } : {}) };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao gerar relatório');
-      return false;
+      // A mensagem do servidor diz o motivo (cota do mês, relatório já gerado hoje).
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? (err instanceof Error ? err.message : 'Erro ao gerar relatório');
+      setError(msg);
+      return { ok: false, message: msg };
     } finally {
       setIsGenerating(false);
     }

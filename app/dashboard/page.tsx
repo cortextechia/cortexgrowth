@@ -1022,7 +1022,7 @@ export default function DashboardPage() {
     fetchStats, fetchKommoLeads,
   } = useDashboard();
   const kommoLeads = rawKommoLeads as KommoLead[];
-  const { latestInsight, isLoading: insightLoading, isGenerating, error: insightError, fetchLatestInsight, generateInsights } = useAiInsights();
+  const { latestInsight, isLoading: insightLoading, isGenerating, fetchLatestInsight, generateInsights } = useAiInsights();
   // Plano CRM: marketing, campanhas, ROAS/CPL e a análise da IA ficam com cadeado — o resto
   // do painel (funil, vendas, meta, ranking) é o CRM e segue igual.
   const { temGrowth } = usePlano();
@@ -1232,8 +1232,8 @@ export default function DashboardPage() {
   };
 
   const handleGenerateInsights = async () => {
-    const ok = await generateInsights();
-    setGenerateToast(ok ? 'Relatório gerado com sucesso!' : (insightError ?? 'Erro ao gerar relatório'));
+    const r = await generateInsights();
+    setGenerateToast(r.ok ? 'Relatório gerado com sucesso!' : (r.message ?? 'Erro ao gerar relatório'));
     setTimeout(() => setGenerateToast(null), 4000);
   };
 

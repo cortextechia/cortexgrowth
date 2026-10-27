@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients } from '@/types';
+import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients, AiQuotaKind, AiUsage } from '@/types';
 import { userLimitOf, fmtUserLimit } from '@/lib/planLimits';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
@@ -72,7 +72,17 @@ interface EditModal {
   plan: Plan;
   status: OrgStatus;
   subscriptionEnds: string;
+  aiQuota: Record<AiQuotaKind, string>; // '' = padrão
+  aiUsage: AiUsage | null;
 }
+
+// Espelho de AI_QUOTA_PADRAO (backend `lib/aiQuota.ts`) — só para o texto "padrão N"; quem trava é a API.
+const AI_QUOTA_ROWS: { kind: AiQuotaKind; label: string; padrao: number }[] = [
+  { kind: 'REPORT',   label: 'Relatórios de IA',        padrao: 8 },
+  { kind: 'CREATIVE', label: 'Análises de criativo',    padrao: 4 },
+  { kind: 'BRIEFING', label: 'Briefings e ideias',      padrao: 8 },
+  { kind: 'COPY',     label: 'Copies',                  padrao: 8 },
+];
 
 interface UsersModal {
   org: Organization;
@@ -250,11 +260,28 @@ export default function OrganizationsPage() {
 
   const openEdit = (org: Organization) => {
     const ends = org.subscriptionEnds ? new Date(org.subscriptionEnds).toISOString().slice(0, 10) : '';
-    setEditModal({ org, name: org.name, plan: org.plan, status: org.status, subscriptionEnds: ends });
+    const aiQuota = Object.fromEntries(
+      AI_QUOTA_ROWS.map(({ kind }) => [kind, org.aiQuota?.[kind] !== undefined ? String(org.aiQuota[kind]) : '']),
+    ) as Record<AiQuotaKind, string>;
+    setEditModal({ org, name: org.name, plan: org.plan, status: org.status, subscriptionEnds: ends, aiQuota, aiUsage: null });
+    apiService.getOrganizationAiUsage(org.id)
+      .then((r) => setEditModal((p) => (p && p.org.id === org.id ? { ...p, aiUsage: r.data } : p)))
+      .catch(() => {});
   };
 
   const handleSave = async () => {
     if (!editModal) return;
+    const aiQuota: Partial<Record<AiQuotaKind, number>> = {};
+    for (const { kind, label } of AI_QUOTA_ROWS) {
+      const v = editModal.aiQuota[kind].trim();
+      if (v === '') continue;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < 0 || n > 1000) {
+        showToast(`${label}: use um número inteiro de 0 a 1000 (ou deixe vazio para o padrão).`, 'error');
+        return;
+      }
+      aiQuota[kind] = n;
+    }
     setIsSaving(true);
     try {
       await apiService.updateOrganization(editModal.org.id, {
@@ -262,6 +289,7 @@ export default function OrganizationsPage() {
         plan: editModal.plan,
         status: editModal.status,
         subscriptionEnds: editModal.subscriptionEnds ? new Date(editModal.subscriptionEnds) : undefined,
+        aiQuota: Object.keys(aiQuota).length > 0 ? aiQuota : null,
       });
       setEditModal(null);
       showToast('Organização atualizada.');
@@ -692,7 +720,7 @@ export default function OrganizationsPage() {
       {editModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div
-            className="w-full max-w-md rounded-2xl p-6 shadow-xl"
+            className="w-full max-w-md rounded-2xl p-6 shadow-xl max-h-[90vh] overflow-y-auto"
             style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
           >
             <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Editar organização</h2>
@@ -745,6 +773,39 @@ export default function OrganizationsPage() {
                   className="w-full rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
                   style={inputStyle}
                 />
+              </div>
+              <div>
+                <p className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Cota de IA por mês</p>
+                <p className="text-xs mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Vazio = padrão. Aumente quando o cliente pedir mais pelo suporte. Concorrência, alertas e SEO não têm cota.
+                </p>
+                <div className="space-y-2">
+                  {AI_QUOTA_ROWS.map(({ kind, label, padrao }) => {
+                    const uso = editModal.aiUsage?.[kind];
+                    return (
+                      <div key={kind} className="flex items-center gap-3">
+                        <span className="flex-1 text-sm" style={{ color: 'var(--text-primary)' }}>
+                          {label}
+                          <span className="block text-xs" style={{ color: uso && uso.usado >= uso.limite ? 'var(--badge-error-text)' : 'var(--text-secondary)' }}>
+                            {uso ? `${uso.usado} de ${uso.limite} usados este mês` : 'carregando uso…'}
+                          </span>
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={1000}
+                          inputMode="numeric"
+                          placeholder={`padrão ${padrao}`}
+                          aria-label={`Cota mensal: ${label}`}
+                          value={editModal.aiQuota[kind]}
+                          onChange={(e) => setEditModal((p) => p ? { ...p, aiQuota: { ...p.aiQuota, [kind]: e.target.value } } : p)}
+                          className="w-28 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-(--accent)"
+                          style={inputStyle}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
