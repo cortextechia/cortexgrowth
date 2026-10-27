@@ -180,6 +180,12 @@ function RegisterContent() {
     const ref = searchParams.get('ref');
     if (ref) setRefCode(ref);
 
+    // plano= e ciclo= vêm do botão "Assinar" da landing: já abre no que a pessoa escolheu.
+    const planoUrl = searchParams.get('plano');
+    if (planoUrl === 'CRM' || planoUrl === 'STARTER') setPlano(planoUrl);
+    const cicloUrl = searchParams.get('ciclo');
+    if (cicloUrl === 'MONTHLY' || cicloUrl === 'SEMIANNUAL' || cicloUrl === 'ANNUAL') setCiclo(cicloUrl);
+
     const claim = searchParams.get('claim');
     if (claim) {
       setClaimToken(claim);
