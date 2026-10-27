@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, Fragment } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights, usePlano } from '@/hooks/useApi';
@@ -204,18 +205,31 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function InfoTip({ text }: { text: string }) {
+// `below`: cabeçalho de tabela que rola. Lá o balão absoluto é cortado (ou empurra a rolagem)
+// pela própria área da tabela — por isso vai num portal no body, preso dentro da tela.
+function InfoTip({ text, below = false }: { text: string; below?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const abrir = (el: HTMLElement) => {
+    if (below) {
+      const r = el.getBoundingClientRect();
+      const largura = Math.min(220, window.innerWidth * 0.78);
+      const left = Math.min(Math.max(r.left + r.width / 2 - largura / 2, 8), window.innerWidth - largura - 8);
+      setPos({ top: r.bottom + 6, left });
+    }
+    setOpen(true);
+  };
+  const balaoStyle = { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', width: 'min(220px, 78vw)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', whiteSpace: 'normal' as const, lineHeight: 1.45 };
   return (
     <span
       className="relative inline-flex shrink-0"
-      onMouseEnter={() => setOpen(true)}
+      onMouseEnter={(e) => abrir(e.currentTarget)}
       onMouseLeave={() => setOpen(false)}
     >
       <button
         type="button"
         aria-label="O que significa esta métrica?"
-        onClick={() => setOpen((o) => !o)}
+        onClick={(e) => (open ? setOpen(false) : abrir(e.currentTarget))}
         onBlur={() => setOpen(false)}
         className="flex items-center justify-center cursor-help"
         style={{ color: 'var(--text-muted)' }}
@@ -224,10 +238,19 @@ function InfoTip({ text }: { text: string }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
         </svg>
       </button>
-      {open && (
+      {open && below && pos && createPortal(
         <span
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-30 rounded-lg px-2.5 py-2 text-xs font-normal normal-case tracking-normal text-left"
-          style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-secondary)', width: 'min(220px, 78vw)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', whiteSpace: 'normal', lineHeight: 1.45 }}
+          className="fixed rounded-lg px-2.5 py-2 text-xs font-normal normal-case tracking-normal text-left"
+          style={{ ...balaoStyle, top: pos.top, left: pos.left, zIndex: 70 }}
+        >
+          {text}
+        </span>,
+        document.body,
+      )}
+      {open && !below && (
+        <span
+          className="absolute bottom-full mb-1.5 left-1/2 -translate-x-1/2 z-30 rounded-lg px-2.5 py-2 text-xs font-normal normal-case tracking-normal text-left"
+          style={balaoStyle}
         >
           {text}
         </span>
@@ -711,6 +734,27 @@ function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa
 
 // ─── Campaign Drill-down Drawer ───────────────────────────────────────────────
 
+// ⓘ das colunas do drawer: o que vem da plataforma e o que vem do CRM.
+const DRAWER_COL_INFO: Record<string, string> = {
+  Conjunto: 'Conjunto de anúncios da Meta. Clique para ver os anúncios dele.',
+  Anúncio: 'Anúncio da Meta de onde o contato veio pelo WhatsApp.',
+  Gasto: 'Vem da Meta: quanto este conjunto gastou no período.',
+  Impressões: 'Vem da Meta: quantas vezes os anúncios foram exibidos.',
+  Leads: 'Vem do CRM: contatos que chegaram pelo WhatsApp por este anúncio no período, incluindo os descartados.',
+  Descartados: 'Vem do CRM: contatos marcados como descartados na triagem (engano, fornecedor, clique errado).',
+  'Em aberto': 'Vem do CRM: valor dos negócios ainda em negociação hoje, sem filtro de período.',
+  Vendas: 'Vem do CRM: vendas ganhas que fecharam no período.',
+  Receita: 'Vem do CRM: valor das vendas ganhas que fecharam no período.',
+};
+
+function DrawerTh({ h, className }: { h: string; className: string }) {
+  return (
+    <th className={className} style={{ color: 'var(--text-muted)' }}>
+      <span className="inline-flex items-center gap-1">{h}{DRAWER_COL_INFO[h] && <InfoTip below text={DRAWER_COL_INFO[h]} />}</span>
+    </th>
+  );
+}
+
 // Anúncios rastreados no CRM dentro de um conjunto: o que cada um trouxe e vendeu.
 function CreativeRows({ creatives }: { creatives: CreativePerformance[] }) {
   if (creatives.length === 0) {
@@ -725,7 +769,7 @@ function CreativeRows({ creatives }: { creatives: CreativePerformance[] }) {
       <thead>
         <tr style={{ borderBottom: '1px solid var(--border)' }}>
           {['Anúncio', 'Leads', 'Descartados', 'Em aberto', 'Vendas', 'Receita'].map((h) => (
-            <th key={h} className="px-3 py-2 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
+            <DrawerTh key={h} h={h} className="px-3 py-2 text-left font-medium uppercase tracking-wider whitespace-nowrap" />
           ))}
         </tr>
       </thead>
@@ -899,7 +943,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                   <thead>
                     <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                       {['Conjunto', 'Gasto', 'Impressões', 'Leads', 'Em aberto', 'Vendas', 'Receita'].map((h) => (
-                        <th key={h} className="px-2 first:pl-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                        <DrawerTh key={h} h={h} className="px-2 first:pl-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" />
                       ))}
                     </tr>
                   </thead>
@@ -1696,15 +1740,32 @@ export default function DashboardPage() {
   // ── Top campaigns ─────────────────────────────────────────────────────────
   // `result` é o que a PLATAFORMA reporta (Meta: tipo predominante, nunca a soma dos três;
   // Google: conversões). `leads` é o que chegou no CRM com a campanha identificada.
-  interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; result: { count: number; label: string } | null; }
+  //
+  // Com CRM Cortex (camada de contato), lead da campanha = CONTATO que chegou por um anúncio dela
+  // (mesma base dos conjuntos no drawer). Antes contava a oportunidade com `utmCampaign`, e no
+  // Galpão a campanha que trouxe 37 contatos aparecia com 5. Org só Kommo segue na oportunidade.
+  const leadsPorContato = funnelSummary?.cplBasis === 'LEAD';
+  // Sem a resposta do funil ainda não se sabe a base: mostrar a de oportunidade nesse meio
+  // tempo punha número errado na tela (Render frio = até 1 min). Fica "—" até chegar.
+  const baseConhecida = funnelSummary != null;
+  interface Campaign { name: string; platform: 'Meta' | 'Google'; spend: number; clicks: number; impressions: number; leads: number; discarded: number; result: { count: number; label: string } | null; }
   const campaigns = useMemo(() => {
-    const map = new Map<string, Omit<Campaign, 'result'>>();
+    const map = new Map<string, Omit<Campaign, 'result' | 'discarded'>>();
     const resMeta = new Map<string, { compras: number; leads: number; conversas: number }>();
     const convGoogle = new Map<string, number>();
     const leadsByCampaign = new Map<string, number>();
-    kommoCur.forEach((l) => {
-      if (l.utmCampaign) leadsByCampaign.set(l.utmCampaign, (leadsByCampaign.get(l.utmCampaign) ?? 0) + 1);
-    });
+    const discardedByCampaign = new Map<string, number>();
+    if (leadsPorContato) {
+      (funnelSummary?.byCreative ?? []).forEach((c) => {
+        if (!c.campaignName) return;
+        leadsByCampaign.set(c.campaignName, (leadsByCampaign.get(c.campaignName) ?? 0) + c.leads);
+        discardedByCampaign.set(c.campaignName, (discardedByCampaign.get(c.campaignName) ?? 0) + c.discarded);
+      });
+    } else {
+      kommoCur.forEach((l) => {
+        if (l.utmCampaign) leadsByCampaign.set(l.utmCampaign, (leadsByCampaign.get(l.utmCampaign) ?? 0) + 1);
+      });
+    }
 
     metaCur.forEach((d) => {
       const prev = map.get(d.campaignName) ?? { name: d.campaignName, platform: 'Meta' as const, spend: 0, clicks: 0, impressions: 0, leads: 0 };
@@ -1723,7 +1784,7 @@ export default function DashboardPage() {
       map.set(key, { ...prev, spend: prev.spend + d.cost, clicks: prev.clicks + d.clicks, impressions: prev.impressions + d.impressions });
     });
 
-    const resultado = (key: string, c: Omit<Campaign, 'result'>): Campaign['result'] => {
+    const resultado = (key: string, c: Omit<Campaign, 'result' | 'discarded'>): Campaign['result'] => {
       if (c.platform === 'Google') {
         const n = convGoogle.get(key) ?? 0;
         return n > 0 ? { count: n, label: 'conversões' } : null;
@@ -1738,19 +1799,50 @@ export default function DashboardPage() {
     };
 
     return Array.from(map.entries())
-      .map(([key, c]) => ({ ...c, leads: leadsByCampaign.get(c.name) ?? 0, result: resultado(key, c) }))
+      // Contato do Google não diz a campanha: com a base de contato, Google fica "—".
+      .map(([key, c]) => {
+        const porNome = baseConhecida && (!leadsPorContato || c.platform === 'Meta');
+        return {
+          ...c,
+          leads: porNome ? leadsByCampaign.get(c.name) ?? 0 : 0,
+          discarded: porNome ? discardedByCampaign.get(c.name) ?? 0 : 0,
+          result: resultado(key, c),
+        };
+      })
       .sort((a, b) => b.spend - a.spend)
       .slice(0, 6);
-  }, [metaCur, googleCur, kommoCur]);
+  }, [metaCur, googleCur, kommoCur, leadsPorContato, baseConhecida, funnelSummary]);
 
   // Cobertura da atribuição por CAMPANHA. A coluna "Leads" acima só conta lead que diz de
   // qual campanha veio — e a maioria não diz: do anúncio até o WhatsApp só atravessa o
   // anúncio (quando atravessa), nunca a campanha. Sem esta linha, campanha com "—" é lida
   // como campanha que não trouxe ninguém, que foi exatamente a confusão do relatório 13/08.
   const campanhaCobertura = useMemo(() => {
+    if (!baseConhecida) return { pagos: 0, comCampanha: 0 };
+    if (leadsPorContato && funnelSummary?.contacts) {
+      const comCampanha = (funnelSummary.byCreative ?? []).reduce((t, c) => t + (c.campaignName ? c.leads : 0), 0);
+      return { pagos: funnelSummary.contacts.meta + funnelSummary.contacts.google, comCampanha };
+    }
     const pagos = kommoCur.filter((l) => l.utmSource === 'meta' || l.utmSource === 'google');
     return { pagos: pagos.length, comCampanha: pagos.filter((l) => !!l.utmCampaign).length };
-  }, [kommoCur]);
+  }, [kommoCur, leadsPorContato, baseConhecida, funnelSummary]);
+
+  // Texto do ⓘ de cada coluna da tabela de campanhas. Leads e CPL mudam com a base.
+  const campanhaColInfo: Record<ColKey, string> = {
+    spend: 'Quanto a plataforma (Meta ou Google) gastou nesta campanha no período.',
+    leads: leadsPorContato
+      ? 'Vem do CRM: contatos que chegaram pelo WhatsApp por um anúncio desta campanha, no período. Inclui os descartados na triagem. Google aparece "—" porque o contato do Google não diz de qual campanha veio.'
+      : 'Vem do CRM: negócios criados no período com o nome desta campanha gravado. Lead sem campanha identificada não entra.',
+    result: 'Vem da plataforma: o que a Meta conta como resultado (conversas iniciadas, leads ou compras, o tipo predominante) ou as conversões do Google. Não é o número do CRM.',
+    cpr: 'Gasto ÷ Resultado. É o "custo por resultado" do Gerenciador de Anúncios.',
+    ctr: 'Cliques ÷ impressões. Mede se o anúncio chama atenção. Verde a partir de 2%, amarelo de 1% a 2%.',
+    cpc: 'Gasto ÷ cliques.',
+    cpl: leadsPorContato
+      ? 'Gasto ÷ leads do CRM, sem contar os descartados na triagem. Mesma regra do CPL do topo.'
+      : 'Gasto ÷ leads do CRM desta campanha.',
+    impressions: 'Quantas vezes os anúncios desta campanha foram exibidos. A mesma pessoa pode contar várias vezes.',
+    clicks: 'Cliques nos anúncios desta campanha.',
+  };
 
   // ── LTV & projection ──────────────────────────────────────────────────────
   const ltvData = useMemo(() => {
@@ -3207,9 +3299,13 @@ export default function DashboardPage() {
                       <tr style={{ backgroundColor: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)' }}>
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Campanha</th>
                         <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Plat.</th>
-                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Saúde</th>
+                        <th className="px-4 py-2.5 text-left font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                          <span className="inline-flex items-center gap-1">Saúde<InfoTip below text="Nota de A (melhor) a D dos últimos 30 dias. Meta: ROAS, tendência do CPL e do volume de negócios no CRM, e CTR. Google: CTR e tendência de CPC e de impressões." /></span>
+                        </th>
                         {OPTIONAL_COLS.filter(({ key }) => visibleCols.includes(key)).map(({ key, label }) => (
-                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>{label}</th>
+                          <th key={key} className="px-4 py-2.5 text-left font-medium uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                            <span className="inline-flex items-center gap-1">{label}<InfoTip below text={campanhaColInfo[key]} /></span>
+                          </th>
                         ))}
                         <th />
                       </tr>
@@ -3219,7 +3315,8 @@ export default function DashboardPage() {
                         const plt = PLATFORM_COLORS[c.platform] ?? PLATFORM_COLORS.Meta;
                         const ctr = c.impressions > 0 ? (c.clicks / c.impressions) * 100 : 0;
                         const cpc = c.clicks > 0 ? c.spend / c.clicks : 0;
-                        const cpl = c.leads > 0 ? c.spend / c.leads : 0;
+                        const leadsAceitos = c.leads - c.discarded;
+                        const cpl = leadsAceitos > 0 ? c.spend / leadsAceitos : 0;
                         const cellVal: Record<ColKey, React.ReactNode> = {
                           spend:       <span style={{ color: 'var(--text-secondary)' }}>{fmtMoney(c.spend)}</span>,
                           leads:       <span style={{ color: 'var(--text-secondary)' }}>{c.leads > 0 ? c.leads : '—'}</span>,
