@@ -16,21 +16,29 @@ const MONO = 'var(--font-cx-mono), ui-monospace, monospace';
 const PRECOS: Record<BillingCycle, {
   crm: { preco: string; economia: string };
   growth: { preco: string; economia: string };
+  crmN: number;
+  growthN: number;
   nota: string;
 }> = {
   MONTHLY: {
     crm: { preco: '149', economia: '' },
     growth: { preco: '297', economia: '' },
+    crmN: 149,
+    growthN: 297,
     nota: '*Preço por mês no plano mensal, cobrado todo mês. Sem fidelidade: cancele quando quiser.\nNo anual, o CRM sai por R$ 99/mês e o Growth + CRM por R$ 237,60/mês.',
   },
   SEMIANNUAL: {
     crm: { preco: '129', economia: 'Economize R$ 120 por semestre' },
     growth: { preco: '267,30', economia: 'Economize R$ 178,20 por semestre' },
+    crmN: 129,
+    growthN: 267.3,
     nota: '*Preço equivalente por mês no plano semestral. Cobrança única a cada 6 meses: CRM R$ 774,00 · Growth + CRM R$ 1.603,80.\nNo mensal: CRM R$ 149/mês · Growth + CRM R$ 297/mês. Pagamento por PIX ou boleto.',
   },
   ANNUAL: {
     crm: { preco: '99', economia: 'Economize R$ 600 por ano' },
     growth: { preco: '237,60', economia: 'Economize R$ 712,80 por ano' },
+    crmN: 99,
+    growthN: 237.6,
     nota: '*Preço equivalente por mês no plano anual. Cobrança única a cada 12 meses: CRM R$ 1.188,00 · Growth + CRM R$ 2.851,20.\nNo mensal: CRM R$ 149/mês · Growth + CRM R$ 297/mês. Pagamento por PIX ou boleto.',
   },
 };
@@ -182,11 +190,249 @@ function BotaoWhatsApp({ className = '' }: { className?: string }) {
   );
 }
 
+const semMovimento = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Brilho que segue o mouse dentro do card (CSS .cx-spot lê --mx/--my). Com data-tilt o card
+// também inclina um pouco. Escreve direto no style para não re-renderizar a cada pixel.
+function mover(e: React.MouseEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty('--mx', `${e.clientX - r.left}px`);
+  el.style.setProperty('--my', `${e.clientY - r.top}px`);
+  if (el.dataset.tilt !== undefined && !semMovimento()) {
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    el.style.transform = `perspective(900px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg) translateY(-3px)`;
+  }
+}
+function largar(e: React.MouseEvent<HTMLElement>) { e.currentTarget.style.transform = ''; }
+const spot = { onMouseMove: mover, onMouseLeave: largar };
+
+const TEMPO_PASSO = 3600;
+
+function Pilula({ children, viva = false }: { children: React.ReactNode; viva?: boolean }) {
+  return (
+    <span className="self-start rounded-full px-2.5 py-1" style={{ fontFamily: MONO, fontSize: 12, ...(viva ? { background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' } : { border: '1px solid var(--cx-border-3)', color: 'var(--cx-text-2)' }) }}>
+      {children}
+    </span>
+  );
+}
+
+function TelaClique() {
+  return (
+    <>
+      <div className="flex flex-col gap-3 rounded-2xl p-4" style={{ background: 'var(--cx-bg)', border: '1px solid var(--cx-border)' }}>
+        <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--cx-text-3)' }}>PATROCINADO</span>
+        <div className="h-28 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--cx-hl), var(--cx-border-2))' }} />
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold">Vídeo do produto</span>
+          <span className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' }}>Enviar mensagem</span>
+        </div>
+      </div>
+      <div className="cx-pop max-w-[85%] rounded-xl px-3.5 py-3 text-sm" style={{ animationDelay: '0.7s', background: 'var(--cx-bg)', border: '1px solid var(--cx-border)', color: 'var(--cx-text-2)' }}>
+        Oi! Vi o anúncio de vocês e queria um orçamento.
+      </div>
+    </>
+  );
+}
+
+function TelaCard() {
+  const vazio = <div className="h-14 rounded-lg" style={{ background: 'var(--cx-bg)', border: '1px solid var(--cx-border)' }} />;
+  return (
+    <div className="grid flex-1 grid-cols-3 gap-2.5">
+      {['Novos contatos', 'Orçamento', 'Fechado'].map((col, i) => (
+        <div key={col} className="flex min-w-0 flex-col gap-2">
+          <span className="truncate text-[11px] font-semibold" style={{ color: 'var(--cx-text-3)' }}>{col}</span>
+          {i === 0 && (
+            <div className="cx-entra flex flex-col gap-1.5 rounded-lg p-2.5" style={{ animationDelay: '0.3s', background: 'var(--cx-bg)', border: '1.5px solid var(--cx-lime)' }}>
+              <span className="text-xs font-semibold">Novo contato</span>
+              <span className="self-start rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' }}>META</span>
+              <span className="text-[11px] leading-snug" style={{ color: 'var(--cx-text-3)' }}>Vídeo do produto · Engajamento</span>
+            </div>
+          )}
+          {vazio}
+          {i < 2 && vazio}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TelaVenda() {
+  return (
+    <div className="flex flex-col gap-2 text-xs sm:text-sm">
+      <div className="grid grid-cols-[1.4fr_1fr_1fr_0.7fr] gap-2 px-3 text-[11px] font-semibold" style={{ color: 'var(--cx-text-3)' }}>
+        <span>Campanha</span><span>Gasto</span><span>Vendas</span><span>ROAS</span>
+      </div>
+      <div className="cx-flash grid grid-cols-[1.4fr_1fr_1fr_0.7fr] items-center gap-2 rounded-xl px-3 py-3" style={{ animationDelay: '0.4s', border: '1px solid var(--cx-border)' }}>
+        <span className="truncate font-semibold">Engajamento</span><span>R$ 1.200,00</span>
+        <span className="cx-pop font-bold" style={{ animationDelay: '0.4s' }}>R$ 4.800,00</span>
+        <span className="cx-pop font-bold" style={{ animationDelay: '0.6s', color: 'var(--cx-label)' }}>4,0x</span>
+      </div>
+      <div className="grid grid-cols-[1.4fr_1fr_1fr_0.7fr] items-center gap-2 rounded-xl px-3 py-3" style={{ border: '1px solid var(--cx-border)', color: 'var(--cx-text-2)' }}>
+        <span className="truncate">Tráfego</span><span>R$ 800,00</span><span>R$ 0,00</span><span>0x</span>
+      </div>
+      <span className="cx-pop mt-2 self-start rounded-lg px-2.5 py-1 text-[13px] font-bold" style={{ animationDelay: '0.9s', background: 'var(--cx-tint-bg)', color: 'var(--cx-tint-text)' }}>
+        + 1 venda atribuída ao anúncio “Vídeo do produto”
+      </span>
+    </div>
+  );
+}
+
+const TELAS = [
+  ['WHATSAPP DA EMPRESA', TelaClique],
+  ['CRM · FUNIL', TelaCard],
+  ['PAINEL · CAMPANHAS', TelaVenda],
+] as const;
+
+// Passo a passo que anda sozinho e para quando o mouse está em cima (ou ao clicar num passo).
+function ComoFunciona() {
+  const [passo, setPasso] = useState(0);
+  const [pausado, setPausado] = useState(false);
+  useEffect(() => {
+    if (pausado || semMovimento()) return;
+    const t = setTimeout(() => setPasso((p) => (p + 1) % PASSOS.length), TEMPO_PASSO);
+    return () => clearTimeout(t);
+  }, [passo, pausado]);
+  const [rotuloTela, Tela] = TELAS[passo]!;
+
+  return (
+    <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]" onMouseEnter={() => setPausado(true)} onMouseLeave={() => setPausado(false)}>
+      <div className="flex flex-col gap-3">
+        {PASSOS.map(([tag, t, d], i) => {
+          const ativo = i === passo;
+          return (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => setPasso(i)}
+              aria-pressed={ativo}
+              className="relative flex cursor-pointer flex-col gap-2.5 overflow-hidden rounded-[20px] p-6 text-left transition-colors"
+              style={{ background: ativo ? 'var(--cx-surface)' : 'transparent', border: `1px solid ${ativo ? 'var(--cx-lime)' : 'var(--cx-border-2)'}`, color: 'var(--cx-text)' }}
+            >
+              <Pilula viva={ativo}>{tag}</Pilula>
+              <span className="text-xl font-bold">{t}</span>
+              <span className="text-[15px] leading-relaxed" style={{ color: 'var(--cx-text-2)' }}>{d}</span>
+              {ativo && !pausado && <span key={passo} className="cx-barra-passo" aria-hidden />}
+            </button>
+          );
+        })}
+      </div>
+      <div {...spot} className="cx-spot flex min-h-[380px] flex-col rounded-[22px] p-6" style={{ background: 'linear-gradient(180deg, var(--cx-card-1), var(--cx-card-2))', border: '1px solid var(--cx-border-2)', boxShadow: '0 30px 80px var(--cx-shadow)' }}>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--cx-text-3)' }}>{rotuloTela}</span>
+          <span className="text-[11px]" style={{ color: 'var(--cx-text-3)' }}>Exemplo ilustrativo</span>
+        </div>
+        <div key={passo} className="cx-pop flex flex-1 flex-col justify-center gap-3" aria-live="polite">
+          <Tela />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const FEED = [
+  ['Vídeo do produto', 'Engajamento'],
+  ['Carrossel da promoção', 'Tráfego'],
+  ['Depoimento de cliente', 'Engajamento'],
+  ['Antes e depois', 'Conversão'],
+];
+const QUANDO = ['agora', 'há 1 min', 'há 3 min'];
+
+// Leads entrando no CRM, cada um com o anúncio de origem.
+function FeedLeads() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (semMovimento()) return;
+    const t = setInterval(() => setN((v) => v + 1), 2400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="flex min-w-0 flex-col gap-2" aria-hidden>
+      {[0, 1, 2].map((k) => {
+        const id = n - k;
+        const [anuncio, campanha] = FEED[((id % FEED.length) + FEED.length) % FEED.length]!;
+        return (
+          <div key={id} className={`${k === 0 ? 'cx-entra' : ''} flex items-center gap-3 rounded-xl px-3.5 py-3`} style={{ background: 'var(--cx-bg)', border: `1px solid ${k === 0 ? 'var(--cx-hl-border)' : 'var(--cx-border)'}`, opacity: 1 - k * 0.22 }}>
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: 'var(--cx-lime)' }} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="text-sm font-semibold">Novo contato</span>
+              <span className="truncate text-xs" style={{ color: 'var(--cx-text-3)' }}>“{anuncio}” · {campanha}</span>
+            </div>
+            <span className="shrink-0 text-[11px]" style={{ color: 'var(--cx-text-3)' }}>{QUANDO[k]}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Arrasta a quantidade de leads e vê quanto sai cada um no ciclo escolhido.
+function CustoPorLead({ ciclo }: { ciclo: BillingCycle }) {
+  const [leads, setLeads] = useState(300);
+  const p = PRECOS[ciclo];
+  const porLead = (mensal: number) => (mensal / leads).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const nomeCiclo = { MONTHLY: 'mensal', SEMIANNUAL: 'semestral', ANNUAL: 'anual' }[ciclo];
+  return (
+    <div {...spot} className="cx-spot flex w-full max-w-[920px] flex-col gap-5 rounded-3xl p-6 sm:p-8" style={{ background: 'var(--cx-surface)', border: '1px solid var(--cx-border-2)' }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <label htmlFor="cx-leads" className="text-lg font-bold">Quantos leads você recebe por mês?</label>
+        <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 32, letterSpacing: '-0.03em' }}>{leads}</span>
+      </div>
+      <input id="cx-leads" type="range" min={50} max={1500} step={50} value={leads} onChange={(e) => setLeads(Number(e.target.value))} className="cx-range h-6 w-full cursor-pointer" />
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[['CRM', p.crmN], ['Growth + CRM', p.growthN]].map(([nome, mensal]) => (
+          <div key={nome as string} className="flex flex-col gap-1 rounded-2xl p-4" style={{ background: 'var(--cx-bg)', border: '1px solid var(--cx-border)' }}>
+            <span className="text-sm" style={{ color: 'var(--cx-text-3)' }}>{nome}</span>
+            <span><strong style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800 }}>{porLead(mensal as number)}</strong> <span className="text-sm" style={{ color: 'var(--cx-text-2)' }}>por lead</span></span>
+          </div>
+        ))}
+      </div>
+      <p className="m-0 text-xs" style={{ color: 'var(--cx-text-3)' }}>Preço por mês do plano {nomeCiclo} dividido pelos leads. Não tem cobrança por lead nem limite de contatos.</p>
+    </div>
+  );
+}
+
+function AntesDepois() {
+  const [com, setCom] = useState(false);
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center gap-4">
+        <div role="group" aria-label="Comparar" className="flex gap-1 rounded-[14px] p-1" style={{ background: 'var(--cx-surface)', border: '1px solid var(--cx-border-2)' }}>
+          {[[false, 'Sem Cromalex'], [true, 'Com Cromalex']].map(([v, r]) => (
+            <button key={r as string} type="button" onClick={() => setCom(v as boolean)} aria-pressed={com === v}
+              className="min-h-11 cursor-pointer rounded-[10px] border-0 px-[18px] py-2.5 text-sm font-semibold transition-colors"
+              style={com === v ? { background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' } : { background: 'transparent', color: 'var(--cx-text-2)' }}>
+              {r as string}
+            </button>
+          ))}
+        </div>
+        {!com && <span className="text-sm" style={{ color: 'var(--cx-text-3)' }}>Toque em “Com Cromalex” e veja a diferença.</span>}
+      </div>
+      <div className="flex flex-col gap-2.5">
+        {COMPARATIVO.map(([k, antes, depois], i) => (
+          <div key={k} {...spot} className="cx-spot grid items-center gap-2 rounded-2xl px-5 py-4 sm:grid-cols-[240px_minmax(0,1fr)]" style={{ background: 'var(--cx-surface)', border: `1px solid ${com ? 'var(--cx-hl-border)' : 'var(--cx-border)'}` }}>
+            <span className="font-semibold">{k}</span>
+            <span key={String(com)} className="cx-pop flex items-center gap-3" style={{ animationDelay: `${i * 70}ms` }}>
+              <span aria-hidden className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                style={com ? { background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' } : { border: '1px solid var(--cx-border-3)', color: 'var(--cx-text-3)' }}>
+                {com ? '✓' : '✕'}
+              </span>
+              <span style={{ color: com ? 'var(--cx-text)' : 'var(--cx-text-2)' }}>{com ? depois : antes}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const linkCadastro = (plano: 'CRM' | 'STARTER', ciclo: BillingCycle) => `/auth/register?plano=${plano}&ciclo=${ciclo}`;
 
 export default function CromalexLanding({ fontClass }: { fontClass: string }) {
   const raiz = useRef<HTMLDivElement>(null);
   const cartao = useRef<HTMLDivElement>(null);
+  const progresso = useRef<HTMLDivElement>(null);
   const [ciclo, setCiclo] = useState<BillingCycle>('ANNUAL');
   const precos = PRECOS[ciclo];
   const comDesconto = ciclo !== 'MONTHLY';
@@ -202,6 +448,18 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
     }, { threshold: 0.12 });
     el.querySelectorAll('.cx-reveal').forEach((n) => obs.observe(n));
     return () => obs.disconnect();
+  }, []);
+
+  // Barra fina no topo mostra quanto da página já foi lida.
+  useEffect(() => {
+    const atualizar = () => {
+      const h = document.documentElement;
+      const total = h.scrollHeight - h.clientHeight;
+      if (progresso.current) progresso.current.style.transform = `scaleX(${total > 0 ? h.scrollTop / total : 0})`;
+    };
+    atualizar();
+    window.addEventListener('scroll', atualizar, { passive: true });
+    return () => window.removeEventListener('scroll', atualizar);
   }, []);
 
   // Cartão do hero inclina seguindo o mouse.
@@ -224,6 +482,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
 
       {/* ── Navegação ── */}
       <nav className="sticky top-0 z-50" style={{ background: 'var(--cx-nav)', backdropFilter: 'blur(14px)', borderBottom: '1px solid var(--cx-line)' }}>
+        <div ref={progresso} aria-hidden className="absolute -bottom-px left-0 h-0.5 w-full origin-left" style={{ background: 'var(--cx-lime)', transform: 'scaleX(0)' }} />
         <div className={`${caixa} flex items-center justify-between gap-4 py-3`}>
           <Link href="/" className="no-underline" style={{ color: 'var(--cx-text)' }}><Marca /></Link>
           <div className="hidden items-center gap-6 text-sm md:flex">
@@ -316,7 +575,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           {DORES.map(([t, d], i) => (
-            <div key={t} className="flex flex-col gap-2.5 rounded-[20px] p-7" style={cardBase}>
+            <div key={t} {...spot} data-tilt className="cx-spot flex flex-col gap-2.5 rounded-[20px] p-7" style={cardBase}>
               <span style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 40, color: 'var(--cx-dim)' }}>0{i + 1}</span>
               <h3 className="m-0 text-[19px] font-bold">{t}</h3>
               <p className="m-0 text-[15px] leading-relaxed" style={textoSec}>{d}</p>
@@ -331,15 +590,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
           <Rotulo>COMO FUNCIONA</Rotulo>
           <Titulo cromo>Do anúncio à venda, sem planilha no meio.</Titulo>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {PASSOS.map(([tag, t, d]) => (
-            <div key={tag} className="flex flex-col gap-3 rounded-[20px] p-7" style={{ border: '1px solid var(--cx-border-2)' }}>
-              <span className="self-start rounded-full px-2.5 py-1" style={{ fontFamily: MONO, fontSize: 12, background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' }}>{tag}</span>
-              <h3 className="m-0 text-xl font-bold">{t}</h3>
-              <p className="m-0 text-[15px] leading-relaxed" style={textoSec}>{d}</p>
-            </div>
-          ))}
-        </div>
+        <ComoFunciona />
       </section>
 
       {/* ── Produto ── */}
@@ -349,13 +600,16 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
           <Titulo>Tudo que o seu time comercial usa, num lugar só.</Titulo>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <div className="flex flex-col gap-3 rounded-[22px] p-8 md:col-span-2" style={{ background: 'linear-gradient(160deg, var(--cx-hl), var(--cx-surface) 60%)', border: '1px solid var(--cx-hl-border)' }}>
-            <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--cx-label)' }}>RASTREIO POR ANÚNCIO</span>
-            <h3 className="m-0 text-[28px] font-extrabold" style={{ fontFamily: DISPLAY, letterSpacing: '-0.02em' }}>Cada lead com nome, sobrenome e anúncio de origem.</h3>
-            <p className="m-0 max-w-[620px] text-[15px] leading-relaxed" style={textoSec}>Veja quantos contatos, orçamentos e vendas cada anúncio e cada conjunto trouxe. Sem pedir nada para o cliente e sem configurar código.</p>
+          <div {...spot} className="cx-spot grid items-center gap-6 rounded-[22px] p-8 md:col-span-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" style={{ background: 'linear-gradient(160deg, var(--cx-hl), var(--cx-surface) 60%)', border: '1px solid var(--cx-hl-border)' }}>
+            <div className="flex flex-col gap-3">
+              <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--cx-label)' }}>RASTREIO POR ANÚNCIO</span>
+              <h3 className="m-0 text-[28px] font-extrabold" style={{ fontFamily: DISPLAY, letterSpacing: '-0.02em' }}>Cada lead com nome, sobrenome e anúncio de origem.</h3>
+              <p className="m-0 max-w-[620px] text-[15px] leading-relaxed" style={textoSec}>Veja quantos contatos, orçamentos e vendas cada anúncio e cada conjunto trouxe. Sem pedir nada para o cliente e sem configurar código.</p>
+            </div>
+            <FeedLeads />
           </div>
           {RECURSOS.map(([tag, t, d]) => (
-            <div key={tag} className="flex flex-col gap-2.5 rounded-[22px] p-7" style={cardBase}>
+            <div key={tag} {...spot} data-tilt className="cx-spot flex flex-col gap-2.5 rounded-[22px] p-7" style={cardBase}>
               <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--cx-text-3)' }}>{tag}</span>
               <h3 className="m-0 text-xl font-bold">{t}</h3>
               <p className="m-0 text-[15px] leading-relaxed" style={textoSec}>{d}</p>
@@ -381,13 +635,21 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
               { n: 99, suf: '%', txt: 'dos leads da Meta identificados até o anúncio (206 de 208)' },
               { n: 718, suf: '', txt: 'contatos organizados no CRM' },
             ].map((s) => (
-              <div key={s.txt} className="flex min-w-0 flex-col gap-1.5 rounded-[20px] p-6 sm:p-7" style={{ background: 'var(--cx-bg)', border: '1px solid var(--cx-border-2)' }}>
+              <div key={s.txt} {...spot} data-tilt className="cx-spot flex min-w-0 flex-col gap-1.5 rounded-[20px] p-6 sm:p-7" style={{ background: 'var(--cx-bg)', border: '1px solid var(--cx-border-2)' }}>
                 <span className="cx-cromo" style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 'clamp(40px, 5vw, 56px)', letterSpacing: '-0.04em', lineHeight: 1 }}>
                   <Contador alvo={s.n} sufixo={s.suf} />
                 </span>
                 <span className="text-sm leading-normal" style={textoSec}>{s.txt}</span>
               </div>
             ))}
+            <div className="col-span-2 flex flex-col gap-2">
+              <div className="flex justify-between gap-3 text-xs" style={{ color: 'var(--cx-text-2)' }}>
+                <span>Leads da Meta com o anúncio identificado</span><span className="shrink-0 font-semibold">206 de 208</span>
+              </div>
+              <div className="h-2.5 overflow-hidden rounded-full" style={{ background: 'var(--cx-border)' }} role="img" aria-label="206 de 208 leads identificados">
+                <div className="cx-barra h-full rounded-full" style={{ '--w': `${(206 / 208) * 100}%`, background: 'var(--cx-lime)' } as React.CSSProperties} />
+              </div>
+            </div>
             <p className="col-span-2 m-0 text-xs" style={{ color: 'var(--cx-text-3)' }}>Dados do Galpão Ferriaço, últimos 90 dias até 27/10/2026.</p>
           </div>
         </div>
@@ -423,7 +685,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
 
         <div className="grid w-full max-w-[920px] gap-5 md:grid-cols-2">
           {/* CRM */}
-          <div className="flex flex-col gap-[18px] rounded-3xl p-8" style={{ background: 'var(--cx-surface)', border: '1px solid var(--cx-border-2)' }}>
+          <div {...spot} className="cx-spot flex flex-col gap-[18px] rounded-3xl p-8" style={{ background: 'var(--cx-surface)', border: '1px solid var(--cx-border-2)' }}>
             <div className="flex flex-col gap-1">
               <h3 className="m-0 text-[22px] font-extrabold" style={{ fontFamily: DISPLAY }}>CRM</h3>
               <span className="text-sm" style={{ color: 'var(--cx-text-3)' }}>Para quem já anuncia e quer organizar o atendimento</span>
@@ -443,7 +705,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
           </div>
 
           {/* Growth + CRM */}
-          <div className="relative flex flex-col gap-[18px] rounded-3xl p-8" style={{ background: 'linear-gradient(170deg, var(--cx-hl), var(--cx-surface) 55%)', border: '1.5px solid var(--cx-lime)', boxShadow: '0 30px 80px var(--cx-lime-shadow)' }}>
+          <div {...spot} className="cx-spot flex flex-col gap-[18px] rounded-3xl p-8" style={{ background: 'linear-gradient(170deg, var(--cx-hl), var(--cx-surface) 55%)', border: '1.5px solid var(--cx-lime)', boxShadow: '0 30px 80px var(--cx-lime-shadow)' }}>
             <span className="absolute -top-[13px] left-7 rounded-full px-3 py-[5px] text-xs font-extrabold" style={{ background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' }}>MAIS COMPLETO</span>
             <div className="flex flex-col gap-1">
               <h3 className="m-0 text-[22px] font-extrabold" style={{ fontFamily: DISPLAY }}>Growth + CRM</h3>
@@ -464,50 +726,36 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
           </div>
         </div>
 
+        <CustoPorLead ciclo={ciclo} />
+
         <p className="m-0 max-w-[920px] whitespace-pre-line text-center text-xs leading-relaxed" style={{ color: 'var(--cx-text-3)' }}>{precos.nota}</p>
       </section>
 
       {/* ── Antes e depois ── */}
       <section className={`${caixa} cx-reveal flex flex-col gap-8 pb-28 pt-10`}>
         <h2 className="m-0 max-w-[760px]" style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 'clamp(30px, 3.6vw, 46px)', lineHeight: 1.08, letterSpacing: '-0.03em' }}>Antes e depois do Cromalex.</h2>
-        <div className="overflow-x-auto rounded-[20px]" style={{ border: '1px solid var(--cx-border-2)' }}>
-          <table className="w-full min-w-[620px] border-collapse text-[15px]">
-            <thead>
-              <tr style={{ background: 'var(--cx-surface)' }}>
-                <th className="px-[22px] py-[18px] text-left font-semibold" style={{ color: 'var(--cx-text-3)' }}><span className="sr-only">Situação</span></th>
-                <th className="px-[22px] py-[18px] text-left font-semibold" style={{ color: 'var(--cx-text-3)' }}>Planilha + WhatsApp no celular</th>
-                <th className="px-[22px] py-[18px] text-left font-bold" style={{ color: 'var(--cx-label)' }}>Cromalex Growth</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARATIVO.map(([k, antes, depois]) => (
-                <tr key={k} style={{ borderTop: '1px solid var(--cx-border)' }}>
-                  <td className="px-[22px] py-[18px] font-semibold">{k}</td>
-                  <td className="px-[22px] py-[18px]" style={textoSec}>{antes}</td>
-                  <td className="px-[22px] py-[18px]">{depois}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AntesDepois />
       </section>
 
       {/* ── Dúvidas ── */}
       <section id="duvidas" className="cx-reveal mx-auto box-border flex max-w-[900px] scroll-mt-20 flex-col gap-6 px-4 pb-28 pt-10 sm:px-6">
         <h2 className="m-0" style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 'clamp(30px, 3.6vw, 46px)', lineHeight: 1.08, letterSpacing: '-0.03em' }}>Dúvidas frequentes</h2>
         <div className="flex flex-col" style={{ borderTop: '1px solid var(--cx-border)' }}>
-          {DUVIDAS.map(([q, a]) => (
-            <div key={q} className="flex flex-col gap-2 py-[22px]" style={{ borderBottom: '1px solid var(--cx-border)' }}>
-              <h3 className="m-0 text-lg font-bold">{q}</h3>
-              <p className="m-0 text-[15px] leading-relaxed" style={textoSec}>{a}</p>
-            </div>
+          {DUVIDAS.map(([q, a], i) => (
+            <details key={q} open={i === 0} className="cx-faq" style={{ borderBottom: '1px solid var(--cx-border)' }}>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-[22px] text-lg font-bold transition-colors">
+                {q}
+                <span aria-hidden className="cx-faq-ico inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xl font-normal" style={{ border: '1px solid var(--cx-border-3)' }}>+</span>
+              </summary>
+              <p className="cx-pop m-0 pb-[22px] pr-12 text-[15px] leading-relaxed" style={textoSec}>{a}</p>
+            </details>
           ))}
         </div>
       </section>
 
       {/* ── Chamada final ── */}
       <section className={`${caixa} cx-reveal pb-24`}>
-        <div className="flex flex-col items-center gap-5 overflow-hidden rounded-[28px] px-8 text-center" style={{ paddingBlock: 'clamp(40px, 6vw, 80px)', background: 'linear-gradient(160deg, var(--cx-hl), var(--cx-surface) 70%)', border: '1px solid var(--cx-hl-border)' }}>
+        <div {...spot} className="cx-spot flex flex-col items-center gap-5 overflow-hidden rounded-[28px] px-8 text-center" style={{ paddingBlock: 'clamp(40px, 6vw, 80px)', background: 'linear-gradient(160deg, var(--cx-hl), var(--cx-surface) 70%)', border: '1px solid var(--cx-hl-border)' }}>
           <h2 className="cx-cromo m-0 max-w-[820px]" style={{ fontFamily: DISPLAY, fontWeight: 800, fontSize: 'clamp(34px, 4.6vw, 64px)', lineHeight: 1.02, letterSpacing: '-0.04em' }}>
             O próximo lead já vai chegar com o anúncio dele.
           </h2>

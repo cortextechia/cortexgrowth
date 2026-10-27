@@ -214,3 +214,35 @@ body {
   .cx[data-anim="on"] .cx-reveal { opacity: 1; transform: none; transition: none; }
   .cx-tilt { transition: none; }
 }
+
+/* Interações da landing: brilho que segue o mouse, trocas de tela, barras. */
+.cx { --cx-spot: rgba(200, 255, 62, 0.10); }
+[data-theme="light"] .cx { --cx-spot: rgba(120, 170, 0, 0.13); }
+.cx-spot { position: relative; isolation: isolate; transition: transform 0.25s ease-out; }
+.cx-spot::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), var(--cx-spot), transparent 70%);
+  opacity: 0; transition: opacity 0.3s ease;
+}
+.cx-spot:hover::before { opacity: 1; }
+.cx-pop { animation: cx-pop 0.45s ease both; }
+@keyframes cx-pop { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+.cx-entra { animation: cx-entra 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes cx-entra { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+.cx-flash { animation: cx-flash 1.6s ease both; }
+@keyframes cx-flash { 0%, 30% { background: var(--cx-tint-bg); } 100% { background: transparent; } }
+.cx-barra-passo { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--cx-lime); animation: cx-encher 3.6s linear forwards; }
+@keyframes cx-encher { from { width: 0; } to { width: 100%; } }
+.cx-barra { width: var(--w); }
+.cx[data-anim="on"] .cx-reveal .cx-barra { width: 0; transition: width 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s; }
+.cx[data-anim="on"] .cx-reveal.cx-in .cx-barra { width: var(--w); }
+.cx-faq summary::-webkit-details-marker { display: none; }
+.cx-faq summary:hover { color: var(--cx-label); }
+.cx-faq-ico { transition: transform 0.25s ease; }
+.cx-faq[open] .cx-faq-ico { transform: rotate(45deg); }
+.cx-range { accent-color: var(--cx-label); }
+@media (prefers-reduced-motion: reduce) {
+  .cx-pop, .cx-entra, .cx-flash { animation: none; }
+  .cx-barra-passo { display: none; }
+  .cx-spot { transition: none; }
+}
