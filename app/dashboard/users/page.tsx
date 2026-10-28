@@ -18,8 +18,8 @@ function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 }
 
 const ROLE_BADGE_STYLE: Record<string, { backgroundColor: string; color: string }> = {
-  SUPER_ADMIN: { backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' },
-  ADMIN:       { backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' },
+  SUPER_ADMIN: { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' },
+  ADMIN:       { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' },
   USER:        { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
   VIEWER:      { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-muted)' },
 };
@@ -204,7 +204,7 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 sm:mb-8 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Usuários</h1>
+          <h1 className="ui-h1">Usuários</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Gerencie os membros da equipe.
             {userLimit !== Infinity && (
@@ -219,8 +219,8 @@ export default function UsersPage() {
             onClick={() => !atLimit && setShowForm(!showForm)}
             disabled={atLimit && !showForm}
             title={atLimit ? `Limite de ${fmtUserLimit(userLimit)} usuário(s) atingido. Faça upgrade do plano.` : undefined}
-            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {showForm ? 'Cancelar' : '+ Novo Usuário'}
           </button>
@@ -321,8 +321,8 @@ export default function UsersPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
               >
                 {isSubmitting && <Spinner />}
                 {isSubmitting ? 'Criando...' : 'Criar usuário'}
@@ -464,8 +464,8 @@ export default function UsersPage() {
             <button
               type="submit"
               disabled={isConnecting || connectCode.length !== 8}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ backgroundColor: 'var(--accent)' }}
+              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: 'var(--accent-fill)' }}
             >
               {isConnecting && <Spinner className="h-3.5 w-3.5" />}
               {isConnecting ? 'Conectando...' : 'Conectar gestor'}
@@ -490,7 +490,7 @@ export default function UsersPage() {
                   <div className="flex items-center gap-4 shrink-0">
                     <span
                       className="hidden sm:inline-flex px-2 py-0.5 rounded text-xs font-medium"
-                      style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#a855f7' }}
+                      style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
                     >
                       Gestor
                     </span>

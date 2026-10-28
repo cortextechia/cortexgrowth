@@ -21,7 +21,7 @@ function Spinner() {
 
 function Tag({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-xs px-2 py-0.5 rounded-md" style={{ backgroundColor: 'rgba(168,85,247,0.07)', color: '#9d71cc', border: '1px solid rgba(168,85,247,0.12)' }}>
+    <span className="text-xs px-2 py-0.5 rounded-md" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-dim)' }}>
       {children}
     </span>
   );
@@ -29,11 +29,11 @@ function Tag({ children }: { children: React.ReactNode }) {
 
 function AgentCard({ icon, name, children }: { icon: React.ReactNode; name: string; children: React.ReactNode }) {
   return (
-    <div className="relative rounded-xl overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(168,85,247,0.12)' }}>
-      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top left, rgba(168,85,247,0.04) 0%, transparent 65%)' }} />
+    <div className="relative rounded-xl overflow-hidden flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-dim)' }}>
+      <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top left, var(--accent-dim) 0%, transparent 65%)' }} />
       <div className="relative p-5 flex flex-col gap-4 flex-1">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.2)' }}>
+          <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
             {icon}
           </div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{name}</p>
@@ -59,7 +59,7 @@ function RunButton({ onClick, loading, label }: { onClick: () => void; loading: 
 }
 
 function ErrorMsg({ msg }: { msg: string }) {
-  return <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'rgba(239,68,68,0.06)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)' }}>{msg}</p>;
+  return <p className="text-xs rounded-lg p-2.5" style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}>{msg}</p>;
 }
 
 function CampaignSelect({ campaigns, value, platform, onChange }: {
@@ -127,7 +127,7 @@ function AnaliseCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =>
 
   return (
     <AgentCard name="Análise Criativa" icon={
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
       </svg>
     }>
@@ -135,12 +135,12 @@ function AnaliseCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =>
         Cruza 90 dias de Meta Ads com o Kommo para identificar quais padrões criativos convertem nesta conta.
       </p>
       {dateLabel && (
-        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Última análise: <span style={{ color: '#c084fc' }}>{dateLabel}</span></p>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Última análise: <span style={{ color: 'var(--accent)' }}>{dateLabel}</span></p>
       )}
       {error && <ErrorMsg msg={error} />}
       <RunButton onClick={run} loading={loading} label="Analisar padrões (90 dias)" />
       {analysis && (
-        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
+        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: 'var(--accent)' }}>
           {expanded ? '▲ Ocultar resultado' : '▼ Ver resultado'}
         </button>
       )}
@@ -163,11 +163,11 @@ function AnaliseCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =>
           )}
           {analysis.patterns.creativeRecommendations.length > 0 && (
             <div>
-              <p className="text-xs font-medium mb-1.5" style={{ color: '#60a5fa' }}>Recomendações</p>
+              <p className="text-xs font-medium mb-1.5" style={{ color: 'var(--accent)' }}>Recomendações</p>
               <ul className="space-y-1">
                 {analysis.patterns.creativeRecommendations.map((r, i) => (
                   <li key={i} className="text-xs flex gap-1.5" style={{ color: 'var(--text-secondary)' }}>
-                    <span style={{ color: '#60a5fa' }}>→</span>{r}
+                    <span style={{ color: 'var(--accent)' }}>→</span>{r}
                   </li>
                 ))}
               </ul>
@@ -227,12 +227,12 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
 
   return (
     <AgentCard name="Geração de Ideias" icon={
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
       </svg>
     }>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Detecta fadiga de CTR e gera 10+ ângulos criativos com hooks prontos para usar.</p>
-      <button onClick={detect} disabled={detecting} className="flex items-center gap-1.5 text-xs" style={{ color: '#9d71cc' }}>
+      <button onClick={detect} disabled={detecting} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--accent)' }}>
         {detecting ? <Spinner /> : null}{detecting ? 'Detectando…' : '⚡ Detectar campanhas em fadiga'}
       </button>
       {fatigued.length > 0 && (
@@ -240,7 +240,7 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
           {fatigued.map(c => (
             <button key={`${c.platform}-${c.name}`} onClick={() => { setCampaign(c.name); setPlatform(c.platform); }}
               className="text-xs px-2 py-1 rounded-lg transition-colors"
-              style={{ backgroundColor: campaign === c.name ? 'rgba(168,85,247,0.2)' : 'rgba(239,68,68,0.07)', color: campaign === c.name ? '#c084fc' : '#f87171', border: `1px solid ${campaign === c.name ? 'rgba(168,85,247,0.3)' : 'rgba(239,68,68,0.15)'}` }}
+              style={{ backgroundColor: campaign === c.name ? 'var(--accent-line)' : 'rgba(239,68,68,0.07)', color: campaign === c.name ? 'var(--accent)' : '#f87171', border: `1px solid ${campaign === c.name ? 'var(--accent-line)' : 'rgba(239,68,68,0.15)'}` }}
             >
               {c.name.length > 28 ? c.name.slice(0, 28) + '…' : c.name} <span className="opacity-60">−{c.dropPct}%</span>
             </button>
@@ -251,7 +251,7 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
       {error && <ErrorMsg msg={error} />}
       <RunButton onClick={run} loading={loading} label="Gerar ideias de ângulo" />
       {result && (
-        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
+        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: 'var(--accent)' }}>
           {expanded ? '▲ Ocultar ideias' : `▼ Ver ${result.ideas.length} ideias`}
         </button>
       )}
@@ -260,7 +260,7 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
           {result.ideas.map((idea, i) => (
             <div key={i} className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
               <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold" style={{ color: '#c084fc' }}>{i + 1}. {idea.angle}</span>
+                <span className="font-semibold" style={{ color: 'var(--accent)' }}>{i + 1}. {idea.angle}</span>
                 <Tag>{idea.format}</Tag>
               </div>
               <p className="italic mb-1" style={{ color: 'var(--text-primary)' }}>"{idea.hook}"</p>
@@ -268,7 +268,7 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
             </div>
           ))}
           {result.testingRecommendation && (
-            <p className="text-xs p-2.5 rounded-lg" style={{ backgroundColor: 'rgba(59,130,246,0.05)', color: 'var(--text-secondary)', border: '1px solid rgba(59,130,246,0.1)' }}>
+            <p className="text-xs p-2.5 rounded-lg" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--text-secondary)', border: '1px solid var(--accent-dim)' }}>
               💡 {result.testingRecommendation}
             </p>
           )}
@@ -318,7 +318,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
 
   return (
     <AgentCard name="Briefing Automatizado" icon={
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     }>
@@ -328,7 +328,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
       <RunButton onClick={run} loading={loading} label="Gerar briefing" />
       {result && (
         <>
-          <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
+          <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: 'var(--accent)' }}>
             {expanded ? '▲ Ocultar briefing' : '▼ Ver briefing completo'}
           </button>
           {briefingId && (
@@ -353,7 +353,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
             <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Ângulo criativo</p>
-            <p className="font-medium mb-0.5" style={{ color: '#c084fc' }}>{result.creativeAngle?.main}</p>
+            <p className="font-medium mb-0.5" style={{ color: 'var(--accent)' }}>{result.creativeAngle?.main}</p>
             <p className="mb-1">{result.creativeAngle?.conversionHypothesis}</p>
             <p style={{ color: 'var(--text-muted)' }}>{result.creativeAngle?.rationale}</p>
           </div>
@@ -374,7 +374,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
             <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Copy</p>
             <p className="font-bold text-sm mb-0.5" style={{ color: 'var(--text-primary)' }}>{result.copy?.headline}</p>
             {result.copy?.subheadline && <p className="mb-1 italic" style={{ color: 'var(--text-muted)' }}>{result.copy.subheadline}</p>}
-            {result.copy?.bodyPoints?.map((p, i) => <p key={i} className="flex gap-1.5"><span style={{ color: '#60a5fa' }}>→</span>{p}</p>)}
+            {result.copy?.bodyPoints?.map((p, i) => <p key={i} className="flex gap-1.5"><span style={{ color: 'var(--accent)' }}>→</span>{p}</p>)}
             <p className="mt-1 font-medium" style={{ color: '#22c55e' }}>CTA: {result.copy?.cta}</p>
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
@@ -437,11 +437,11 @@ function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handoff?.nonce]);
 
-  const VARIATION_COLORS: Record<string, string> = { A: '#3b82f6', B: '#a855f7', C: '#22c55e' };
+  const VARIATION_COLORS: Record<string, string> = { A: 'var(--chart-primary)', B: 'var(--chart-tertiary)', C: 'var(--chart-4)' };
 
   return (
     <AgentCard name="Copy & Variações" icon={
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     }>
@@ -457,16 +457,16 @@ function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t:
       {error && <ErrorMsg msg={error} />}
       <RunButton onClick={() => run()} loading={loading} label="Gerar copy A/B" />
       {result && (
-        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
+        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: 'var(--accent)' }}>
           {expanded ? '▲ Ocultar variações' : '▼ Ver 3 variações'}
         </button>
       )}
       {expanded && result && (
         <div className="space-y-3 pt-1">
           {result.variations?.map((v) => {
-            const color = VARIATION_COLORS[v.id] ?? '#c084fc';
+            const color = VARIATION_COLORS[v.id] ?? 'var(--accent)';
             return (
-              <div key={v.id} className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--bg-elevated)', border: `1px solid ${color}22` }}>
+              <div key={v.id} className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--bg-elevated)', border: `1px solid color-mix(in srgb, ${color} 14%, transparent)` }}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="font-bold text-sm" style={{ color }}>Variação {v.id}</span>
                   <Tag>{v.angle}</Tag>
@@ -480,8 +480,8 @@ function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t:
             );
           })}
           {result.testingGuidance && (
-            <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.05)', border: '1px solid rgba(59,130,246,0.1)' }}>
-              <p className="font-medium mb-1" style={{ color: '#60a5fa' }}>Guia de teste A/B</p>
+            <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-dim)' }}>
+              <p className="font-medium mb-1" style={{ color: 'var(--accent)' }}>Guia de teste A/B</p>
               <p style={{ color: 'var(--text-secondary)' }}>Métrica: {result.testingGuidance.primaryMetric}</p>
               <p style={{ color: 'var(--text-secondary)' }}>Corte: {result.testingGuidance.cutCriteria}</p>
               <p style={{ color: 'var(--text-secondary)' }}>{result.testingGuidance.rotationSetup}</p>
@@ -526,7 +526,7 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
 
   return (
     <AgentCard name="Inteligência Competitiva" icon={
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.8}>
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
       </svg>
     }>
@@ -536,7 +536,7 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
           Configure os concorrentes na seção de configuração acima para usar este agente.
         </p>
       )}
-      {weekOf && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Semana de: <span style={{ color: '#c084fc' }}>{new Date(weekOf).toLocaleDateString('pt-BR')}</span></p>}
+      {weekOf && <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Semana de: <span style={{ color: 'var(--accent)' }}>{new Date(weekOf).toLocaleDateString('pt-BR')}</span></p>}
       {error && (
         <>
           <ErrorMsg msg={error} />
@@ -565,14 +565,14 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
       )}
       <RunButton onClick={run} loading={loading} label="Analisar concorrentes" />
       {result && (
-        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: '#9d71cc' }}>
+        <button onClick={() => setExpanded(v => !v)} className="text-xs text-left" style={{ color: 'var(--accent)' }}>
           {expanded ? '▲ Ocultar análise' : '▼ Ver análise competitiva'}
         </button>
       )}
       {expanded && result && (
         <div className="space-y-3 pt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
           {result.weeklyHighlight && (
-            <p className="rounded-lg p-2.5 leading-relaxed" style={{ backgroundColor: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)', color: 'var(--text-primary)' }}>
+            <p className="rounded-lg p-2.5 leading-relaxed" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-dim)', color: 'var(--text-primary)' }}>
               💡 {result.weeklyHighlight}
             </p>
           )}
@@ -655,10 +655,10 @@ function ConfigPanel({ profile, onSave }: { profile: CreativeProfile | null; onS
   };
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(168,85,247,0.12)' }}>
+    <div className="rounded-xl overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-dim)' }}>
       <button onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between px-5 py-3.5 text-left">
         <div className="flex items-center gap-2">
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="#9d71cc" strokeWidth={1.8}>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -728,11 +728,11 @@ export function CreativeSection({ showToast }: { showToast: (m: string, t: 'ok' 
   return (
     <div className="space-y-4">
       {/* Banner explicativo */}
-      <div className="relative rounded-2xl p-5 overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(168,85,247,0.15)' }}>
-        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top right, rgba(168,85,247,0.08) 0%, transparent 60%)' }} />
+      <div className="relative rounded-2xl p-5 overflow-hidden" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-dim)' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at top right, var(--accent-dim) 0%, transparent 60%)' }} />
         <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.7}>
+          <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.7}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.098 19.902a3.75 3.75 0 005.304 0l6.401-6.402M6.75 21A3.75 3.75 0 013 17.25V4.125C3 3.504 3.504 3 4.125 3h5.25c.621 0 1.125.504 1.125 1.125v4.072M6.75 21a3.75 3.75 0 003.75-3.75V8.197M6.75 21h13.125c.621 0 1.125-.504 1.125-1.125v-5.25c0-.621-.504-1.125-1.125-1.125h-4.072M10.5 8.197l2.88-2.88c.438-.439 1.15-.439 1.59 0l3.712 3.713c.44.44.44 1.152 0 1.59l-2.879 2.88M6.75 17.25h.008v.008H6.75v-.008z" />
             </svg>
           </div>

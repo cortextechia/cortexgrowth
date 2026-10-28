@@ -16,8 +16,7 @@ function Spinner() {
 }
 
 // Quem chega aqui já é cliente e quer entrar — esta tela não repete o pitch do
-// cadastro. A única continuidade visual com a tela de planos é a régua tricolor
-// (ciano/violeta/âmbar, as cores dos três planos) no topo do cartão.
+// cadastro. À esquerda, o que o produto É e um card de exemplo do lead que chega.
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -44,14 +43,14 @@ export default function LoginPage() {
   };
 
   const inputStyle = {
-    backgroundColor: 'var(--input-bg)',
+    backgroundColor: 'var(--bg-base)',
     border: '1px solid var(--input-border)',
     color: 'var(--text-primary)',
   };
 
   const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'var(--accent)';
-    e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+    e.target.style.boxShadow = '0 0 0 1px var(--accent)';
   };
 
   const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -74,13 +73,12 @@ export default function LoginPage() {
       <div className="relative z-10 mx-auto grid w-full max-w-5xl items-center gap-12 lg:grid-cols-[1fr_400px]">
 
         {/* ── Lado esquerdo ────────────────────────────────────────────────
-            Sem promessa e sem depoimento inventado: só o nome do produto, uma
-            frase factual do que ele É, e o espectro das três cores dos planos
-            como massa visual — é o que dá peso à composição sem virar pitch. */}
+            Sem promessa e sem depoimento inventado: o nome do produto, uma frase
+            factual do que ele É e um card de exemplo (marcado como exemplo). */}
         <div className="hidden lg:block">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
+              <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
@@ -88,28 +86,39 @@ export default function LoginPage() {
             <BetaBadge />
           </div>
 
-          <h2 className="mt-8 text-4xl font-bold leading-[1.15]" style={{ color: 'var(--text-primary)' }}>
-            Meta Ads, Google Ads<br />e CRM no{' '}
-            <span style={{
-              background: 'linear-gradient(120deg, var(--plano-starter), var(--plano-pro) 55%, var(--plano-enterprise))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}>
-              mesmo painel.
-            </span>
+          <p className="eyebrow mt-10">META ADS · GOOGLE ADS · CRM</p>
+          <h2 className="cromo mt-4 text-5xl font-extrabold leading-[1.04]" style={{ letterSpacing: '-0.04em' }}>
+            Meta Ads, Google Ads e CRM no mesmo painel.
           </h2>
+          <p className="mt-5 max-w-md text-base leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            Cada lead chega com o anúncio que o trouxe. Você vê o que vende, não só o que gera clique.
+          </p>
 
-          <div className="espectro mt-10" aria-hidden>
-            <span style={{ backgroundColor: 'var(--plano-starter)' }} />
-            <span style={{ backgroundColor: 'var(--plano-pro)' }} />
-            <span style={{ backgroundColor: 'var(--plano-enterprise)' }} />
+          <div className="mt-10 max-w-md rounded-[22px] p-[18px]" aria-hidden style={{
+            background: 'linear-gradient(180deg, var(--bg-elevated), var(--bg-surface))',
+            border: '1px solid var(--border-md)',
+          }}>
+            <div className="flex items-center justify-between gap-3 text-[11px] font-medium" style={{ fontFamily: 'var(--font-mono-cx), monospace', color: 'var(--text-muted)' }}>
+              <span>EXEMPLO · NOVO LEAD</span>
+              <span className="rounded-full px-2 py-0.5" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>VEIO DO ANÚNCIO</span>
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <div className="h-10 w-10 shrink-0 rounded-full" style={{ backgroundColor: 'var(--border-md)' }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Lead novo</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Anúncio “Vídeo do produto” · campanha Engajamento</p>
+              </div>
+            </div>
+            <p className="mt-3 rounded-xl px-3.5 py-3 text-sm" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+              Oi! Vi o anúncio de vocês e queria um orçamento.
+            </p>
           </div>
         </div>
 
         {/* Marca compacta só no mobile, onde o painel da esquerda não aparece */}
         <div className="flex items-center justify-center gap-2 lg:hidden">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
+            <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
@@ -117,15 +126,12 @@ export default function LoginPage() {
           <BetaBadge />
         </div>
 
-        <div className="overflow-hidden rounded-2xl" style={{
+        <div className="overflow-hidden rounded-3xl" style={{
           backgroundColor: 'var(--bg-surface)',
-          border: '1px solid var(--border)',
-          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--border-md)',
         }}>
-          {/* Sem régua tricolor aqui: o espectro já aparece no título e nas barras
-              à esquerda. Repetir pela terceira vez viraria maneirismo. */}
-          <div className="p-8">
-            <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Entrar</h1>
+          <div className="p-9">
+            <h1 className="text-[28px] font-extrabold" style={{ color: 'var(--text-primary)' }}>Entrar</h1>
             <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>Acesse o painel da sua operação.</p>
 
             {error && (
@@ -172,10 +178,10 @@ export default function LoginPage() {
 
               <button
                 type="submit" disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-[var(--on-accent)] transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
                 onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
               >
                 {isLoading && <Spinner />}
                 {isLoading ? 'Entrando...' : 'Entrar'}
@@ -193,38 +199,10 @@ export default function LoginPage() {
 
         <p className="text-center text-xs lg:col-start-2" style={{ color: 'var(--text-muted)' }}>
           © 2026 IA Cortex Tech ·{' '}
-          <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
+          <Link href="/privacy" className="transition-colors hover:text-[var(--text-primary)]">Privacidade</Link>
         </p>
       </div>
 
-      <style jsx>{`
-        /* Três faixas de luz nas cores dos planos — massa visual que equilibra o
-           formulário sem inventar conteúdo. A respiração é lenta e quase imperceptível. */
-        .espectro {
-          display: flex;
-          gap: 14px;
-          max-width: 420px;
-        }
-        .espectro span {
-          height: 5px;
-          flex: 1;
-          border-radius: 999px;
-          filter: blur(0.3px);
-          opacity: 0.85;
-          animation: respirar 7s ease-in-out infinite;
-        }
-        .espectro span:nth-child(2) { animation-delay: 1.1s; }
-        .espectro span:nth-child(3) { animation-delay: 2.2s; }
-
-        @keyframes respirar {
-          0%, 100% { opacity: 0.32; transform: scaleX(0.94); }
-          50%      { opacity: 0.9;  transform: scaleX(1); }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .espectro span { animation: none; opacity: 0.7; }
-        }
-      `}</style>
     </div>
   );
 }

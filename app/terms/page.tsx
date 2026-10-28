@@ -85,7 +85,7 @@ export default function TermsPage() {
             </ul>
             <p className="mt-3">
               O uso de dados obtidos via Meta Ads API está sujeito à{' '}
-              <a href="https://developers.facebook.com/terms/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: '#3b82f6' }}>
+              <a href="https://developers.facebook.com/terms/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--accent)' }}>
                 Política de Plataforma do Meta
               </a>.
             </p>
@@ -150,11 +150,11 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>9. Encerramento de Conta</h2>
             <p>
               Você pode encerrar sua conta a qualquer momento entrando em contato conosco pelo e-mail{' '}
-              <a href="mailto:contato@iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>
+              <a href="mailto:contato@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
                 contato@iacortextech.com.br
               </a>.
               Após o encerramento, seus dados serão removidos conforme descrito em nossa{' '}
-              <Link href="/privacy" className="underline" style={{ color: '#3b82f6' }}>Política de Privacidade</Link>.
+              <Link href="/privacy" className="underline" style={{ color: 'var(--accent)' }}>Política de Privacidade</Link>.
             </p>
             <p className="mt-3">
               Reservamo-nos o direito de suspender ou encerrar contas que violem estes termos, com ou sem aviso prévio.
@@ -180,11 +180,11 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>12. Contato</h2>
-            <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
               <p><strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong></p>
               <p className="mt-1">CNPJ: 52.722.681/0001-03</p>
-              <p>E-mail: <a href="mailto:contato@iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>contato@iacortextech.com.br</a></p>
-              <p>Site: <a href="https://iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>iacortextech.com.br</a></p>
+              <p>E-mail: <a href="mailto:contato@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>contato@iacortextech.com.br</a></p>
+              <p>Site: <a href="https://iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>iacortextech.com.br</a></p>
             </div>
           </section>
 

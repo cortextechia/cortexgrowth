@@ -3,45 +3,53 @@
 /* ─── Dark theme (padrão) ────────────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
-  --bg-base:     #080d19;
-  --bg-sidebar:  #060c1a;
-  --bg-surface:  #0f1629;
-  --bg-elevated: #162036;
-  --border:      rgba(255, 255, 255, 0.06);
-  --border-md:   rgba(255, 255, 255, 0.10);
-  --text-primary:   #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted:     #475569;
-  --accent:      #3b82f6;
-  --accent-dim:  rgba(59, 130, 246, 0.12);
-  --accent-dark: #1d4ed8;
-  --chart-primary:   #3b82f6;
-  --chart-secondary: #1e40af;
-  --chart-tertiary:  #60a5fa;
-  --chart-grid:      rgba(255, 255, 255, 0.04);
-  --chart-axis:      #475569;
-  --body-bg: linear-gradient(135deg, #080d19 0%, #0a1628 50%, #0d1f3c 100%);
+  --bg-base:     #0c0d0f;
+  --bg-sidebar:  #0f1012;
+  --bg-surface:  #131417;
+  --bg-elevated: #1a1c20;
+  --border:      #1f2226;
+  --border-md:   #2c3036;
+  --text-primary:   #eceef1;
+  --text-secondary: #a6abb3;
+  --text-muted:     #7d838c;
+  --accent:      #c8ff3e;
+  --accent-dim:  rgba(200, 255, 62, 0.10);
+  --accent-line: rgba(200, 255, 62, 0.32);
+  --accent-fill: #c8ff3e;
+  --accent-dark: #b4ec22;
+  --on-accent:   #0c0d0f;
+  /* Paleta de gráfico (validada no dataviz: separação p/ daltonismo e contraste OK nos 4
+     pares). 1 = marca, 2 = grafite (comparação), 3 e 4 = categóricas. Rampa = funil. */
+  --chart-primary:   #c8ff3e;
+  --chart-secondary: #9aa0a8;
+  --chart-tertiary:  #d95926;
+  --chart-4:         #3987e5;
+  --chart-seq-1: #1d2711; --chart-seq-2: #25331a; --chart-seq-3: #2f4219; --chart-seq-4: #3c5419; --chart-seq-5: #4a6a18;
+  --chart-seq-ink: #d8f59a;
+  --chart-grid:      rgba(255, 255, 255, 0.05);
+  --chart-axis:      #7d838c;
+  --body-bg: #0c0d0f;
   --scrollbar-thumb: rgba(255,255,255,0.08);
   --scrollbar-thumb-hover: rgba(255,255,255,0.14);
-  --input-bg: rgba(255,255,255,0.04);
-  --input-border: rgba(255,255,255,0.08);
-  --badge-success-bg: rgba(34,197,94,0.1);
-  --badge-success-text: #4ade80;
-  --badge-error-bg: rgba(239,68,68,0.1);
-  --badge-error-text: #f87171;
-  --badge-warn-bg: rgba(234,179,8,0.1);
-  --badge-warn-text: #facc15;
-  --creative-accent-text:   #c084fc;
-  --creative-accent-bg:     rgba(168,85,247,0.12);
-  --creative-accent-border: rgba(168,85,247,0.20);
-  /* Módulos da plataforma (RADAR/ADS/CRM + núcleo de IA), usados no Setup Score.
-     Escurecem no claro pelo mesmo motivo dos planos: o tom vivo do dark some no branco. */
-  --mod-radar:      #22d3ee;
-  --mod-radar-soft: rgba(34,211,238,0.13);
-  --mod-ads:        #3b82f6;
-  --mod-ads-soft:   rgba(59,130,246,0.13);
-  --mod-crm:        #4ade80;
-  --mod-crm-soft:   rgba(74,222,128,0.13);
+  --input-bg: #0f1012;
+  --input-border: #3a3f46;
+  --badge-success-bg: rgba(111,220,154,0.12);
+  --badge-success-text: #6fdc9a;
+  --badge-error-bg: rgba(255,138,122,0.12);
+  --badge-error-text: #ff8a7a;
+  --badge-warn-bg: rgba(255,194,75,0.12);
+  --badge-warn-text: #ffc24b;
+  --creative-accent-text:   var(--accent);
+  --creative-accent-bg:     var(--accent-dim);
+  --creative-accent-border: var(--accent-line);
+  /* Módulos da plataforma (RADAR/ADS/CRM), usados no Setup Score. Seguem a paleta de gráfico
+     validada (o núcleo de IA usa a cor da marca = --chart-primary). */
+  --mod-radar:      var(--chart-4);
+  --mod-radar-soft: color-mix(in srgb, var(--chart-4) 13%, transparent);
+  --mod-ads:        var(--chart-tertiary);
+  --mod-ads-soft:   color-mix(in srgb, var(--chart-tertiary) 13%, transparent);
+  --mod-crm:        var(--chart-secondary);
+  --mod-crm-soft:   color-mix(in srgb, var(--chart-secondary) 13%, transparent);
   /* Identidade dos planos (cadastro e login). No claro elas escurecem: os tons
      vivos do dark somem sobre branco. */
   --plano-demo:            #94a3b8;
@@ -52,50 +60,56 @@
   --plano-pro-soft:        rgba(168,85,247,0.13);
   --plano-enterprise:      #f59e0b;
   --plano-enterprise-soft: rgba(245,158,11,0.13);
-  --auth-glow-1: rgba(59,130,246,0.16);
-  --auth-glow-2: rgba(168,85,247,0.10);
+  --auth-glow-1: rgba(200,255,62,0.07);
+  --auth-glow-2: rgba(255,255,255,0.03);
   --auth-grid:   rgba(255,255,255,0.025);
 }
 
 /* ─── Light theme ────────────────────────────────────────────────────────── */
 [data-theme="light"] {
-  --bg-base:     #f1f5f9;
+  --bg-base:     #f4f5f7;
   --bg-sidebar:  #ffffff;
   --bg-surface:  #ffffff;
-  --bg-elevated: #f8fafc;
-  --border:      rgba(0, 0, 0, 0.07);
-  --border-md:   rgba(0, 0, 0, 0.12);
-  --text-primary:   #0f172a;
-  --text-secondary: #475569;
-  --text-muted:     #94a3b8;
-  --accent:      #2563eb;
-  --accent-dim:  rgba(37, 99, 235, 0.10);
-  --accent-dark: #1d4ed8;
-  --chart-primary:   #2563eb;
-  --chart-secondary: #1e40af;
-  --chart-tertiary:  #3b82f6;
-  --chart-grid:      rgba(0, 0, 0, 0.04);
-  --chart-axis:      #94a3b8;
-  --body-bg: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 50%, #dbeafe 100%);
+  --bg-elevated: #f4f5f7;
+  --border:      #e2e4e8;
+  --border-md:   #d3d6db;
+  --text-primary:   #0c0d0f;
+  --text-secondary: #52575f;
+  --text-muted:     #6b7079;
+  --accent:      #3a7d0a;
+  --accent-dim:  rgba(76, 154, 22, 0.12);
+  --accent-line: rgba(58, 125, 10, 0.35);
+  --accent-fill: #c8ff3e;
+  --accent-dark: #b4ec22;
+  --on-accent:   #0c0d0f;
+  --chart-primary:   #4c9a16;
+  --chart-secondary: #7d838c;
+  --chart-tertiary:  #eb6834;
+  --chart-4:         #2a78d6;
+  --chart-seq-1: #edf8e2; --chart-seq-2: #dcf0c8; --chart-seq-3: #c6e6a8; --chart-seq-4: #addb86; --chart-seq-5: #93cc64;
+  --chart-seq-ink: #2f6a06;
+  --chart-grid:      rgba(0, 0, 0, 0.05);
+  --chart-axis:      #6b7079;
+  --body-bg: #f4f5f7;
   --scrollbar-thumb: rgba(0,0,0,0.12);
   --scrollbar-thumb-hover: rgba(0,0,0,0.20);
   --input-bg: #ffffff;
-  --input-border: rgba(0,0,0,0.12);
-  --badge-success-bg: #dcfce7;
-  --badge-success-text: #16a34a;
-  --badge-error-bg: #fee2e2;
-  --badge-error-text: #dc2626;
-  --badge-warn-bg: #fef9c3;
-  --badge-warn-text: #ca8a04;
-  --creative-accent-text:   #7c3aed;
-  --creative-accent-bg:     rgba(124,58,237,0.10);
-  --creative-accent-border: rgba(124,58,237,0.22);
-  --mod-radar:      #0891b2;
-  --mod-radar-soft: rgba(8,145,178,0.10);
-  --mod-ads:        #2563eb;
-  --mod-ads-soft:   rgba(37,99,235,0.10);
-  --mod-crm:        #16a34a;
-  --mod-crm-soft:   rgba(22,163,74,0.10);
+  --input-border: #b9bdc4;
+  --badge-success-bg: #e3f5ea;
+  --badge-success-text: #11713f;
+  --badge-error-bg: #fde7e4;
+  --badge-error-text: #b42318;
+  --badge-warn-bg: #fdeee0;
+  --badge-warn-text: #c2410c;
+  --creative-accent-text:   var(--accent);
+  --creative-accent-bg:     var(--accent-dim);
+  --creative-accent-border: var(--accent-line);
+  --mod-radar:      var(--chart-4);
+  --mod-radar-soft: color-mix(in srgb, var(--chart-4) 13%, transparent);
+  --mod-ads:        var(--chart-tertiary);
+  --mod-ads-soft:   color-mix(in srgb, var(--chart-tertiary) 13%, transparent);
+  --mod-crm:        var(--chart-secondary);
+  --mod-crm-soft:   color-mix(in srgb, var(--chart-secondary) 13%, transparent);
   --plano-demo:            #64748b;
   --plano-demo-soft:       rgba(100,116,139,0.10);
   --plano-starter:         #0891b2;
@@ -104,12 +118,19 @@
   --plano-pro-soft:        rgba(124,58,237,0.10);
   --plano-enterprise:      #b45309;
   --plano-enterprise-soft: rgba(180,83,9,0.10);
-  --auth-glow-1: rgba(37,99,235,0.10);
-  --auth-glow-2: rgba(124,58,237,0.07);
+  --auth-glow-1: rgba(120,170,0,0.10);
+  --auth-glow-2: rgba(0,0,0,0.03);
   --auth-grid:   rgba(0,0,0,0.03);
 }
 
 @theme inline {
+  /* Cantos do design system Cromalex: as classes rounded-* do app passam a seguir a escala
+     dele (card 18px, botão/campo 10px) em vez do padrão do Tailwind (12px / 8px). */
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 28px;
   --color-background: var(--bg-base);
   --color-foreground: var(--text-primary);
   --font-sans: var(--font-geist-sans);
@@ -137,6 +158,94 @@ body {
 .scroll-x-visivel::-webkit-scrollbar-track { background: var(--bg-elevated); }
 .scroll-x-visivel::-webkit-scrollbar-thumb { background: var(--text-secondary); border-radius: 5px; }
 .scroll-x-visivel::-webkit-scrollbar-thumb:hover { background: var(--text-primary); }
+
+/* ─── App no visual Cromalex ─────────────────────────────────────────────── */
+/* Limão é sempre FUNDO com texto escuro (--accent-fill + --on-accent). Como texto, borda ou
+   barra usa --accent, que no claro vira verde-folha (#3a7d0a texto · #4c9a16 gráfico): o limão sobre branco não passa de 1,3:1. */
+:root, [data-theme="dark"] { --cromo: linear-gradient(100deg, #aeb3ba 0%, #ffffff 22%, #7d838c 40%, #e9ebee 60%, #aeb3ba 100%); }
+[data-theme="light"] { --cromo: linear-gradient(100deg, #3b3f46 0%, #0c0d0f 22%, #6b7079 40%, #1b1d21 60%, #3b3f46 100%); }
+h1, h2 { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: -0.02em; }
+/* O autofill do Chrome pinta o campo de azul por cima do tema; a sombra interna cobre esse fundo. */
+input:-webkit-autofill { -webkit-text-fill-color: var(--text-primary); -webkit-box-shadow: 0 0 0 1000px var(--bg-base) inset; caret-color: var(--text-primary); }
+.cromo { background: var(--cromo); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.eyebrow { font-family: var(--font-mono-cx), ui-monospace, monospace; font-size: 12px; font-weight: 500; letter-spacing: 0.04em; color: var(--accent); }
+
+/* Peças do design system Cromalex usadas nas telas do app (mesmas regras do artifact
+   814W9V6qNf2EMsuVbrMEZm). Prefixo ui- para não colidir com o .cx- da landing. */
+:root, [data-theme="dark"] {
+  --highlight: #1d2711; --highlight-border: #2c3a18;
+  --tint-bg: #24301a;   --tint-ink: #d8f59a;
+  --graphite: #7d838c;  --border-control: #3a3f46;
+  /* Barra/linha de atenção (meta do mês): no claro um laranja mais vivo que o texto de aviso. */
+  --warn-mark: var(--badge-warn-text);
+  /* Tags do CRM (cor por nome): verde, âmbar, rosa, violeta, ciano */
+  --tag-1-bg: rgba(74,222,128,0.16);  --tag-1-border: rgba(74,222,128,0.5);  --tag-1-text: #86efac;
+  --tag-2-bg: rgba(251,191,36,0.16);  --tag-2-border: rgba(251,191,36,0.5);  --tag-2-text: #fcd34d;
+  --tag-3-bg: rgba(244,114,182,0.16); --tag-3-border: rgba(244,114,182,0.5); --tag-3-text: #f9a8d4;
+  --tag-4-bg: rgba(167,139,250,0.18); --tag-4-border: rgba(167,139,250,0.5); --tag-4-text: #c4b5fd;
+  --tag-5-bg: rgba(34,211,238,0.16);  --tag-5-border: rgba(34,211,238,0.5);  --tag-5-text: #67e8f9;
+}
+[data-theme="light"] {
+  --highlight: #eefbd0; --highlight-border: #c9e88a;
+  --tint-bg: #e6f6c2;   --tint-ink: #2f6a06;
+  --graphite: #6b7079;  --border-control: #b9bdc4;
+  --warn-mark: #ea580c;
+  --tag-1-bg: rgba(22,163,74,0.10);  --tag-1-border: rgba(22,163,74,0.4);  --tag-1-text: #15803d;
+  --tag-2-bg: rgba(202,138,4,0.12);  --tag-2-border: rgba(202,138,4,0.45); --tag-2-text: #8a5a00;
+  --tag-3-bg: rgba(219,39,119,0.10); --tag-3-border: rgba(219,39,119,0.4); --tag-3-text: #be185d;
+  --tag-4-bg: rgba(124,58,237,0.10); --tag-4-border: rgba(124,58,237,0.4); --tag-4-text: #6d28d9;
+  --tag-5-bg: rgba(8,145,178,0.10);  --tag-5-border: rgba(8,145,178,0.4);  --tag-5-text: #0e7490;
+}
+.ui-h1 { margin: 0; font: 800 30px/1.1 var(--font-display), system-ui, sans-serif; letter-spacing: -0.03em; color: var(--text-primary); }
+.ui-sub { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); max-width: 680px; }
+.ui-h2 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
+.ui-card { padding: 20px; border-radius: 18px; background: var(--bg-surface); border: 1px solid var(--border); min-width: 0; }
+.ui-card-hl { background: linear-gradient(160deg, var(--highlight), var(--bg-surface) 60%); border-color: var(--highlight-border); }
+.ui-inset { border-radius: 12px; background: var(--bg-base); border: 1px solid var(--border); }
+.ui-big { font: 800 28px/1.1 var(--font-display), system-ui, sans-serif; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.ui-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; font-weight: 700; line-height: 1.2; padding: 10px 18px; border-radius: 10px; cursor: pointer; border: 0; transition: transform 0.15s ease, background 0.2s ease, opacity 0.2s ease; }
+.ui-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+.ui-btn-sm { font-size: 13px; padding: 8px 14px; }
+.ui-btn-primary { background: var(--accent-fill); color: var(--on-accent); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
+.ui-btn-primary:not(:disabled):hover { background: var(--accent-dark); transform: translateY(-1px); }
+.ui-btn-secondary { background: transparent; color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-control); font-weight: 600; }
+.ui-btn-secondary:not(:disabled):hover { background: var(--bg-elevated); }
+.ui-btn-tint { background: var(--tint-bg); color: var(--tint-ink); }
+.ui-btn-tint:not(:disabled):hover { background: var(--highlight-border); }
+.ui-btn-danger { background: transparent; color: var(--badge-error-text); box-shadow: inset 0 0 0 1px var(--border-control); font-weight: 600; }
+.ui-btn-danger:not(:disabled):hover { background: var(--badge-error-bg); }
+.ui-chip { display: inline-flex; align-items: center; gap: 4px; font: 500 11px/1.4 var(--font-mono-cx), ui-monospace, monospace; letter-spacing: 0.02em; padding: 3px 8px; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--border-control); color: var(--text-secondary); white-space: nowrap; }
+.ui-chip-on { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
+.ui-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.02em; line-height: 1.3; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
+.ui-badge-lime { background: var(--accent-fill); color: var(--on-accent); }
+.ui-badge-tint { background: var(--tint-bg); color: var(--tint-ink); }
+.ui-seg { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg-surface); border: 1px solid var(--border-md); }
+.ui-seg > button { border: 0; cursor: pointer; padding: 7px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; line-height: 1.2; background: transparent; color: var(--text-secondary); transition: background 0.2s ease, color 0.2s ease; }
+.ui-seg > button:hover { color: var(--text-primary); }
+.ui-seg > button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); }
+.ui-switch { position: relative; display: inline-flex; width: 40px; height: 22px; flex-shrink: 0; border-radius: 999px; background: var(--border-control); padding: 3px; border: 0; cursor: pointer; transition: background 0.2s ease; }
+.ui-switch::after { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--text-primary); transition: transform 0.2s ease, background 0.2s ease; }
+.ui-switch[aria-checked="true"] { background: var(--accent-fill); }
+.ui-switch[aria-checked="true"]::after { transform: translateX(18px); background: var(--on-accent); }
+.ui-switch:disabled { opacity: 0.5; cursor: not-allowed; }
+.ui-bar { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.ui-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent-fill); }
+/* Filtro (pílula) e menu suspenso: o filtro em uso fica marcado, sem precisar abrir. */
+.ui-filtro { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-size: 12.5px; font-weight: 500; line-height: 1.2; padding: 7px 10px 7px 12px; border-radius: 999px; background: var(--bg-surface); color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--border-control); border: 0; cursor: pointer; transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
+.ui-filtro:hover { color: var(--text-primary); background: var(--bg-elevated); }
+.ui-filtro[data-ativo="true"] { background: var(--accent-dim); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--accent-line); }
+.ui-filtro[aria-expanded="true"] { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.ui-filtro:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ui-menu { background: var(--bg-surface); border: 1px solid var(--border-md); border-radius: 14px; padding: 6px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24); }
+.ui-menu-item { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 8px; font-size: 13px; text-align: left; color: var(--text-primary); background: transparent; border: 0; cursor: pointer; }
+.ui-menu-item:hover { background: var(--bg-elevated); }
+.ui-menu-item[aria-selected="true"] { background: var(--accent-dim); font-weight: 600; }
+.ui-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ui-table th { text-align: left; padding: 10px 12px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.ui-table td { padding: 13px 12px; border-top: 1px solid var(--border); color: var(--text-primary); }
+.ui-num { text-align: right !important; }
+.ui-btn:focus-visible, .ui-seg > button:focus-visible, .ui-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .ui-btn, .ui-switch, .ui-switch::after, .ui-seg > button { transition: none; } }
 
 /* ─── Landing Cromalex (só a página inicial, classe .cx) ─────────────────── */
 /* O limão (#c8ff3e) é sempre FUNDO com texto escuro; como texto ele só passa no escuro.

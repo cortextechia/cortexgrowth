@@ -193,7 +193,7 @@ export default function PerfilPage() {
           </div>
 
           <div className="flex-1 min-w-[250px]">
-            <h1 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>Perfil da conta</h1>
+            <h1 className="ui-h1">Perfil da conta</h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               A plataforma está usando{' '}
               <b style={{ color: 'var(--text-primary)' }}>{score.score}%</b> do que ela consegue fazer por você.
@@ -360,7 +360,7 @@ export default function PerfilPage() {
             onClick={() => void salvar('instagramUrl', rascunho.instagramUrl ?? '')}
             disabled={estado.instagramUrl === 'salvando' || (rascunho.instagramUrl ?? '') === (profile.instagramUrl ?? '')}
             className="rounded-lg px-3 py-2 text-xs font-medium transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
           >
             {estado.instagramUrl === 'salvando' ? 'Salvando...' : estado.instagramUrl === 'ok' ? 'Salvo!' : 'Salvar'}
           </button>
@@ -485,7 +485,7 @@ function CampoResposta({
           onClick={onSalvar}
           disabled={!mudou || estado === 'salvando'}
           className="rounded-lg px-3 py-1.5 text-xs font-medium transition-opacity disabled:opacity-40"
-          style={{ backgroundColor: 'var(--accent)', color: '#ffffff' }}
+          style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
         >
           {estado === 'salvando' ? 'Conferindo…' : 'Salvar resposta'}
         </button>

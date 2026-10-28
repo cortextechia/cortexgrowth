@@ -127,7 +127,7 @@ function ConfigModal({ config, onClose, onSaved }: {
             onClick={handleSave}
             disabled={loading}
             className="px-3 py-1.5 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: 'var(--accent)', color: '#fff', opacity: loading ? 0.6 : 1 }}
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: loading ? 0.6 : 1 }}
           >
             {loading ? 'Salvando...' : 'Salvar'}
           </button>
@@ -156,7 +156,7 @@ function SnapshotCard({ analysis, isSelected, onClick }: {
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
           {analysis.isBaseline && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>
+            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>
               BASELINE
             </span>
           )}
@@ -243,7 +243,7 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{fmtDate(analysis.analyzedAt)}</p>
           <p className="text-sm truncate max-w-xs" style={{ color: 'var(--text-secondary)' }}>{analysis.siteUrl}</p>
           {analysis.isBaseline && (
-            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>
+            <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>
               BASELINE — estado de entrada
             </span>
           )}
@@ -347,7 +347,7 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
           {/* Seu site */}
           <div className="flex items-center gap-3 py-1.5 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
             <div className="flex-1 min-w-0">
-              <p className="text-xs truncate" style={{ color: '#60a5fa' }}>{analysis.siteUrl} <span className="opacity-60">(seu site)</span></p>
+              <p className="text-xs truncate" style={{ color: 'var(--accent)' }}>{analysis.siteUrl} <span className="opacity-60">(seu site)</span></p>
             </div>
             <div className="flex gap-3 shrink-0">
               <ScoreBar label="Perf" score={analysis.pageSpeedScore} />
@@ -555,8 +555,8 @@ export default function SeoPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-          <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+          <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
         </svg>
       </div>
     );
@@ -574,7 +574,7 @@ export default function SeoPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>SEO / AIO</h1>
+          <h1 className="ui-h1">SEO / AIO</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             Como seu site aparece para quem procura no Google e para as IAs que recomendam fornecedores
           </p>
@@ -604,8 +604,8 @@ export default function SeoPage() {
               disabled={analyzing || !canAnalyze}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
               style={{
-                backgroundColor: canAnalyze ? 'var(--accent)' : 'var(--bg-elevated)',
-                color: canAnalyze ? '#fff' : 'var(--text-muted)',
+                backgroundColor: canAnalyze ? 'var(--accent-fill)' : 'var(--bg-elevated)',
+                color: canAnalyze ? 'var(--on-accent)' : 'var(--text-muted)',
                 opacity: analyzing ? 0.7 : 1,
                 border: canAnalyze ? 'none' : '1px solid var(--border)',
                 cursor: !canAnalyze ? 'not-allowed' : 'pointer',
@@ -649,7 +649,7 @@ export default function SeoPage() {
             <button
               onClick={() => setShowConfig(true)}
               className="mt-2 px-4 py-2 rounded-lg text-sm font-medium"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
             >
               Configurar agora
             </button>
@@ -662,7 +662,7 @@ export default function SeoPage() {
         <div className="rounded-2xl p-10 text-center space-y-3" style={card}>
           <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>Nenhuma análise ainda</p>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Site configurado: <span style={{ color: '#60a5fa' }}>{config.websiteUrl}</span>
+            Site configurado: <span style={{ color: 'var(--accent)' }}>{config.websiteUrl}</span>
             <br />A primeira análise (baseline) é gerada automaticamente. Ou clique em "Analisar agora".
           </p>
         </div>
@@ -727,7 +727,7 @@ export default function SeoPage() {
                     <tr
                       key={a.id}
                       className="cursor-pointer transition-colors"
-                      style={{ borderTop: '1px solid var(--border-subtle)', color: selected?.id === a.id ? '#60a5fa' : 'var(--text-secondary)' }}
+                      style={{ borderTop: '1px solid var(--border-subtle)', color: selected?.id === a.id ? 'var(--accent)' : 'var(--text-secondary)' }}
                       onClick={() => setSelected(a)}
                     >
                       <td className="py-1.5">

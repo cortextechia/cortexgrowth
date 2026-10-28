@@ -316,7 +316,7 @@ export default function AutomacoesPage() {
       <style>{VARS}</style>
 
       <header className="mb-5">
-        <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Automações do CRM</h1>
+        <h1 className="ui-h1">Automações do CRM</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)', maxWidth: '78ch' }}>
           O CRM faz sozinho o que hoje depende de alguém lembrar: mover card parado, distribuir lead novo,
           cobrar follow-up. Mensagem automática só existe em duas situações —{' '}
@@ -342,11 +342,10 @@ export default function AutomacoesPage() {
           {/* Automações da org */}
           <section className="mb-8">
             <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-              <h2 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              <h2 className="ui-h2">
                 Suas automações {lista.length > 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({lista.length})</span>}
               </h2>
-              <button onClick={abrirVazio} className="rounded-lg px-3 py-2 text-xs font-semibold"
-                style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>+ Criar do zero</button>
+              <button onClick={abrirVazio} className="ui-btn ui-btn-primary ui-btn-sm">+ Criar do zero</button>
             </div>
 
             {carregando ? (
@@ -357,35 +356,38 @@ export default function AutomacoesPage() {
                 Nenhuma automação ainda. Escolha uma receita abaixo para começar.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {lista.map((a) => (
-                  <div key={a.id} className="rounded-xl" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-                    <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
-                      <span style={{ color: BLOCKS[a.triggerType]?.color ?? 'var(--accent)' }}>
-                        <Icon name={BLOCKS[a.triggerType]?.icon ?? 'bolt'} size={18} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{a.name}</p>
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {resumo(a.triggerType, a.triggerConfig, a.steps, stages)}
+                  <div key={a.id} className="ui-card !p-0">
+                    <div className="flex items-center gap-4 px-5 py-4 flex-wrap">
+                      <Switch on={a.enabled} onClick={() => alternar(a)} />
+                      <div className="min-w-0 flex-1 space-y-1.5" style={{ flexBasis: 320 }}>
+                        <p className="truncate text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{a.name}</p>
+                        <p className="flex items-baseline gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                          <span className="ui-chip shrink-0">QUANDO</span>
+                          <span className="min-w-0">{fraseGatilho(a.triggerType, a.triggerConfig as Record<string, unknown>, stages)}</span>
+                        </p>
+                        <p className="flex items-baseline gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                          <span className="ui-chip shrink-0">ENTÃO</span>
+                          <span className="min-w-0">{a.steps.map((st) => BLOCKS[st.type]?.label ?? st.type).join(' → ')}</span>
                         </p>
                       </div>
-                      <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                        {a.runCount} execuç{a.runCount === 1 ? 'ão' : 'ões'}
-                      </span>
-                      <button onClick={() => verRuns(a)} className="rounded-md px-2 py-1 text-xs font-semibold"
-                        style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}>
-                        {runsDe === a.id ? 'Fechar' : 'Histórico'}
-                      </button>
-                      <button onClick={() => abrirExistente(a)} className="rounded-md px-2 py-1 text-xs font-semibold"
-                        style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}>Editar</button>
-                      <button onClick={() => remover(a)} className="rounded-md px-2 py-1 text-xs font-semibold"
-                        style={{ border: '1px solid var(--border-md)', color: 'var(--badge-error-text)' }}>Remover</button>
-                      <Switch on={a.enabled} onClick={() => alternar(a)} />
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
+                          {a.runCount === 0 ? 'Ainda não rodou' : `Rodou ${a.runCount} ${a.runCount === 1 ? 'vez' : 'vezes'}`}
+                        </span>
+                        <div className="flex gap-2">
+                          <button onClick={() => verRuns(a)} className="ui-btn ui-btn-secondary ui-btn-sm">
+                            {runsDe === a.id ? 'Fechar' : 'Histórico'}
+                          </button>
+                          <button onClick={() => abrirExistente(a)} className="ui-btn ui-btn-secondary ui-btn-sm">Editar</button>
+                          <button onClick={() => remover(a)} className="ui-btn ui-btn-danger ui-btn-sm">Remover</button>
+                        </div>
+                      </div>
                     </div>
 
                     {runsDe === a.id && (
-                      <div className="px-4 pb-3" style={{ borderTop: '1px solid var(--border)' }}>
+                      <div className="px-5 pb-3" style={{ borderTop: '1px solid var(--border)' }}>
                         {runs.length === 0 ? (
                           <p className="pt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Ainda não rodou em nenhum card.</p>
                         ) : runs.map((r) => (
@@ -416,16 +418,15 @@ export default function AutomacoesPage() {
           </section>
 
           {/* Receitas */}
-          <section>
-            <h2 className="mb-1 text-base font-bold" style={{ color: 'var(--text-primary)' }}>Receitas prontas</h2>
+          <section className="ui-card ui-card-hl">
+            <h2 className="ui-h2 mb-1">Receitas prontas</h2>
             <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
               Escolha uma, ajuste os prazos e ligue. Dá para mudar tudo depois.
             </p>
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
               {RECEITAS.map((r) => (
                 <button key={r.nome} onClick={() => abrirReceita(r)}
-                  className="rounded-xl p-4 text-left transition-transform hover:-translate-y-0.5"
-                  style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+                  className="ui-card !p-4 text-left transition-transform hover:-translate-y-0.5 hover:border-[var(--border-md)]">
                   <div className="mb-2 flex items-center gap-2">
                     <span style={{ color: BLOCKS[r.trigger].color }}><Icon name={BLOCKS[r.trigger].icon} size={17} /></span>
                     <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.nome}</span>
@@ -658,7 +659,7 @@ function Construtor({ editor, setEditor, stages, motivos, salvando, onSalvar, on
           <div className="mt-4 flex items-center gap-2">
             <button onClick={onSalvar} disabled={salvando || temErro}
               className="rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>
+              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
               {salvando ? 'Salvando…' : editor.id ? 'Salvar alterações' : 'Criar automação'}
             </button>
             <button onClick={onCancelar} className="rounded-lg px-4 py-2 text-sm font-semibold"
@@ -736,13 +737,7 @@ const DropLine = ({ ativo }: { ativo: boolean }) => (
 );
 
 function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return (
-    <span onClick={onClick} className="relative inline-block shrink-0 cursor-pointer rounded-full transition-colors"
-      style={{ width: 32, height: 18, backgroundColor: on ? 'var(--accent)' : '#94a3b8' }}>
-      <span className="absolute rounded-full bg-white transition-all"
-        style={{ width: 14, height: 14, top: 2, left: on ? 16 : 2 }} />
-    </span>
-  );
+  return <button type="button" role="switch" aria-checked={on} onClick={onClick} className="ui-switch" />;
 }
 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
@@ -955,10 +950,6 @@ function frasear(e: Editor, stages: CrmStage[]): string {
   return e.stopOnReply ? `${base} A sequência para se o lead responder.` : base;
 }
 
-function resumo(t: CrmAutomationTrigger, cfg: CrmAutomation['triggerConfig'], steps: CrmAutomationStep[], stages: CrmStage[]) {
-  return `${fraseGatilho(t, cfg as Record<string, unknown>, stages)} → ${steps.map((s) => BLOCKS[s.type]?.label ?? s.type).join(' · ')}`;
-}
-
 const statusLabel = (s: string) => ({
   PENDING: 'AGUARDANDO', RUNNING: 'RODANDO', DONE: 'CONCLUÍDA',
   FAILED: 'FALHOU', CANCELED: 'CANCELADA', STOPPED_BY_REPLY: 'PAROU (RESPONDEU)',
@@ -978,18 +969,13 @@ function avisoStyle(n: 'err' | 'warn' | 'info'): React.CSSProperties {
 }
 
 // Cores dos blocos e layout do construtor. Ficam aqui (e não no globals.css)
-// porque só esta tela usa — mas continuam sendo CSS vars, com valor próprio por
-// tema: os tons claros do dark ficam ilegíveis em fundo branco.
+// porque só esta tela usa. No visual Cromalex não há arco-íris: a marca (--accent)
+// nos blocos comuns e cor de estado só onde ela diz algo (ganhou, perdeu, parado).
 const VARS = `
-  [data-theme="dark"] {
-    --auto-cyan:#22d3ee; --auto-blue:#60a5fa; --auto-amber:#fbbf24; --auto-rose:#fb7185;
-    --auto-green:#4ade80; --auto-red:#f87171; --auto-indigo:#a5b4fc; --auto-teal:#2dd4bf;
-    --auto-slate:#94a3b8; --auto-purple:#c084fc;
-  }
-  [data-theme="light"] {
-    --auto-cyan:#0891b2; --auto-blue:#2563eb; --auto-amber:#b45309; --auto-rose:#be123c;
-    --auto-green:#16a34a; --auto-red:#dc2626; --auto-indigo:#4338ca; --auto-teal:#0d9488;
-    --auto-slate:#475569; --auto-purple:#7c3aed;
+  :root {
+    --auto-cyan: var(--accent); --auto-blue: var(--accent); --auto-indigo: var(--accent); --auto-teal: var(--accent);
+    --auto-green: var(--badge-success-text); --auto-red: var(--badge-error-text); --auto-rose: var(--badge-error-text);
+    --auto-amber: var(--badge-warn-text); --auto-slate: var(--text-secondary); --auto-purple: var(--graphite);
   }
   :root { --builder-cols: 232px minmax(0, 1fr); }
   @media (max-width: 900px) { :root { --builder-cols: minmax(0, 1fr); } }

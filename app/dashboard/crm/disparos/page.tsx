@@ -216,7 +216,7 @@ export default function CrmDisparosPage() {
         <div className="flex items-center gap-3">
           <a href="/dashboard/crm" className="px-3 py-2 rounded-lg text-sm font-medium shrink-0" style={{ ...card, color: 'var(--text-secondary)' }}>← Funil</a>
           <div>
-            <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Disparos</h1>
+            <h1 className="ui-h1">Disparos</h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
               Promoção para a carteira, segmentada por tag/tipo. Sai do WhatsApp do vendedor de cada cliente.
             </p>
@@ -315,7 +315,7 @@ export default function CrmDisparosPage() {
                 <div className="inline-flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-md)' }}>
                   {(['AND', 'OR'] as const).map((c) => (
                     <button key={c} onClick={() => setCombine(c)} className="text-xs px-3 py-1.5"
-                      style={combine === c ? { backgroundColor: 'var(--accent)', color: '#fff' } : { color: 'var(--text-muted)' }}>
+                      style={combine === c ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' } : { color: 'var(--text-muted)' }}>
                       {c === 'AND' ? 'E (os dois)' : 'OU (qualquer)'}
                     </button>
                   ))}
@@ -358,8 +358,8 @@ export default function CrmDisparosPage() {
           <button
             onClick={submit}
             disabled={!canSubmit}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {submitting ? 'Enviando…' : mode === 'schedule' ? 'Agendar disparo' : `Disparar agora${preview ? ` (${preview.sendable})` : ''}`}
           </button>

@@ -364,7 +364,7 @@ function MetaFormsCard({ showToast }: { showToast: (m: string, t?: 'success' | '
     }
   };
 
-  const btnPrimary = { backgroundColor: 'var(--accent)', color: '#fff' };
+  const btnPrimary = { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' };
   const btnGhost = { border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' };
   const disponiveis = (pages ?? []).filter((p) => !p.connected);
 
@@ -576,7 +576,7 @@ function InstagramDirectCard({ showToast }: { showToast: (m: string, t?: 'succes
     }
   };
 
-  const btnPrimary = { backgroundColor: 'var(--accent)', color: '#fff' };
+  const btnPrimary = { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' };
   const btnGhost = { border: '1px solid var(--border)', backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' };
 
   return (
@@ -760,7 +760,7 @@ export default function IntegrationsPage() {
 
       {/* Header */}
       <div className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Integrações</h1>
+        <h1 className="ui-h1">Integrações</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Conecte suas plataformas de marketing e CRM para centralizar todos os dados.
         </p>
@@ -948,7 +948,7 @@ export default function IntegrationsPage() {
                       onClick={() => handleConnect(config.provider)}
                       disabled={isConnecting}
                       className="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-60"
-                      style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                      style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
                     >
                       {isConnecting ? (
                         <><Spinner /> Aguardando...</>
@@ -1109,7 +1109,7 @@ export default function IntegrationsPage() {
             <Link
               href="/dashboard/dados-manuais"
               className="shrink-0 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium transition-opacity hover:opacity-80"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />

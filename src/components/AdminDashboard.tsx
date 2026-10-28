@@ -58,7 +58,7 @@ function KpiCard({ label, value, sub, accent, highlight }: KpiCardProps) {
       style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
     >
       <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</span>
-      <span className="text-2xl font-semibold" style={{ color: accent ? 'var(--accent)' : 'var(--text-primary)' }}>{value}</span>
+      <span className="ui-big" style={{ color: accent ? 'var(--accent)' : 'var(--text-primary)' }}>{value}</span>
       {sub && <span className="text-xs" style={{ color: highlight ?? 'var(--text-muted)' }}>{sub}</span>}
     </div>
   );
@@ -98,7 +98,7 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       {/* Título */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+        <h1 className="ui-h1">
           Cortex Growth — <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>visão geral</span>
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>Métricas do SaaS em tempo real.</p>

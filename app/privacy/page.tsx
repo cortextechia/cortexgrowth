@@ -149,7 +149,7 @@ export default function PrivacyPage() {
             </ul>
             <p className="mt-3">
               Para exercer qualquer um desses direitos, entre em contato pelo e-mail:{' '}
-              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>
+              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
                 privacidade@iacortextech.com.br
               </a>
             </p>
@@ -159,7 +159,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Exclusão de dados do usuário</h2>
             <p>
               Para solicitar a exclusão completa dos seus dados da plataforma Cortex Growth, envie um e-mail para{' '}
-              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>
+              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
                 privacidade@iacortextech.com.br
               </a>{' '}
               com o assunto <strong style={{ color: '#f1f5f9' }}>"Exclusão de dados"</strong> e o e-mail cadastrado na sua conta.
@@ -189,10 +189,10 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>11. Contato</h2>
             <p>Para dúvidas, solicitações ou reclamações relacionadas a esta política:</p>
-            <div className="mt-4 p-4 rounded-xl" style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
               <p><strong style={{ color: '#f1f5f9' }}>IA Cortex Tech</strong></p>
-              <p className="mt-1">E-mail: <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>privacidade@iacortextech.com.br</a></p>
-              <p>Site: <a href="https://iacortextech.com.br" className="underline" style={{ color: '#3b82f6' }}>iacortextech.com.br</a></p>
+              <p className="mt-1">E-mail: <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>privacidade@iacortextech.com.br</a></p>
+              <p>Site: <a href="https://iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>iacortextech.com.br</a></p>
             </div>
           </section>
 

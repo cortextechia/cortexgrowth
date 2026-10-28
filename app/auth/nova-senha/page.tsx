@@ -18,12 +18,12 @@ function Conteudo() {
   if (!token) {
     return (
       <Caixa titulo="Link inválido" tom="erro">
-        <p className="text-sm text-center" style={{ color: '#94a3b8' }}>
+        <p className="text-sm text-center" style={{ color: 'var(--text-secondary)' }}>
           Este link não tem token. Peça uma nova redefinição.
         </p>
         <Link href="/auth/esqueci-senha"
-          className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-white"
-          style={{ backgroundColor: '#3b82f6' }}>
+          className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-[var(--on-accent)]"
+          style={{ backgroundColor: 'var(--accent-fill)' }}>
           Pedir novo link
         </Link>
       </Caixa>
@@ -33,12 +33,12 @@ function Conteudo() {
   if (pronto) {
     return (
       <Caixa titulo="Senha alterada" tom="sucesso">
-        <p className="text-sm text-center" style={{ color: '#94a3b8' }}>
+        <p className="text-sm text-center" style={{ color: 'var(--text-secondary)' }}>
           Sua senha foi trocada e as sessões antigas foram encerradas. Entre com a nova senha.
         </p>
         <button onClick={() => router.push('/auth/login')}
-          className="mt-6 w-full rounded-lg py-2.5 text-sm font-medium text-white"
-          style={{ backgroundColor: '#3b82f6' }}>
+          className="mt-6 w-full rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)]"
+          style={{ backgroundColor: 'var(--accent-fill)' }}>
           Ir para o login
         </button>
       </Caixa>
@@ -66,26 +66,26 @@ function Conteudo() {
     <Caixa titulo="Criar nova senha">
       {erro && (
         <div className="mb-4 rounded-lg px-3 py-2.5 text-sm"
-          style={{ backgroundColor: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+          style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
           {erro}
         </div>
       )}
       <form onSubmit={salvar} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Nova senha</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Nova senha</label>
           <input type="password" required value={senha} onChange={(e) => setSenha(e.target.value)}
             placeholder="Mínimo 8 caracteres" autoFocus
             className="w-full rounded-lg px-3 py-2.5 text-sm outline-none placeholder-slate-600" style={inputStyle} />
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: '#94a3b8' }}>Confirmar senha</label>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Confirmar senha</label>
           <input type="password" required value={confirma} onChange={(e) => setConfirma(e.target.value)}
             placeholder="Repita a senha"
             className="w-full rounded-lg px-3 py-2.5 text-sm outline-none placeholder-slate-600" style={inputStyle} />
         </div>
         <button type="submit" disabled={salvando}
-          className="w-full rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-60"
-          style={{ backgroundColor: '#3b82f6' }}>
+          className="w-full rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent-fill)' }}>
           {salvando ? 'Salvando…' : 'Salvar nova senha'}
         </button>
       </form>

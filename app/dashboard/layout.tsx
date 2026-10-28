@@ -28,7 +28,7 @@ const telaDoGrowth = (pathname: string) =>
 function clientDot(c: TrafficManagerClient): { color: string; label: string } {
   if (c.isSelf) return { color: '#a855f7', label: 'Sua conta' };
   if (c.claimed) return { color: '#22c55e', label: 'Cliente ativo (acesso próprio)' };
-  if (c.source === 'MANAGER') return { color: '#3b82f6', label: 'Dashboard criado por você' };
+  if (c.source === 'MANAGER') return { color: 'var(--accent)', label: 'Dashboard criado por você' };
   return { color: '#64748b', label: 'Cliente conectado' };
 }
 
@@ -473,13 +473,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div key={item.href}>
             <div
               className="flex items-center rounded-lg"
-              style={isActive ? { backgroundColor: 'var(--accent-dim)', borderLeft: '2px solid var(--accent)' } : undefined}
+              style={isActive ? { backgroundColor: 'var(--accent-fill)' } : undefined}
             >
               <Link
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-3 flex-1 min-w-0 px-2.5 py-2 text-sm transition-colors"
-                style={{ color: isActive ? 'var(--accent)' : 'var(--text-muted)', ...(isActive ? { paddingLeft: '8px' } : {}) }}
+                style={{ color: isActive ? 'var(--on-accent)' : 'var(--text-secondary)', fontWeight: isActive ? 600 : undefined }}
               >
                 {item.icon}
                 <span>{item.label}</span>
@@ -488,7 +488,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onClick={() => setCrmMenuToggled(!crmMenuOpen)}
                 className="px-2 py-2 shrink-0 transition-transform"
-                style={{ color: 'var(--text-muted)' }}
+                style={{ color: isActive ? 'var(--on-accent)' : 'var(--text-muted)' }}
                 aria-label={crmMenuOpen ? 'Recolher submenu do CRM' : 'Expandir submenu do CRM'}
                 aria-expanded={crmMenuOpen}
               >
@@ -506,10 +506,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center rounded-lg py-2 pr-2.5 text-sm transition-colors"
                   style={childActive
-                    ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', borderLeft: '2px solid var(--accent)', paddingLeft: '42px' }
-                    : { color: 'var(--text-muted)', paddingLeft: '44px' }}
-                  onMouseEnter={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
-                  onMouseLeave={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+                    ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', fontWeight: 600, paddingLeft: '44px' }
+                    : { color: 'var(--text-secondary)', paddingLeft: '44px' }}
+                  onMouseEnter={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
+                  onMouseLeave={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
                 >
                   {child.label}
                   {!temGrowth && child.href in TELAS_DO_GROWTH && (
@@ -533,11 +533,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition-colors ${!expanded ? 'justify-center' : ''}`}
           style={
             isActive
-              ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', borderLeft: '2px solid var(--accent)', paddingLeft: '8px' }
-              : { color: 'var(--text-muted)' }
+              ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', fontWeight: 600 }
+              : { color: 'var(--text-secondary)' }
           }
-          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
-          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-muted)'; } }}
+          onMouseEnter={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
+          onMouseLeave={e => { if (!isActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
           title={!expanded ? (!temGrowth && item.href in TELAS_DO_GROWTH ? `${item.label} — não faz parte do plano CRM` : item.label) : undefined}
         >
           {/* Sidebar recolhida: o número não cabe, então vira um ponto sobre o
@@ -598,8 +598,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             style={{ borderBottom: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent)' }}>
-                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-fill)' }}>
+                <svg className="h-3.5 w-3.5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                 </svg>
               </div>
@@ -649,8 +649,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             {sidebarOpen && (
               <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent)' }}>
-                  <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-fill)' }}>
+                  <svg className="h-3.5 w-3.5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
                   </svg>
                 </div>
@@ -717,7 +717,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {/* TRAFFIC_MANAGER: seletor de cliente — oculto na aba Gestão (visão geral de todos os clientes) */}
               {isTrafficManager && pathname !== '/dashboard/gestor' ? (
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#60a5fa' }}>
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: 'var(--accent)' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                   </svg>
                   <span className="text-xs shrink-0" style={{ color: 'var(--text-muted)' }}>Cliente:</span>

@@ -141,8 +141,8 @@ function ReportWaQrModal({ onConnected, onClose }: { onConnected: () => void; on
         {phase === 'error' && (
           <div className="py-8 flex flex-col items-center gap-3">
             <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Não foi possível gerar o QR code.</p>
-            <button onClick={() => { setPhase('loading'); void gerar(); }} className="text-xs px-4 py-2 rounded-lg font-medium text-white"
-              style={{ backgroundColor: 'var(--accent)' }}>
+            <button onClick={() => { setPhase('loading'); void gerar(); }} className="text-xs px-4 py-2 rounded-lg font-medium text-[var(--on-accent)]"
+              style={{ backgroundColor: 'var(--accent-fill)' }}>
               Tentar de novo
             </button>
           </div>
@@ -190,8 +190,8 @@ function ReportWhatsappPanel({ showToast, refreshSignal }: { showToast: (msg: st
         </button>
       ) : status === 'disconnected' ? (
         <button onClick={() => setShowQr(true)}
-          className="text-xs px-3 py-1.5 rounded-lg font-medium text-white"
-          style={{ backgroundColor: 'var(--accent)' }}>
+          className="text-xs px-3 py-1.5 rounded-lg font-medium text-[var(--on-accent)]"
+          style={{ backgroundColor: 'var(--accent-fill)' }}>
           Conectar via QR Code
         </button>
       ) : null}
@@ -440,7 +440,7 @@ function ScheduleCalendar({ schedules }: { schedules: ReportSchedule[] }) {
                   style={{ minHeight: 86, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', opacity: inMonth ? 1 : 0.4 }}>
                   <div className="flex justify-center">
                     <span className="text-[11px] flex items-center justify-center rounded-full"
-                      style={{ width: 20, height: 20, ...(isToday ? { backgroundColor: 'var(--accent)', color: '#fff', fontWeight: 700 } : { color: 'var(--text-secondary)' }) }}>
+                      style={{ width: 20, height: 20, ...(isToday ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', fontWeight: 700 } : { color: 'var(--text-secondary)' }) }}>
                       {d.getDate()}
                     </span>
                   </div>
@@ -744,8 +744,8 @@ function TelegramQRModal({ onConnected, onClose }: {
         {phase === 'loading' && (
           <div className="py-10 flex flex-col items-center gap-3">
             <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-              <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+              <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gerando link seguro...</p>
           </div>
@@ -766,11 +766,11 @@ function TelegramQRModal({ onConnected, onClose }: {
             </p>
             <a href={deepLink} target="_blank" rel="noreferrer"
               className="block text-xs truncate px-3 py-2 rounded-lg"
-              style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}>
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}>
               {deepLink}
             </a>
             <div className="flex items-center gap-2 justify-center pt-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
+              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
               <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão... (expira em 24h)</p>
             </div>
           </>
@@ -783,16 +783,16 @@ function TelegramQRModal({ onConnected, onClose }: {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-sm font-medium" style={{ color: '#4ade80' }}>Conectado com sucesso!</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--badge-success-text)' }}>Conectado com sucesso!</p>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fechando automaticamente...</p>
           </div>
         )}
 
         {phase === 'error' && (
           <div className="py-8 flex flex-col items-center gap-3">
-            <p className="text-sm" style={{ color: '#f87171' }}>Link expirado ou inválido.</p>
+            <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Link expirado ou inválido.</p>
             <button onClick={() => setPhase('loading')} className="text-xs px-4 py-2 rounded-lg"
-              style={{ backgroundColor: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' }}>
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}>
               Gerar novo link
             </button>
           </div>
@@ -866,7 +866,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
                 key={c}
                 onClick={() => { setChannel(c); setDestination(''); setDestinationName(''); }}
                 className="flex-1 py-2 rounded-lg text-xs font-medium transition-all"
-                style={{ backgroundColor: channel === c ? (c === 'TELEGRAM' ? 'rgba(59,130,246,0.2)' : 'rgba(34,197,94,0.15)') : 'rgba(255,255,255,0.04)', color: channel === c ? (c === 'TELEGRAM' ? '#60a5fa' : '#4ade80') : '#64748b', border: `1px solid ${channel === c ? (c === 'TELEGRAM' ? 'rgba(59,130,246,0.4)' : 'rgba(34,197,94,0.3)') : 'rgba(255,255,255,0.06)'}` }}
+                style={{ backgroundColor: channel === c ? (c === 'TELEGRAM' ? 'var(--accent-line)' : 'rgba(34,197,94,0.15)') : 'rgba(255,255,255,0.04)', color: channel === c ? (c === 'TELEGRAM' ? 'var(--accent)' : '#4ade80') : '#64748b', border: `1px solid ${channel === c ? (c === 'TELEGRAM' ? 'var(--accent-line)' : 'rgba(34,197,94,0.3)') : 'rgba(255,255,255,0.06)'}` }}
               >
                 {c === 'TELEGRAM' ? '✈️ Telegram' : '📱 WhatsApp'}
               </button>
@@ -880,13 +880,13 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
             <span style={labelStyle}>Chat / Grupo do Telegram</span>
             {destination ? (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                <span className="text-xs flex-1" style={{ color: '#4ade80' }}>✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span></span>
+                <span className="text-xs flex-1" style={{ color: 'var(--badge-success-text)' }}>✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span></span>
                 <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: 'var(--text-muted)' }}>Trocar</button>
               </div>
             ) : (
               <button onClick={() => setShowQR(true)}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium transition-colors"
-                style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)', borderStyle: 'dashed' }}
+                style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)', borderStyle: 'dashed' }}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
@@ -930,7 +930,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
             {(Object.entries(FREQ_LABELS) as [ReportFrequency, string][]).map(([k, v]) => (
               <button key={k} onClick={() => setFrequency(k)}
                 className="py-2 rounded-lg text-xs font-medium transition-all"
-                style={{ backgroundColor: frequency === k ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)', color: frequency === k ? '#60a5fa' : '#64748b', border: `1px solid ${frequency === k ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.06)'}` }}
+                style={{ backgroundColor: frequency === k ? 'var(--accent-line)' : 'rgba(255,255,255,0.04)', color: frequency === k ? 'var(--accent)' : '#64748b', border: `1px solid ${frequency === k ? 'var(--accent-line)' : 'rgba(255,255,255,0.06)'}` }}
               >
                 {v}
               </button>
@@ -966,7 +966,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
 
         <MessageEditor frequency={frequency} config={reportConfig} onChange={setReportConfig} />
 
-        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
 
         </div>{/* fim conteúdo scrollável */}
 
@@ -976,7 +976,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
             Cancelar
           </button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: loading ? 0.6 : 1 }}>
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: loading ? 0.6 : 1 }}>
             {loading ? 'Criando...' : 'Criar agendamento'}
           </button>
         </div>
@@ -1021,13 +1021,13 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
 
         <MessageEditor frequency={schedule.frequency} config={config} onChange={setConfig} wide />
 
-        {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+        {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
             Cancelar
           </button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: saving ? 0.6 : 1 }}>
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: saving ? 0.6 : 1 }}>
             {saving ? 'Salvando...' : 'Salvar mensagem'}
           </button>
         </div>
@@ -1057,7 +1057,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
 
   const lastLog = schedule.logs[0];
   const channelIcon = schedule.channelType === 'TELEGRAM' ? '✈️' : '📱';
-  const channelColor = schedule.channelType === 'TELEGRAM' ? '#60a5fa' : '#4ade80';
+  const channelColor = schedule.channelType === 'TELEGRAM' ? 'var(--accent)' : '#4ade80';
 
   return (
     <div className="rounded-xl p-4 space-y-3" style={card}>
@@ -1074,14 +1074,11 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
         </div>
 
         {/* Toggle ativo */}
-        <button onClick={onToggle} className="shrink-0 rounded-full transition-colors"
-          style={{ width: 36, height: 20, backgroundColor: schedule.isActive ? '#3b82f6' : '#94a3b8', position: 'relative' }}>
-          <span style={{ position: 'absolute', top: 3, left: schedule.isActive ? 18 : 3, width: 14, height: 14, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
-        </button>
+        <button type="button" role="switch" aria-checked={schedule.isActive} aria-label="Agendamento ativo" onClick={onToggle} className="ui-switch" />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: channelColor }}>
+        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'var(--accent-dim)', color: channelColor }}>
           {FREQ_LABELS[schedule.frequency]}
         </span>
         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
@@ -1100,7 +1097,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
       <div className="flex gap-2 pt-1" style={{ borderTop: '1px solid var(--border)' }}>
         <button onClick={handleSend} disabled={sending}
           className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{ backgroundColor: sendResult === 'ok' ? 'rgba(34,197,94,0.15)' : sendResult === 'err' ? 'rgba(248,113,113,0.15)' : 'rgba(59,130,246,0.1)', color: sendResult === 'ok' ? '#4ade80' : sendResult === 'err' ? '#f87171' : '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
+          style={{ backgroundColor: sendResult === 'ok' ? 'rgba(34,197,94,0.15)' : sendResult === 'err' ? 'rgba(248,113,113,0.15)' : 'var(--accent-dim)', color: sendResult === 'ok' ? '#4ade80' : sendResult === 'err' ? '#f87171' : 'var(--accent)', border: '1px solid var(--accent-line)' }}
         >
           {sending ? 'Enviando...' : sendResult === 'ok' ? '✓ Enviado' : sendResult === 'err' ? '✗ Erro' : 'Enviar agora'}
         </button>
@@ -1109,7 +1106,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
           Mensagem
         </button>
         <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-          style={{ backgroundColor: 'rgba(248,113,113,0.08)', color: '#f87171', border: '1px solid rgba(248,113,113,0.15)' }}>
+          style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}>
           Remover
         </button>
       </div>
@@ -1270,8 +1267,8 @@ function AlertConfigSection() {
   if (loading) return (
     <div className="rounded-xl p-4 flex items-center gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <svg className="animate-spin h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-        <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+        <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
       </svg>
       <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando alertas...</span>
     </div>
@@ -1292,8 +1289,8 @@ function AlertConfigSection() {
           disabled={saving || !thresholds}
           className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
           style={{
-            backgroundColor: saved ? 'rgba(34,197,94,0.15)' : '#3b82f6',
-            color: saved ? '#4ade80' : '#fff',
+            backgroundColor: saved ? 'rgba(34,197,94,0.15)' : 'var(--accent-fill)',
+            color: saved ? '#4ade80' : 'var(--on-accent)',
             opacity: saving ? 0.6 : 1,
           }}
         >
@@ -1301,7 +1298,7 @@ function AlertConfigSection() {
         </button>
       </div>
 
-      {error && <p className="text-xs" style={{ color: '#f87171' }}>{error}</p>}
+      {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
 
       {/* Regras */}
       <div className="space-y-2">
@@ -1314,26 +1311,21 @@ function AlertConfigSection() {
               key={rule}
               className="rounded-lg p-3 transition-all"
               style={{
-                backgroundColor: isOn ? 'rgba(59,130,246,0.05)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${isOn ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.06)'}`,
+                backgroundColor: isOn ? 'var(--accent-dim)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${isOn ? 'var(--accent-line)' : 'rgba(255,255,255,0.06)'}`,
               }}
             >
               <div className="flex items-start gap-3">
                 {/* Toggle */}
                 <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isOn}
                   onClick={() => toggleRule(rule)}
                   disabled={travada}
                   title={travada ? 'Não faz parte do plano CRM' : undefined}
-                  className="shrink-0 mt-0.5 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ width: 32, height: 18, backgroundColor: isOn ? '#3b82f6' : '#94a3b8', position: 'relative' }}
-                >
-                  <span style={{
-                    position: 'absolute', top: 2,
-                    left: isOn ? 16 : 2,
-                    width: 14, height: 14, borderRadius: '50%',
-                    backgroundColor: '#fff', transition: 'left 0.15s',
-                  }} />
-                </button>
+                  className="ui-switch mt-0.5"
+                />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1375,8 +1367,8 @@ function AlertConfigSection() {
                 <span
                   className="shrink-0 text-xs px-2 py-0.5 rounded-full"
                   style={{
-                    backgroundColor: isOn ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.05)',
-                    color: isOn ? '#60a5fa' : '#64748b',
+                    backgroundColor: isOn ? 'var(--accent-dim)' : 'rgba(255,255,255,0.05)',
+                    color: isOn ? 'var(--accent)' : '#64748b',
                   }}
                 >
                   {isOn ? 'Ativo' : 'Off'}
@@ -1475,17 +1467,16 @@ export default function RelatoriosPage() {
       )}
 
       {/* Header */}
-      <div className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3" style={card}>
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios Automatizados</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          <h1 className="ui-h1">Relatórios automáticos</h1>
+          <p className="ui-sub">
             {organization?.name} · envio automático via Telegram ou WhatsApp
           </p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+          className="ui-btn ui-btn-primary ui-btn-sm"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           Novo agendamento
@@ -1493,20 +1484,20 @@ export default function RelatoriosPage() {
       </div>
 
       {/* Instruções de configuração */}
-      <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid rgba(59,130,246,0.2)' }}>
-        <p className="text-xs font-medium" style={{ color: '#60a5fa' }}>Como configurar</p>
+      <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--accent-line)' }}>
+        <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Como configurar</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
           <div>
             <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>✈️ Telegram</p>
             <ol className="space-y-0.5 list-decimal list-inside mb-2">
               <li>Clique em <strong style={{ color: 'var(--text-primary)' }}>"Registrar Webhook"</strong> abaixo (uma vez só)</li>
-              <li>Adicione o bot <code style={{ color: '#818cf8' }}>@CortexGrowthBot</code> ao grupo desejado</li>
+              <li>Adicione o bot <code style={{ color: 'var(--accent)' }}>@CortexGrowthBot</code> ao grupo desejado</li>
               <li>Ao criar um agendamento, clique em <strong style={{ color: 'var(--text-primary)' }}>"Conectar via QR Code"</strong></li>
               <li>Escaneie o QR Code com o Telegram — a conexão é automática</li>
             </ol>
             <button onClick={handleRegisterWebhook} disabled={registeringWebhook}
               className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-              style={{ backgroundColor: 'rgba(129,140,248,0.12)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.25)', opacity: registeringWebhook ? 0.6 : 1 }}>
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)', opacity: registeringWebhook ? 0.6 : 1 }}>
               {registeringWebhook ? 'Registrando...' : '⚡ Registrar Webhook'}
             </button>
           </div>
@@ -1518,8 +1509,8 @@ export default function RelatoriosPage() {
       {loading ? (
         <div className="flex items-center justify-center py-20" style={{ color: 'var(--text-muted)' }}>
           <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-            <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+            <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
           Carregando agendamentos...
         </div>
@@ -1530,7 +1521,7 @@ export default function RelatoriosPage() {
           </svg>
           <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Nenhum agendamento criado</p>
           <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Configure o envio automático do relatório de KPIs para o Telegram ou WhatsApp.</p>
-          <button onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+          <button onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
             Criar primeiro agendamento
           </button>
         </div>

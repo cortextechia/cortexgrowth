@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { Dropdown, Chevron, usePopover } from '@/components/Dropdown';
 import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
@@ -293,117 +294,10 @@ function DiscardBadge({ client, className = '' }: {
   );
 }
 
+// Selo do design system: anúncio pago (Meta/Google) em limão, o resto em tom suave.
 function OriginPill({ origin }: { origin: CrmOrigin }) {
-  return (
-    <span
-      className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap"
-      style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-    >
-      {originLabel(origin)}
-    </span>
-  );
-}
-
-// ─── Dropdown do design system (substitui <select> nativo) ────────────────────
-// variant "pill" = filtros do topo · "field" = campos de formulário/drawer
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      viewBox="0 0 20 20"
-      fill="none"
-      className={`h-3 w-3 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
-      style={{ color: 'var(--text-muted)' }}
-      aria-hidden
-    >
-      <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** Fecha ao clicar fora ou apertar Escape. */
-function usePopover(): { open: boolean; setOpen: (v: boolean) => void; ref: React.RefObject<HTMLDivElement | null> } {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-    document.addEventListener('mousedown', onDoc);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
-  }, [open]);
-  return { open, setOpen, ref };
-}
-
-const popoverPanel = {
-  backgroundColor: 'var(--bg-surface)',
-  border: '1px solid var(--border-md)',
-  boxShadow: '0 10px 28px rgba(2, 12, 27, 0.22)',
-} as const;
-
-function Dropdown({ label, value, options, onChange, onOpen, variant = 'field', className = '' }: {
-  label?: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-  onOpen?: () => void;
-  variant?: 'pill' | 'field';
-  className?: string;
-}) {
-  const { open, setOpen, ref } = usePopover();
-  const selected = options.find((o) => o.value === value);
-  const isPill = variant === 'pill';
-
-  return (
-    <div ref={ref} className={`relative ${className}`}>
-      <button
-        type="button"
-        onClick={() => { const next = !open; setOpen(next); if (next) onOpen?.(); }}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        className={isPill
-          ? 'text-xs rounded-full pl-3 pr-2 py-1.5 inline-flex items-center gap-1.5 max-w-full'
-          : 'text-sm rounded-md pl-2.5 pr-2 py-1.5 inline-flex items-center justify-between gap-1.5 w-full text-left'}
-        style={{
-          backgroundColor: isPill ? 'var(--bg-surface)' : 'var(--bg-elevated)',
-          border: `1px solid ${open ? 'var(--accent)' : 'var(--border-md)'}`,
-          color: 'var(--text-primary)',
-        }}
-      >
-        <span className="truncate">
-          {label && <span style={{ color: 'var(--text-muted)' }}>{label}: </span>}
-          {selected?.label ?? '—'}
-        </span>
-        <Chevron open={open} />
-      </button>
-      {open && (
-        <div
-          role="listbox"
-          className="absolute z-30 mt-1 min-w-full w-max max-w-[280px] max-h-64 overflow-y-auto rounded-lg py-1"
-          style={popoverPanel}
-        >
-          {options.map((o) => {
-            const sel = o.value === value;
-            return (
-              <button
-                key={o.value || '_empty'}
-                type="button"
-                role="option"
-                aria-selected={sel}
-                onClick={() => { setOpen(false); if (o.value !== value) onChange(o.value); }}
-                className="w-full text-left text-xs px-3 py-2 flex items-center justify-between gap-3 hover:bg-[var(--bg-elevated)]"
-                style={{ color: sel ? 'var(--accent)' : 'var(--text-primary)', backgroundColor: sel ? 'var(--accent-dim)' : undefined }}
-              >
-                <span className="truncate">{o.label}</span>
-                {sel && <span aria-hidden>✓</span>}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  const pago = origin === 'META' || origin === 'GOOGLE';
+  return <span className={`ui-badge ${pago ? 'ui-badge-lime' : 'ui-badge-tint'}`}>{originLabel(origin).toUpperCase()}</span>;
 }
 
 /** Menu de ações (header) — itens executam, não selecionam. */
@@ -419,26 +313,20 @@ function ActionsMenu({ label, items }: {
         onClick={() => setOpen(!open)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="px-3 py-2 rounded-lg text-sm inline-flex items-center gap-1.5"
-        style={{
-          backgroundColor: 'var(--bg-surface)',
-          border: `1px solid ${open ? 'var(--accent)' : 'var(--border)'}`,
-          color: 'var(--text-secondary)',
-        }}
+        className="ui-btn ui-btn-secondary ui-btn-sm"
       >
         {label}
         <Chevron open={open} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 w-max min-w-[180px] rounded-lg py-1" style={popoverPanel}>
+        <div role="menu" className="ui-menu absolute right-0 z-30 mt-1.5 w-max min-w-[200px]">
           {items.map((item) => (
             <button
               key={item.label}
               type="button"
               role="menuitem"
               onClick={() => { setOpen(false); item.onClick(); }}
-              className="w-full text-left text-xs px-3 py-2 hover:bg-[var(--bg-elevated)]"
-              style={{ color: 'var(--text-primary)' }}
+              className="ui-menu-item"
             >
               {item.label}
             </button>
@@ -1105,8 +993,8 @@ export default function CrmPage() {
             <button
               onClick={handleEnable}
               disabled={enabling}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: 'var(--accent)' }}
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+              style={{ backgroundColor: 'var(--accent-fill)' }}
             >
               {enabling ? 'Ativando...' : 'Ativar CRM Cortex'}
             </button>
@@ -1208,7 +1096,7 @@ export default function CrmPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="flex-1 min-w-[200px]">
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>CRM</h1>
+          <h1 className="ui-h1">CRM</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             {totalClients} cliente{totalClients === 1 ? '' : 's'}
             {status.maxClients ? ` · limite do plano: ${status.maxClients}` : ''}
@@ -1256,8 +1144,8 @@ export default function CrmPage() {
         )}
         <button
           onClick={() => setShowNewClient(true)}
-          className="px-4 py-2 rounded-lg text-sm font-medium text-white"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="px-4 py-2 rounded-lg text-sm font-medium text-[var(--on-accent)]"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
         >
           + Novo cliente
         </button>
@@ -1286,10 +1174,9 @@ export default function CrmPage() {
             filterUnreadRef.current = proximo;
             void loadAll(searchRef.current.trim() || undefined, { force: true });
           }}
-          className="text-xs px-3 py-1.5 rounded-full font-medium"
-          style={filterUnread
-            ? { backgroundColor: '#22c55e', color: '#ffffff' }
-            : { ...card, color: 'var(--text-secondary)' }}
+          className="ui-filtro"
+          data-ativo={filterUnread}
+          aria-pressed={filterUnread}
           title="Conversas com mensagem recebida e ainda sem resposta"
         >
           💬 Não respondidos{unreadCount > 0 ? ` (${unreadCount})` : ''}
@@ -1436,26 +1323,19 @@ export default function CrmPage() {
       >
         {/* Triagem — só aparece quando há contato esperando decisão */}
         {pendingClients.length > 0 && (
-          <div
-            className="w-64 shrink-0 rounded-xl p-3"
-            style={{ ...card, border: '1px dashed var(--accent)' }}
-          >
+          <div className="ui-card ui-card-hl w-64 shrink-0 !p-3.5">
             <div className="flex items-baseline justify-between mb-1">
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
                 Novos contatos
               </span>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{pendingClients.length}</span>
+              <span className="text-xs tabular-nums" style={{ fontFamily: 'var(--font-mono-cx), monospace', color: 'var(--text-muted)' }}>{pendingClients.length}</span>
             </div>
             <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
               Aceite para entrar no funil
             </div>
             <div className="space-y-2">
               {pendingClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="rounded-lg p-2.5"
-                  style={{ backgroundColor: 'var(--bg-elevated)' }}
-                >
+                <div key={client.id} className="ui-inset p-3">
                   <button
                     onClick={() => openClient(client.id)}
                     className="w-full text-left"
@@ -1477,8 +1357,7 @@ export default function CrmPage() {
                     <button
                       onClick={() => void handleAccept(client.id)}
                       disabled={triaging.has(client.id)}
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                      className="ui-btn ui-btn-tint ui-btn-sm flex-1 !py-1.5 !text-xs"
                     >
                       Aceitar
                     </button>
@@ -1486,8 +1365,7 @@ export default function CrmPage() {
                       onClick={() => setDiscardTarget({ id: client.id, name: client.name })}
                       disabled={triaging.has(client.id)}
                       title="Lead não qualificado — pede o motivo e não cria venda nenhuma"
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 !py-1.5 !text-xs"
                     >
                       Descartar
                     </button>
@@ -1501,26 +1379,20 @@ export default function CrmPage() {
         {/* Recorrente — quem já comprou e voltou a falar. Temporária como "Novos
             contatos": some ao Reabrir venda (recompra) ou ao abrir/ler a conversa. */}
         {returningClients.length > 0 && (
-          <div
-            className="w-64 shrink-0 rounded-xl p-3"
-            style={{ ...card, border: '1px dashed var(--badge-warn-text)' }}
-          >
+          <div className="ui-card w-64 shrink-0 !p-3.5">
             <div className="flex items-baseline justify-between mb-1">
-              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+              <span className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: 'var(--badge-warn-text)' }} aria-hidden />
                 Recorrente
               </span>
-              <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{returningClients.length}</span>
+              <span className="text-xs tabular-nums" style={{ fontFamily: 'var(--font-mono-cx), monospace', color: 'var(--text-muted)' }}>{returningClients.length}</span>
             </div>
             <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
               Já comprou e voltou a falar
             </div>
             <div className="space-y-2">
               {returningClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="rounded-lg p-2.5"
-                  style={{ backgroundColor: 'var(--bg-elevated)' }}
-                >
+                <div key={client.id} className="ui-inset p-3">
                   <button
                     onClick={() => openClient(client.id)}
                     className="w-full text-left"
@@ -1543,8 +1415,7 @@ export default function CrmPage() {
                       onClick={() => void handleReopen(client.id)}
                       disabled={triaging.has(client.id)}
                       title="Devolve o card pro Novo Lead (recompra)"
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                      className="ui-btn ui-btn-tint ui-btn-sm flex-1 !py-1.5 !text-xs"
                     >
                       Aceitar
                     </button>
@@ -1552,8 +1423,7 @@ export default function CrmPage() {
                       onClick={() => void handleDismissReturning(client.id)}
                       disabled={triaging.has(client.id)}
                       title="Só dúvida do pedido anterior — dispensa da lista (não arquiva)"
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 !py-1.5 !text-xs"
                     >
                       Dispensar
                     </button>
@@ -1572,12 +1442,8 @@ export default function CrmPage() {
           return (
             <div
               key={stage.id}
-              className="w-64 shrink-0 rounded-xl p-3 transition-colors"
-              style={{
-                ...card,
-                borderTop: `3px solid ${stColor}`,
-                ...(isDropTarget ? { border: '1px dashed var(--accent)', backgroundColor: 'var(--accent-dim)' } : {}),
-              }}
+              className="ui-card w-64 shrink-0 !p-3.5 transition-colors"
+              style={isDropTarget ? { border: '1px dashed var(--accent)', backgroundColor: 'var(--accent-dim)' } : undefined}
               onDragOver={(e) => { e.preventDefault(); if (dropStageId !== stage.id) setDropStageId(stage.id); }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node) && dropStageId === stage.id) setDropStageId(null);
@@ -1590,7 +1456,7 @@ export default function CrmPage() {
               }}
             >
               <div className="flex items-baseline justify-between mb-1">
-                <span className="text-sm font-semibold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
+                <span className="text-sm font-bold flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}>
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stColor }} aria-hidden />
                   {stage.name}
                   {stageLocksValue(stage) && (
@@ -1603,9 +1469,9 @@ export default function CrmPage() {
                     </span>
                   )}
                 </span>
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{items.length}</span>
+                <span className="text-xs tabular-nums" style={{ fontFamily: 'var(--font-mono-cx), monospace', color: 'var(--text-muted)' }}>{items.length}</span>
               </div>
-              <div className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{fmtMoney(total)}</div>
+              <div className="text-xs mb-3 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(total)}</div>
               <div className="space-y-2">
                 {items.map((client) => {
                   const val = openValue(client);
@@ -1627,12 +1493,8 @@ export default function CrmPage() {
                       setTimeout(() => { justDraggedRef.current = false; }, 200);
                     }}
                     onClick={() => { if (!justDraggedRef.current) openClient(client.id); }}
-                    className="w-full text-left rounded-lg p-2.5 transition-colors cursor-grab active:cursor-grabbing"
-                    style={{
-                      backgroundColor: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      opacity: draggingClientId === client.id ? 0.4 : 1,
-                    }}
+                    className="ui-inset w-full text-left p-3 transition-colors cursor-grab active:cursor-grabbing hover:border-[var(--border-md)]"
+                    style={{ opacity: draggingClientId === client.id ? 0.4 : 1 }}
                   >
                     {/* Linha 1: quem é + dias parado. Linha 2: o valor em aberto,
                         sozinho e legível (só quando há venda). Linha 3: os chips. */}
@@ -2256,8 +2118,8 @@ function DrawerTasks({ clientId, tasks, onAdd, onToggle, onDelete }: {
             <button
               onClick={() => void submit()}
               disabled={saving || !title.trim() || !date}
-              className="text-xs px-3 py-1.5 rounded-md font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: 'var(--accent)' }}
+              className="text-xs px-3 py-1.5 rounded-md font-medium text-[var(--on-accent)] disabled:opacity-60"
+              style={{ backgroundColor: 'var(--accent-fill)' }}
             >
               {saving ? '...' : 'Salvar'}
             </button>
@@ -2287,20 +2149,32 @@ const REPORT_PERIODS = [
   { value: '12', label: 'Últimos 12 meses' },
 ];
 
-function ReportBar({ pct }: { pct: number }) {
+// Barra do relatório: trilho do tema + cor da série (marca por padrão; perda/descarte usam a cor de estado).
+function ReportBar({ pct, cor = 'var(--chart-primary)' }: { pct: number; cor?: string }) {
   return (
-    <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-      <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: 'var(--accent)' }} />
+    <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
+      <div className="h-full rounded-full" style={{ width: `${Math.max(pct, 2)}%`, backgroundColor: cor }} />
     </div>
   );
 }
 
 function ReportKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
-    <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-      <p className="text-[11px] uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="text-lg font-bold mt-0.5" style={{ color: accent ?? 'var(--text-primary)' }}>{value}</p>
+    <div className="ui-inset p-4">
+      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="ui-big mt-1 !text-[24px]" style={{ color: accent ?? 'var(--text-primary)' }}>{value}</p>
     </div>
+  );
+}
+
+// Seção do relatório no padrão de card do design system.
+function ReportSecao({ titulo, nota, children }: { titulo: string; nota?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <section className="ui-card !p-5">
+      <h3 className="ui-h2 !text-[15px]">{titulo}</h3>
+      {nota && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{nota}</p>}
+      <div className="mt-3">{children}</div>
+    </section>
   );
 }
 
@@ -2329,19 +2203,21 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/50 overflow-y-auto" onClick={onClose}>
       <div
-        className="rounded-xl p-5 w-full max-w-3xl"
-        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
+        className="w-full max-w-4xl rounded-[22px] p-5 sm:p-6"
+        style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-md)', boxShadow: '0 30px 80px rgba(0,0,0,0.35)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <h2 className="text-base font-semibold flex-1" style={{ color: 'var(--text-primary)' }}>📊 Relatório de vendas</h2>
-          <Dropdown
-            className="w-fit min-w-[170px]"
-            value={months}
-            onChange={setMonths}
-            options={REPORT_PERIODS}
-          />
-          <button onClick={onClose} className="p-1.5 rounded-md" style={{ color: 'var(--text-muted)' }} aria-label="Fechar">✕</button>
+        <div className="flex flex-wrap items-end gap-3 mb-5">
+          <div className="flex-1 min-w-0">
+            <p className="eyebrow">RELATÓRIO DO CRM</p>
+            <h2 className="ui-h1 mt-1 !text-[26px]">Vendas</h2>
+          </div>
+          <div className="ui-seg" role="group" aria-label="Período">
+            {REPORT_PERIODS.map((p) => (
+              <button key={p.value} onClick={() => setMonths(p.value)} aria-pressed={months === p.value}>{p.label}</button>
+            ))}
+          </div>
+          <button onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm !px-2.5" aria-label="Fechar">✕</button>
         </div>
 
         {loading && !report ? (
@@ -2349,9 +2225,9 @@ function ReportModal({ onClose }: { onClose: () => void }) {
         ) : !report ? (
           <p className="text-sm py-10 text-center" style={{ color: 'var(--text-muted)' }}>Não foi possível carregar o relatório.</p>
         ) : (
-          <div className="space-y-6" style={{ opacity: loading ? 0.6 : 1 }}>
+          <div className="space-y-4" style={{ opacity: loading ? 0.6 : 1 }}>
             {/* KPIs do período */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <ReportKpi label="Vendas ganhas" value={String(t!.wonCount)} accent="var(--badge-success-text)" />
               <ReportKpi label="Receita fechada" value={fmtMoney(t!.wonValue)} accent="var(--badge-success-text)" />
               <ReportKpi label="Perdidas" value={String(t!.lostCount)} accent={t!.lostCount > 0 ? 'var(--badge-error-text)' : undefined} />
@@ -2361,12 +2237,10 @@ function ReportModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Conversão por etapa (coorte: vendas criadas no período) */}
-            <div>
-              <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Conversão por etapa</h3>
-              <p className="text-[11px] mb-2" style={{ color: 'var(--text-muted)' }}>
+            <ReportSecao titulo="Conversão por etapa" nota={<>
                 {t!.createdCount} venda{t!.createdCount === 1 ? '' : 's'} criada{t!.createdCount === 1 ? '' : 's'} no período · quantas passaram por cada etapa
-              </p>
-              <div className="space-y-1.5">
+              </>}>
+              <div className="space-y-2">
                 {report.stageFlow.map((s) => (
                   <div key={s.id} className="flex items-center gap-2 text-xs">
                     <span className="w-36 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{s.name}</span>
@@ -2377,7 +2251,7 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                     </span>
                   </div>
                 ))}
-                <div className="flex items-center gap-2 text-xs pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="flex items-center gap-2 text-xs pt-2" style={{ borderTop: '1px solid var(--border)' }}>
                   <span
                     className="w-36 shrink-0 font-semibold leading-tight"
                     style={{ color: 'var(--badge-success-text)' }}
@@ -2385,97 +2259,84 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                   >
                     Ganhas (das criadas no período)
                   </span>
-                  <ReportBar pct={(t!.cohortWon / maxReached) * 100} />
+                  <ReportBar pct={(t!.cohortWon / maxReached) * 100} cor="var(--badge-success-text)" />
                   <span className="w-8 text-right tabular-nums shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>{t!.cohortWon}</span>
                   <span className="w-12 shrink-0" />
                 </div>
               </div>
-            </div>
+            </ReportSecao>
 
             {/* Tempo médio por etapa */}
-            <div>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Tempo médio em cada etapa</h3>
+            <ReportSecao titulo="Tempo médio em cada etapa">
               <div className="flex flex-wrap gap-2">
                 {report.stageDurations.map((s) => (
                   <span
                     key={s.id}
-                    className="text-xs px-2.5 py-1.5 rounded-lg"
-                    style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    className="ui-inset inline-flex items-baseline gap-2 px-3 py-2 text-xs"
+                    style={{ color: 'var(--text-secondary)' }}
                     title={s.samples > 0 ? `${s.samples} passagem(ns) pela etapa` : 'Sem passagens no período'}
                   >
-                    {s.name}: <strong style={{ color: 'var(--text-primary)' }}>{s.avgDays !== null ? `${s.avgDays}d` : '—'}</strong>
+                    {s.name}
+                    <strong className="text-sm tabular-nums" style={{ color: 'var(--text-primary)' }}>{s.avgDays !== null ? `${s.avgDays}d` : '—'}</strong>
                   </span>
                 ))}
               </div>
-            </div>
+            </ReportSecao>
 
             {/* Motivos de perda */}
             {report.lostReasons.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Motivos de perda</h3>
-                <div className="space-y-1.5">
+              <ReportSecao titulo="Motivos de perda">
+                <div className="space-y-2">
                   {report.lostReasons.map((r) => (
                     <div key={r.reason} className="flex items-center gap-2 text-xs">
                       <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
-                      <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${(r.count / maxLost) * 100}%`, backgroundColor: 'var(--badge-error-text)' }} />
-                      </div>
+                      <ReportBar pct={(r.count / maxLost) * 100} cor="var(--badge-error-text)" />
                       <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </ReportSecao>
             )}
 
             {/* Leads descartados — separado das vendas de propósito: aqui não
                 houve venda nenhuma, é o contato que nunca virou conversa. */}
             {report.discards.total > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
-                  Leads descartados: {report.discards.total}
-                </h3>
-                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
+              <ReportSecao titulo={`Leads descartados: ${report.discards.total}`} nota={<>
                   Lead que não qualificou — não entra em venda perdida nem no win rate.
                   Muito &quot;clique errado no anúncio&quot; aqui é sinal de mídia, não de vendedor.
-                </p>
-                <div className="space-y-1.5">
+                </>}>
+                <div className="space-y-2">
                   {report.discards.reasons.map((r) => (
                     <div key={r.reason} className="flex items-center gap-2 text-xs">
                       <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
-                      <div className="h-2 rounded-full flex-1 overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-                        <div className="h-full rounded-full" style={{ width: `${(r.count / maxDiscard) * 100}%`, backgroundColor: 'var(--badge-warn-text)' }} />
-                      </div>
+                      <ReportBar pct={(r.count / maxDiscard) * 100} cor="var(--warn-mark)" />
                       <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
                     </div>
                   ))}
                 </div>
-              </div>
+              </ReportSecao>
             )}
 
             {/* Por cidade — de onde vem quem chega e onde o dinheiro fecha */}
             {report.cities.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Por cidade</h3>
-                <p className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>
-                  Leads = cards criados no período · Receita = vendas ganhas. Só conta card com cidade preenchida.
-                </p>
+              <ReportSecao titulo="Por cidade" nota="Leads = cards criados no período · Receita = vendas ganhas. Só conta card com cidade preenchida.">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="ui-table !text-[13px]">
                     <thead>
-                      <tr style={{ color: 'var(--text-muted)' }}>
-                        <th className="text-left font-medium py-1.5 pr-3">Cidade</th>
-                        <th className="text-right font-medium py-1.5 pr-3">Leads</th>
-                        <th className="text-right font-medium py-1.5 pr-3">Vendas</th>
-                        <th className="text-right font-medium py-1.5">Receita</th>
+                      <tr>
+                        <th>Cidade</th>
+                        <th className="ui-num">Leads</th>
+                        <th className="ui-num">Vendas</th>
+                        <th className="ui-num">Receita</th>
                       </tr>
                     </thead>
                     <tbody>
                       {report.cities.slice(0, cityRows).map((c) => (
-                        <tr key={c.label} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td className="py-1.5 pr-3" style={{ color: 'var(--text-primary)' }}>{c.label}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
-                          <td className="py-1.5 text-right tabular-nums font-semibold" style={{ color: c.wonValue > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
+                        <tr key={c.label}>
+                          <td>{c.label}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
+                          <td className="ui-num font-semibold" style={{ color: c.wonValue > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
                             {fmtMoney(c.wonValue)}
                           </td>
                         </tr>
@@ -2486,44 +2347,42 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                 {report.cities.length > cityRows && (
                   <button
                     onClick={() => setCityRows(report.cities.length)}
-                    className="text-xs mt-2"
-                    style={{ color: 'var(--accent)' }}
+                    className="ui-btn ui-btn-secondary ui-btn-sm mt-3"
                   >
-                    ver todas as {report.cities.length} cidades
+                    Ver todas as {report.cities.length} cidades
                   </button>
                 )}
-              </div>
+              </ReportSecao>
             )}
 
             {/* Por vendedor */}
             {report.sellers.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Por vendedor</h3>
+              <ReportSecao titulo="Por vendedor">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="ui-table !text-[13px]">
                     <thead>
-                      <tr style={{ color: 'var(--text-muted)' }}>
-                        <th className="text-left font-medium py-1.5 pr-3">Vendedor</th>
-                        <th className="text-right font-medium py-1.5 pr-3">Ganhas</th>
-                        <th className="text-right font-medium py-1.5 pr-3">Receita</th>
-                        <th className="text-right font-medium py-1.5 pr-3">Ticket médio</th>
-                        <th className="text-right font-medium py-1.5">Win rate</th>
+                      <tr>
+                        <th>Vendedor</th>
+                        <th className="ui-num">Ganhas</th>
+                        <th className="ui-num">Receita</th>
+                        <th className="ui-num">Ticket médio</th>
+                        <th className="ui-num">Win rate</th>
                       </tr>
                     </thead>
                     <tbody>
                       {report.sellers.map((s) => (
-                        <tr key={s.id ?? '_none'} style={{ borderTop: '1px solid var(--border)' }}>
-                          <td className="py-1.5 pr-3 font-medium" style={{ color: 'var(--text-primary)' }}>{s.name}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.wonCount}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums font-semibold" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(s.wonValue)}</td>
-                          <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.wonCount > 0 ? fmtMoney(s.avgTicket) : '—'}</td>
-                          <td className="py-1.5 text-right tabular-nums" style={{ color: 'var(--text-secondary)' }}>{s.winRate !== null ? `${s.winRate}%` : '—'}</td>
+                        <tr key={s.id ?? '_none'}>
+                          <td className="font-medium">{s.name}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount}</td>
+                          <td className="ui-num font-semibold" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(s.wonValue)}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount > 0 ? fmtMoney(s.avgTicket) : '—'}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.winRate !== null ? `${s.winRate}%` : '—'}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </ReportSecao>
             )}
           </div>
         )}
@@ -2532,15 +2391,12 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-const CARD_HEADER_BG = 'linear-gradient(135deg, #0e2f4b 0%, #14536e 100%)';
+const CARD_HEADER_BG = 'linear-gradient(160deg, var(--highlight), var(--bg-surface) 75%)';
 
-const TAG_COLORS = [
-  { bg: 'rgba(74,222,128,0.16)',  border: 'rgba(74,222,128,0.5)',  text: '#86efac' }, // verde
-  { bg: 'rgba(251,191,36,0.16)',  border: 'rgba(251,191,36,0.5)',  text: '#fcd34d' }, // âmbar
-  { bg: 'rgba(244,114,182,0.16)', border: 'rgba(244,114,182,0.5)', text: '#f9a8d4' }, // rosa
-  { bg: 'rgba(167,139,250,0.18)', border: 'rgba(167,139,250,0.5)', text: '#c4b5fd' }, // violeta
-  { bg: 'rgba(34,211,238,0.16)',  border: 'rgba(34,211,238,0.5)',  text: '#67e8f9' }, // ciano
-];
+// Cores por tema em globals.css (--tag-N-*): o texto pastel do escuro some no fundo claro.
+const TAG_COLORS = [1, 2, 3, 4, 5].map((n) => ({
+  bg: `var(--tag-${n}-bg)`, border: `var(--tag-${n}-border)`, text: `var(--tag-${n}-text)`,
+})); // verde, âmbar, rosa, violeta, ciano
 
 // Cor determinística por nome — a mesma tag tem sempre a mesma cor em qualquer card
 function tagColor(tag: string) {
@@ -2850,8 +2706,8 @@ function DrawerScheduledMessages({ clientId, clientName, refreshKey }: {
             <button
               onClick={() => void submit(false)}
               disabled={saving || !text.trim() || !date}
-              className="text-xs px-3 py-1.5 rounded-md font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: 'var(--accent)' }}
+              className="text-xs px-3 py-1.5 rounded-md font-medium text-[var(--on-accent)] disabled:opacity-60"
+              style={{ backgroundColor: 'var(--accent-fill)' }}
             >
               {saving ? '...' : 'Agendar'}
             </button>
@@ -3214,7 +3070,7 @@ function ClientDrawer(props: {
                 <div className="min-w-0 flex items-center gap-3">
                   <WaAvatar url={avatarUrl} name={detail.name} className="w-11 h-11 text-sm" />
                   <div className="min-w-0">
-                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#7dd3fc' }}>
+                    <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: 'var(--accent)' }}>
                       Card permanente · Cliente
                     </span>
                     {editingName ? (
@@ -3222,9 +3078,9 @@ function ClientDrawer(props: {
                         autoFocus
                         className="text-xl font-semibold mt-0.5 w-full rounded px-1.5 py-0.5 outline-none"
                         style={{
-                          color: '#ffffff',
-                          backgroundColor: 'rgba(255,255,255,0.14)',
-                          border: '1px solid rgba(255,255,255,0.35)',
+                          color: 'var(--text-primary)',
+                          backgroundColor: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-control)',
                         }}
                         value={nameDraft}
                         maxLength={120}
@@ -3245,10 +3101,10 @@ function ClientDrawer(props: {
                         className="group flex items-center gap-1.5 max-w-full text-left"
                         title="Clique para renomear o contato"
                       >
-                        <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: '#ffffff' }}>{detail.name}</h2>
+                        <h2 className="text-xl font-semibold truncate mt-0.5" style={{ color: 'var(--text-primary)' }}>{detail.name}</h2>
                         <span
                           className="text-xs opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          style={{ color: 'rgba(255,255,255,0.7)' }}
+                          style={{ color: 'var(--text-secondary)' }}
                           aria-hidden
                         >
                           ✎
@@ -3257,7 +3113,7 @@ function ClientDrawer(props: {
                     )}
                   </div>
                 </div>
-                <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'rgba(255,255,255,0.7)' }} aria-label="Fechar">
+                <button onClick={props.onClose} className="p-1.5 rounded-md shrink-0" style={{ color: 'var(--text-secondary)' }} aria-label="Fechar">
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -3275,7 +3131,7 @@ function ClientDrawer(props: {
                       style={{ backgroundColor: c.bg, color: c.text, border: `1px solid ${c.border}` }}
                     >
                       {tag}
-                      <button onClick={() => removeTag(tag)} aria-label={`Remover tag ${tag}`} style={{ color: 'rgba(255,255,255,0.55)' }}>×</button>
+                      <button onClick={() => removeTag(tag)} aria-label={`Remover tag ${tag}`} style={{ color: 'var(--text-muted)' }}>×</button>
                     </span>
                   );
                 })}
@@ -3284,7 +3140,7 @@ function ClientDrawer(props: {
                     <button
                       onClick={() => setAddingTag((v) => !v)}
                       className="text-[11px] px-2 py-0.5 rounded-md"
-                      style={{ border: '1px dashed rgba(255,255,255,0.4)', color: 'rgba(255,255,255,0.75)' }}
+                      style={{ border: '1px dashed var(--border-control)', color: 'var(--text-secondary)' }}
                     >
                       + tag
                     </button>
@@ -3295,7 +3151,7 @@ function ClientDrawer(props: {
                       return (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setAddingTag(false)} />
-                          <div className="absolute z-20 mt-1 left-0 w-44 max-h-56 overflow-y-auto rounded-lg p-1" style={popoverPanel}>
+                          <div className="ui-menu absolute z-20 mt-1 left-0 w-44 max-h-56 overflow-y-auto">
                             {available.length === 0 ? (
                               <p className="text-[11px] px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>Todas as tags já foram atribuídas.</p>
                             ) : available.map((t) => (
@@ -3314,7 +3170,7 @@ function ClientDrawer(props: {
                     })()}
                   </div>
                 ) : (
-                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                     Configure em ⚙ Configurar → Tags
                   </span>
                 )}
@@ -3331,22 +3187,20 @@ function ClientDrawer(props: {
                 const stageName = outcome === 'WON' ? 'Venda ganha'
                   : outcome === 'LOST' ? 'Venda perdida'
                   : (stages.find((st) => st.id === detail.stageId)?.name ?? 'Sem etapa');
-                // Nome da etapa ativa segue a cor da própria etapa (mesma do kanban)
-                const activeColor = activeIdx >= 0 ? stageColor(stages[activeIdx]!) : null;
-                const nameColor = outcome === 'WON' ? '#4ade80'
-                  : outcome === 'LOST' ? '#f87171'
-                  : activeColor ?? 'rgba(255,255,255,0.6)';
+                // Etapa ativa no padrão do design system: texto do tema e barra na cor da marca.
+                const nameColor = outcome === 'WON' ? 'var(--badge-success-text)'
+                  : outcome === 'LOST' ? 'var(--badge-error-text)'
+                  : activeIdx >= 0 ? 'var(--text-primary)' : 'var(--text-muted)';
                 return (
                   <div className="mt-3">
-                    <p className="text-[10px] uppercase tracking-widest" style={{ color: 'rgba(255,255,255,0.55)' }}>Funil de Vendas</p>
+                    <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>Funil de Vendas</p>
                     <p className="text-sm font-semibold mt-0.5" style={{ color: nameColor }}>{stageName}</p>
                     <div className="flex gap-1 mt-1.5">
                       {stages.map((st, i) => {
-                        // Cada segmento preenchido usa a cor da SUA etapa (segue o dashboard)
-                        const filled = outcome === 'WON' ? '#4ade80'
-                          : outcome === 'LOST' ? '#f87171'
-                          : activeIdx >= 0 && i <= activeIdx ? stageColor(st)
-                          : 'rgba(255,255,255,0.22)';
+                        const filled = outcome === 'WON' ? 'var(--badge-success-text)'
+                          : outcome === 'LOST' ? 'var(--badge-error-text)'
+                          : activeIdx >= 0 && i <= activeIdx ? 'var(--accent)'
+                          : 'var(--border-md)';
                         return <span key={st.id} title={st.name} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: filled }} />;
                       })}
                     </div>
@@ -3372,8 +3226,7 @@ function ClientDrawer(props: {
                   <button
                     onClick={async () => { setTriageBusy(true); try { await props.onAcceptTriage(); } finally { setTriageBusy(false); } }}
                     disabled={triageBusy}
-                    className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                    className="ui-btn ui-btn-tint ui-btn-sm flex-1 !py-1.5 !text-xs"
                     title="Coloca o contato no funil, na primeira etapa"
                   >
                     Aceitar
@@ -3381,8 +3234,7 @@ function ClientDrawer(props: {
                   <button
                     onClick={props.onDiscard}
                     disabled={triageBusy}
-                    className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                    style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                    className="ui-btn ui-btn-secondary ui-btn-sm flex-1 !py-1.5 !text-xs"
                     title="Lead não qualificado — pede o motivo e não cria venda nenhuma"
                   >
                     Descartar
@@ -3430,8 +3282,7 @@ function ClientDrawer(props: {
                     <button
                       onClick={async () => { setReturningBusy(true); try { await props.onReopen(); } finally { setReturningBusy(false); } }}
                       disabled={returningBusy}
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
+                      className="ui-btn ui-btn-tint ui-btn-sm flex-1 !py-1.5 !text-xs"
                       title="Devolve o card pro Novo Lead (recompra)"
                     >
                       Aceitar no funil
@@ -3439,8 +3290,7 @@ function ClientDrawer(props: {
                     <button
                       onClick={async () => { setReturningBusy(true); try { await props.onDismissReturning(); } finally { setReturningBusy(false); } }}
                       disabled={returningBusy}
-                      className="flex-1 rounded-md py-1.5 text-xs font-medium transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }}
+                      className="ui-btn ui-btn-secondary ui-btn-sm flex-1 !py-1.5 !text-xs"
                       title="Só dúvida do pedido anterior — dispensa da lista (não arquiva)"
                     >
                       Dispensar
@@ -3670,8 +3520,8 @@ function ClientDrawer(props: {
               </h3>
               <button
                 onClick={props.onNewSale}
-                className="text-xs px-2.5 py-1.5 rounded-md font-medium text-white"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="text-xs px-2.5 py-1.5 rounded-md font-medium text-[var(--on-accent)]"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
               >
                 + Nova venda
               </button>
@@ -3842,8 +3692,8 @@ function ClientDrawer(props: {
                 <button
                   onClick={() => void submitNote()}
                   disabled={savingNote}
-                  className="text-xs px-3 py-1.5 rounded-md font-medium text-white self-end disabled:opacity-60"
-                  style={{ backgroundColor: 'var(--accent)' }}
+                  className="text-xs px-3 py-1.5 rounded-md font-medium text-[var(--on-accent)] self-end disabled:opacity-60"
+                  style={{ backgroundColor: 'var(--accent-fill)' }}
                 >
                   {savingNote ? '...' : 'Salvar'}
                 </button>
@@ -4187,7 +4037,7 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
                     className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
                     style={connected
                       ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
-                      : { backgroundColor: 'var(--accent)', color: '#fff' }}
+                      : { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
                   >
                     {connected ? 'Desconectar' : 'Conectar'}
                   </button>
@@ -4215,7 +4065,7 @@ function WhatsappConnectButton({ showToast }: { showToast: (type: 'success' | 'e
                       className="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-60"
                       style={orgConectado
                         ? { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' }
-                        : { backgroundColor: 'var(--accent)', color: '#fff' }}
+                        : { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
                     >
                       {orgConectado ? 'Desconectar' : 'Conectar'}
                     </button>
@@ -4425,8 +4275,8 @@ function WaAudioPlayer({ src }: { src: string }) {
       <button
         onClick={toggle}
         aria-label={playing ? 'Pausar áudio' : 'Ouvir áudio'}
-        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white"
-        style={{ backgroundColor: 'var(--accent)' }}
+        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[var(--on-accent)]"
+        style={{ backgroundColor: 'var(--accent-fill)' }}
       >
         {playing ? (
           <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
@@ -5243,7 +5093,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
                 <button
                   onClick={() => { void onAssumir(); }}
                   className="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
-                  style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                  style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
                   title={responsibleName ? `Assumir de ${responsibleName} e responder` : 'Assumir este card e responder'}
                 >
                   Assumir e responder
@@ -5393,8 +5243,8 @@ function NoteEditor({ initial, onSave, onCancel }: {
         <button
           onClick={() => void salvar()}
           disabled={salvando}
-          className="text-[10px] font-medium rounded px-2 py-1 text-white disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="text-[10px] font-medium rounded px-2 py-1 text-[var(--on-accent)] disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
         >
           {salvando ? '...' : 'Salvar'}
         </button>
@@ -5499,8 +5349,8 @@ function QuickRepliesEditorModal({ onClose, onSaved }: { onClose: () => void; on
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar respostas'}
           </button>
@@ -5674,8 +5524,8 @@ function ImportClientsModal({ onClose, onDone }: {
       <button
         onClick={() => void doImport()}
         disabled={!parsed || importing}
-        className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-        style={{ backgroundColor: 'var(--accent)' }}
+        className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+        style={{ backgroundColor: 'var(--accent-fill)' }}
       >
         {importing ? 'Importando...' : `Importar${parsed ? ` ${parsed.rows.length} cliente(s)` : ''}`}
       </button>
@@ -5760,8 +5610,8 @@ function NewClientModal({ onClose, onSaved }: {
         <button
           onClick={save}
           disabled={saving}
-          className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
         >
           {saving ? 'Salvando...' : 'Criar cliente'}
         </button>
@@ -5855,8 +5705,8 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
         <button
           onClick={save}
           disabled={saving || segMismatch}
-          className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
         >
           {saving ? 'Salvando...' : 'Registrar venda'}
         </button>
@@ -6074,8 +5924,8 @@ function DiscardReasonsEditorModal({ onClose, onSaved, onError }: {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar motivos'}
           </button>
@@ -6157,8 +6007,8 @@ function LostReasonsEditorModal({ onClose, onSaved, onError }: {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar motivos'}
           </button>
@@ -6240,8 +6090,8 @@ function ClientTypesEditorModal({ onClose, onSaved, onError }: {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar tipos'}
           </button>
@@ -6324,8 +6174,8 @@ function TagsEditorModal({ onClose, onSaved, onError }: {
           <button
             onClick={save}
             disabled={saving}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar tags'}
           </button>
@@ -6435,8 +6285,8 @@ function StagesEditorModal({ stages, onClose, onSaved, onError }: {
       <button
         onClick={save}
         disabled={saving}
-        className="w-full py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-60"
-        style={{ backgroundColor: 'var(--accent)' }}
+        className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+        style={{ backgroundColor: 'var(--accent-fill)' }}
       >
         {saving ? 'Salvando...' : 'Salvar funil'}
       </button>

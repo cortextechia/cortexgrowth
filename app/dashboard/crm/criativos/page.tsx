@@ -16,7 +16,6 @@
 // Só ADMIN/gestor.
 
 import { useState, useEffect, useCallback } from 'react';
-import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type { CrmAdCreative, CrmAdNumber, CrmAdPlatform } from '@/types';
@@ -28,14 +27,11 @@ const input = { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--
 
 // Regra do design system: as cores de plataforma não têm contraste no tema claro
 // quando usadas como texto — alterna por tema em vez de fixar o hex.
-function platformStyle(p: CrmAdPlatform, isDark: boolean) {
-  if (p === 'GOOGLE') {
-    return { label: 'Google', color: isDark ? '#6ee7b7' : '#047857', bg: isDark ? 'rgba(110,231,183,0.12)' : 'rgba(4,120,87,0.10)' };
-  }
-  if (p === 'LINK_BIO') {
-    return { label: 'Link da bio', color: isDark ? '#d8b4fe' : '#7e22ce', bg: isDark ? 'rgba(216,180,254,0.12)' : 'rgba(126,34,206,0.10)' };
-  }
-  return { label: 'Meta', color: isDark ? '#a5b4fc' : '#4338ca', bg: isDark ? 'rgba(165,180,252,0.12)' : 'rgba(67,56,202,0.10)' };
+// Selo do design system: anúncio pago em limão, link da bio em tom suave (mesma regra do card do CRM).
+function platformStyle(p: CrmAdPlatform) {
+  if (p === 'GOOGLE') return { label: 'Google', badge: 'ui-badge-lime' };
+  if (p === 'LINK_BIO') return { label: 'Link da bio', badge: 'ui-badge-tint' };
+  return { label: 'Meta', badge: 'ui-badge-lime' };
 }
 
 function fmtPhone(digits: string | null): string {
@@ -48,8 +44,6 @@ function fmtPhone(digits: string | null): string {
 
 export default function CrmCriativosPage() {
   const { user } = useAuth();
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
   const isAdmin = !!user && ADMIN_ROLES.includes(user.role);
 
   const [list, setList] = useState<CrmAdCreative[]>([]);
@@ -183,8 +177,8 @@ export default function CrmCriativosPage() {
       {/* Cabeçalho */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Rastreio de criativos</h1>
-          <p className="mt-1 max-w-xl text-sm" style={{ color: 'var(--text-muted)' }}>
+          <h1 className="ui-h1">Rastreio de criativos</h1>
+          <p className="ui-sub">
             Descubra qual anúncio traz mais leads. Anúncios de WhatsApp da Meta são
             reconhecidos sozinhos; para Google e outros links, use a frase de cada criativo.
           </p>
@@ -194,16 +188,14 @@ export default function CrmCriativosPage() {
             <button
               onClick={() => void sincronizarNomes()}
               disabled={syncing}
-              className="rounded-lg px-3 py-2 text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-60"
-              style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+              className="ui-btn ui-btn-secondary ui-btn-sm"
             >
               {syncing ? 'Buscando…' : 'Buscar nomes na Meta'}
             </button>
           )}
           <button
             onClick={() => setOpen(true)}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="ui-btn ui-btn-primary ui-btn-sm"
           >
             Novo criativo
           </button>
@@ -218,9 +210,9 @@ export default function CrmCriativosPage() {
             { rotulo: 'Criativos ativos', valor: ativos },
             { rotulo: 'Melhor criativo', valor: lider, sufixo: lider === 1 ? 'lead' : 'leads' },
           ].map((k) => (
-            <div key={k.rotulo} className="rounded-xl p-4" style={card}>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{k.rotulo}</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+            <div key={k.rotulo} className="ui-card">
+              <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>{k.rotulo}</p>
+              <p className="ui-big mt-1.5">
                 {k.valor}
                 {k.sufixo && <span className="ml-1 text-xs font-normal" style={{ color: 'var(--text-muted)' }}>{k.sufixo}</span>}
               </p>
@@ -232,17 +224,15 @@ export default function CrmCriativosPage() {
       {/* Lista */}
       <div className="mt-5 space-y-3">
         {loading && (
-          <div className="rounded-xl p-6 text-center text-sm" style={{ ...card, color: 'var(--text-muted)' }}>
+          <div className="ui-card text-center text-sm" style={{ color: 'var(--text-muted)' }}>
             Carregando…
           </div>
         )}
 
         {!loading && list.length === 0 && (
-          <div className="rounded-xl p-6" style={card}>
-            <p className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
-              Comece rastreando seu primeiro criativo
-            </p>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+          <div className="ui-card ui-card-hl !p-6">
+            <h2 className="ui-h2">Comece rastreando seu primeiro criativo</h2>
+            <p className="mt-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
               Hoje os leads que chegam pelo WhatsApp entram sem origem — e ficam de fora do ROAS.
               Com um link por criativo, você passa a saber de qual anúncio veio cada um.
             </p>
@@ -253,12 +243,7 @@ export default function CrmCriativosPage() {
                 'O lead manda a mensagem já preenchida e aparece aqui, contado.',
               ].map((passo, i) => (
                 <li key={i} className="flex gap-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                  <span
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                    style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
-                  >
-                    {i + 1}
-                  </span>
+                  <span className="ui-badge ui-badge-lime h-5 min-w-5 justify-center !rounded-full shrink-0">{i + 1}</span>
                   {passo}
                 </li>
               ))}
@@ -267,26 +252,22 @@ export default function CrmCriativosPage() {
         )}
 
         {ranked.map((c) => {
-          const p = platformStyle(c.platform, isDark);
+          const p = platformStyle(c.platform);
           const pct = lider > 0 ? Math.round((c.leads / lider) * 100) : 0;
           return (
-            <div key={c.id} className="rounded-xl p-4" style={{ ...card, opacity: c.active ? 1 : 0.55 }}>
+            <div key={c.id} className="ui-card" style={{ opacity: c.active ? 1 : 0.55 }}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{c.name}</span>
-                    <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: p.bg, color: p.color }}>
-                      {p.label}
-                    </span>
+                    <span className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{c.name}</span>
+                    <span className={`ui-badge ${p.badge}`}>{p.label.toUpperCase()}</span>
                     {c.autoCreated && (
-                      <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}>
-                        Detectado — confira o nome
+                      <span className="ui-badge" style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}>
+                        DETECTADO — CONFIRA O NOME
                       </span>
                     )}
                     {!c.active && (
-                      <span className="rounded-full px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}>
-                        Pausado
-                      </span>
+                      <span className="ui-chip">PAUSADO</span>
                     )}
                   </div>
                   {(c.campaignName || c.destPhone) && (
@@ -299,51 +280,42 @@ export default function CrmCriativosPage() {
                 </div>
 
                 <div className="text-right">
-                  <p className="text-2xl font-bold leading-none tabular-nums" style={{ color: 'var(--text-primary)' }}>{c.leads}</p>
+                  <p className="ui-big !leading-none">{c.leads}</p>
                   <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{c.leads === 1 ? 'lead' : 'leads'}</p>
                 </div>
               </div>
 
               {/* A barra é a comparação: proporcional ao líder, não ao total */}
-              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border-md)' }}>
-                <div
-                  className="h-full rounded-full transition-[width] duration-700"
-                  style={{ width: `${pct}%`, backgroundColor: c.leads > 0 ? 'var(--accent)' : 'transparent' }}
-                />
+              <div className="ui-bar mt-4">
+                <span className="transition-[width] duration-700" style={{ width: `${pct}%`, visibility: c.leads > 0 ? 'visible' : 'hidden' }} />
               </div>
 
               {/* Link + ações. O link só existe para o rastreio por frase — criativo
                   reconhecido pelo próprio anúncio não precisa de link nenhum. */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {c.message && <code
-                  className="min-w-0 flex-1 truncate rounded-lg px-2.5 py-1.5 text-xs"
-                  style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' }}
+                  className="ui-inset min-w-0 flex-1 truncate px-3 py-2 text-xs"
+                  style={{ color: 'var(--text-secondary)' }}
                   title={c.waLink ?? 'Escolha um número de destino'}
                 >
                   {c.waLink ?? 'Sem número de destino — edite para gerar o link'}
                 </code>}
                 {c.message && <button
                   onClick={() => void copiar(c)}
-                  className="rounded-lg px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
-                  style={
-                    copied === c.id
-                      ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }
-                      : { backgroundColor: 'var(--accent)', color: '#fff' }
-                  }
+                  className="ui-btn ui-btn-primary ui-btn-sm"
+                  style={copied === c.id ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' } : undefined}
                 >
                   {copied === c.id ? 'Copiado' : 'Copiar link'}
                 </button>}
                 <button
                   onClick={() => void alternarAtivo(c)}
-                  className="rounded-lg px-3 py-1.5 text-xs transition-colors"
-                  style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+                  className="ui-btn ui-btn-secondary ui-btn-sm"
                 >
                   {c.active ? 'Pausar' : 'Reativar'}
                 </button>
                 <button
                   onClick={() => void remover(c)}
-                  className="rounded-lg px-3 py-1.5 text-xs transition-colors"
-                  style={{ border: '1px solid var(--border-md)', color: 'var(--badge-error-text)' }}
+                  className="ui-btn ui-btn-danger ui-btn-sm"
                 >
                   Remover
                 </button>
@@ -432,16 +404,14 @@ export default function CrmCriativosPage() {
             <label className="mt-3 block text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Plataforma</label>
             <div className="mt-1 flex gap-2">
               {(['META', 'GOOGLE', 'LINK_BIO'] as CrmAdPlatform[]).map((op) => {
-                const st = platformStyle(op, isDark);
+                const st = platformStyle(op);
                 const sel = platform === op;
                 return (
                   <button
                     key={op}
                     onClick={() => setPlatform(op)}
-                    className="flex-1 rounded-lg py-2 text-sm font-semibold transition-all"
-                    style={sel
-                      ? { backgroundColor: st.bg, color: st.color, border: `1px solid ${st.color}` }
-                      : { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)', border: '1px solid var(--border-md)' }}
+                    aria-pressed={sel}
+                    className={`ui-btn ui-btn-sm flex-1 ${sel ? 'ui-btn-primary' : 'ui-btn-secondary'}`}
                   >
                     {st.label}
                   </button>
@@ -485,16 +455,14 @@ export default function CrmCriativosPage() {
             <div className="mt-5 flex gap-2">
               <button
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-lg py-2 text-sm"
-                style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
+                className="ui-btn ui-btn-secondary flex-1"
               >
                 Cancelar
               </button>
               <button
                 onClick={() => void criar()}
                 disabled={saving}
-                className="flex-1 rounded-lg py-2 text-sm font-semibold text-white disabled:opacity-60"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="ui-btn ui-btn-primary flex-1"
               >
                 {saving ? 'Criando…' : 'Criar criativo'}
               </button>

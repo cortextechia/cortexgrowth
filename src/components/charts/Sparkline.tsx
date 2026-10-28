@@ -18,7 +18,18 @@ export default function Sparkline({
   animKey = 0,
 }: SparklineProps) {
   const pathRef = useRef<SVGPathElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const [pathLen, setPathLen] = useState(0);
+  // Desenha na largura real do card. Com viewBox fixo + preserveAspectRatio="none" o SVG era
+  // esticado só na horizontal: os trechos inclinados engrossavam e o ponto final virava elipse.
+  const [boxW, setBoxW] = useState(width);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => { if (e && e.contentRect.width > 0) setBoxW(e.contentRect.width); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const id = `spark-${color.replace(/[^a-z0-9]/gi, '')}-${Math.random().toString(36).slice(2, 6)}`;
 
   const pts = (() => {
@@ -26,7 +37,7 @@ export default function Sparkline({
     const min = Math.min(...data);
     const max = Math.max(...data);
     const range = max - min || 1;
-    const stepX = width / (data.length - 1);
+    const stepX = boxW / (data.length - 1);
     return data.map((v, i) => [
       i * stepX,
       height - ((v - min) / range) * (height - 6) - 3,
@@ -35,25 +46,25 @@ export default function Sparkline({
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
   const areaPath = pts.length
-    ? `${linePath} L${width},${height} L0,${height} Z`
+    ? `${linePath} L${boxW},${height} L0,${height} Z`
     : '';
 
   useEffect(() => {
     if (pathRef.current) setPathLen(pathRef.current.getTotalLength());
-  }, [animKey, data.length]);
+  }, [animKey, data.length, boxW]);
 
   if (pts.length < 2) return null;
 
   return (
+    <div ref={boxRef} style={{ width: '100%', height }}>
     <svg
       key={animKey}
-      viewBox={`0 0 ${width} ${height}`}
-      preserveAspectRatio="none"
-      style={{ width: '100%', height }}
+      viewBox={`0 0 ${boxW} ${height}`}
+      style={{ width: '100%', height, display: 'block' }}
     >
       <defs>
         <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.18" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
         <style>{`
@@ -90,5 +101,6 @@ export default function Sparkline({
         />
       )}
     </svg>
+    </div>
   );
 }

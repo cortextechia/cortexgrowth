@@ -298,7 +298,7 @@ function CreateScheduleModal({ onClose, onCreated }: { onClose: () => void; onCr
             Cancelar
           </button>
           <button onClick={handleSubmit} disabled={loading} className="flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: 'var(--accent)', color: '#fff', opacity: loading ? 0.6 : 1 }}>
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: loading ? 0.6 : 1 }}>
             {loading ? 'Criando...' : 'Criar agendamento'}
           </button>
         </div>
@@ -338,11 +338,7 @@ function ScheduleRow({ schedule, onToggle, onDelete, onSendNow }: {
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{describeSchedule(schedule)}</p>
           </div>
         </div>
-        {/* Toggle: knob branco funciona em ambos os temas */}
-        <button onClick={onToggle} className="shrink-0 rounded-full transition-colors relative"
-          style={{ width: 32, height: 18, backgroundColor: schedule.isActive ? 'var(--accent)' : 'var(--border-md)' }}>
-          <span style={{ position: 'absolute', top: 2, left: schedule.isActive ? 16 : 2, width: 14, height: 14, borderRadius: '50%', backgroundColor: '#fff', transition: 'left 0.15s' }} />
-        </button>
+        <button type="button" role="switch" aria-checked={schedule.isActive} aria-label="Agendamento ativo" onClick={onToggle} className="ui-switch" />
       </div>
 
       {lastLog && (
@@ -433,7 +429,7 @@ export default function ClientReportsModal({ clientName, onClose }: {
               <button
                 onClick={() => setShowCreate(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                style={{ backgroundColor: 'var(--accent)', color: '#fff' }}
+                style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
               >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                 Novo

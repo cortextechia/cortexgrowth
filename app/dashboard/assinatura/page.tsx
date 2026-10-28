@@ -39,7 +39,7 @@ function Kpi({ titulo, valor, nota, cor }: { titulo: string; valor: string; nota
   return (
     <div className="rounded-xl p-4" style={card}>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{titulo}</p>
-      <p className="mt-1 text-2xl font-bold" style={{ color: cor ?? 'var(--text-primary)' }}>{valor}</p>
+      <p className="mt-1 ui-big" style={{ color: cor ?? 'var(--text-primary)' }}>{valor}</p>
       {nota && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{nota}</p>}
     </div>
   );
@@ -125,7 +125,7 @@ export default function AssinaturaPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Assinatura</h1>
+        <h1 className="ui-h1">Assinatura</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
           Seu plano, o que já foi pago e quanto tempo resta de acesso.
         </p>

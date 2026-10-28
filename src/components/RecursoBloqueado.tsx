@@ -38,7 +38,7 @@ export function RecursoBloqueado({ titulo, texto, compacto = false }: { titulo: 
       {podeAssinar ? (
         <Link href="/dashboard/assinatura"
           className="shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-center"
-          style={{ backgroundColor: 'var(--accent)', color: '#ffffff' }}>
+          style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
           Ver planos
         </Link>
       ) : (

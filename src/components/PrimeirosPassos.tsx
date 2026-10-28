@@ -98,7 +98,7 @@ export function PrimeirosPassos() {
             {prontos} de {passos.length} concluídos — o painel fica completo quando os dados chegarem.
           </p>
         </div>
-        <span className="text-2xl font-extrabold tabular-nums" style={{ color: 'var(--accent)' }}>{pct}%</span>
+        <span className="ui-big tabular-nums" style={{ color: 'var(--accent)' }}>{pct}%</span>
       </div>
 
       <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border-md)' }}>

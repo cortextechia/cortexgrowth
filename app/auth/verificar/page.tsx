@@ -36,14 +36,14 @@ function Conteudo() {
       titulo={estado === 'verificando' ? 'Confirmando…' : estado === 'ok' ? 'E-mail confirmado' : 'Não deu certo'}
       tom={estado === 'ok' ? 'sucesso' : estado === 'erro' ? 'erro' : 'neutro'}
     >
-      <p className="text-sm" style={{ color: '#94a3b8' }}>
+      <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
         {estado === 'verificando' ? 'Validando seu link…' : mensagem}
       </p>
 
       {estado !== 'verificando' && (
         <Link href="/auth/login"
-          className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-white"
-          style={{ backgroundColor: '#3b82f6' }}>
+          className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-[var(--on-accent)]"
+          style={{ backgroundColor: 'var(--accent-fill)' }}>
           Ir para o login
         </Link>
       )}

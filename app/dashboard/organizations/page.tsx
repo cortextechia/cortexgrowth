@@ -20,7 +20,7 @@ const PLAN_BADGE_STYLE: Record<Plan, React.CSSProperties> = {
   DEMO:         { backgroundColor: 'var(--plano-demo-soft)', color: 'var(--plano-demo)' },
   CRM:          { backgroundColor: 'var(--plano-pro-soft)',  color: 'var(--plano-pro)' },
   STARTER:      { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
-  PROFESSIONAL: { backgroundColor: 'rgba(139,92,246,0.12)',  color: '#8b5cf6' },
+  PROFESSIONAL: { backgroundColor: 'var(--accent-dim)',  color: 'var(--accent)' },
   ENTERPRISE:   { backgroundColor: 'var(--badge-warn-bg)',   color: 'var(--badge-warn-text)' },
 };
 
@@ -37,11 +37,11 @@ const STATUS_LABEL: Record<OrgStatus, string> = {
 };
 
 const ROLE_BADGE_STYLE: Record<UserRole, React.CSSProperties> = {
-  SUPER_ADMIN:     { backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
+  SUPER_ADMIN:     { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' },
   ADMIN:           { backgroundColor: 'var(--accent-dim)',      color: 'var(--accent)' },
   USER:            { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-secondary)' },
   VIEWER:          { backgroundColor: 'var(--bg-elevated)',     color: 'var(--text-muted)' },
-  TRAFFIC_MANAGER: { backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
+  TRAFFIC_MANAGER: { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' },
 };
 
 const USER_STATUS_BADGE_STYLE: Record<UserStatus, React.CSSProperties> = {
@@ -392,14 +392,14 @@ export default function OrganizationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Administração</h1>
+          <h1 className="ui-h1">Administração</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Gerencie clientes e gestores de tráfego.</p>
         </div>
         {activeTab === 'orgs' && (
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--accent)' }}
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {showCreate ? 'Cancelar' : '+ Nova Org'}
           </button>
@@ -407,8 +407,8 @@ export default function OrganizationsPage() {
         {activeTab === 'managers' && (
           <button
             onClick={() => setShowCreateManager(!showCreateManager)}
-            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'rgba(139,92,246,0.9)' }}
+            className="shrink-0 flex items-center gap-2 rounded-lg px-3 sm:px-4 py-2 text-sm font-medium text-[var(--on-accent)] transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {showCreateManager ? 'Cancelar' : '+ Novo Gestor'}
           </button>
@@ -489,8 +489,8 @@ export default function OrganizationsPage() {
               <button
                 type="submit"
                 disabled={isCreating}
-                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
               >
                 {isCreating && <Spinner />}
                 {isCreating ? 'Criando...' : 'Criar organização'}
@@ -819,8 +819,8 @@ export default function OrganizationsPage() {
               <button
                 onClick={() => void handleSave()}
                 disabled={isSaving}
-                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
               >
                 {isSaving && <Spinner />}
                 {isSaving ? 'Salvando...' : 'Salvar'}
@@ -948,8 +948,8 @@ export default function OrganizationsPage() {
                     <button
                       type="submit"
                       disabled={usersModal.isCreating}
-                      className="flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium text-white disabled:opacity-60 transition-opacity hover:opacity-80"
-                      style={{ backgroundColor: 'var(--accent)' }}
+                      className="flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-medium text-[var(--on-accent)] disabled:opacity-60 transition-opacity hover:opacity-80"
+                      style={{ backgroundColor: 'var(--accent-fill)' }}
                     >
                       {usersModal.isCreating && <Spinner className="h-3 w-3" />}
                       {usersModal.isCreating ? 'Criando...' : 'Criar usuário'}
@@ -968,8 +968,8 @@ export default function OrganizationsPage() {
                   onClick={() => !modalAtLimit && setUsersModal((p) => p ? { ...p, showCreate: true } : p)}
                   disabled={modalAtLimit}
                   title={modalAtLimit ? `Limite de ${fmtUserLimit(modalLimit)} usuário(s) do plano ${usersModal.org.plan} atingido.` : undefined}
-                  className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: 'var(--accent)' }}
+                  className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium text-[var(--on-accent)] transition-opacity hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'var(--accent-fill)' }}
                 >
                   + Adicionar usuário
                 </button>
@@ -987,7 +987,7 @@ export default function OrganizationsPage() {
           {showCreateManager && (
             <div
               className="mb-6 rounded-xl p-6 shadow-sm"
-              style={{ border: '1px solid rgba(139,92,246,0.2)', backgroundColor: 'var(--bg-surface)' }}
+              style={{ border: '1px solid var(--accent-line)', backgroundColor: 'var(--bg-surface)' }}
             >
               <h2 className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>Novo Gestor de Tráfego</h2>
               <form onSubmit={(e) => { e.preventDefault(); void handleCreateManager(); }} className="space-y-4">
@@ -1034,8 +1034,8 @@ export default function OrganizationsPage() {
                   <button
                     type="submit"
                     disabled={isCreatingManager}
-                    className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
-                    style={{ backgroundColor: 'rgba(139,92,246,0.9)' }}
+                    className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60 disabled:cursor-not-allowed transition-opacity hover:opacity-80"
+                    style={{ backgroundColor: 'var(--accent-fill)' }}
                   >
                     {isCreatingManager && <Spinner />}
                     {isCreatingManager ? 'Criando...' : 'Criar gestor'}
@@ -1054,8 +1054,8 @@ export default function OrganizationsPage() {
               className="rounded-xl shadow-sm flex flex-col items-center justify-center py-14 text-center"
               style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
             >
-              <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(139,92,246,0.1)' }}>
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: '#8b5cf6' }}>
+              <div className="h-10 w-10 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'var(--accent-dim)' }}>
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ color: 'var(--accent)' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
                 </svg>
               </div>
@@ -1079,7 +1079,7 @@ export default function OrganizationsPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div
                           className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold"
-                          style={{ backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}
+                          style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
                         >
                           {manager.name.charAt(0).toUpperCase()}
                         </div>
@@ -1096,7 +1096,7 @@ export default function OrganizationsPage() {
                           onClick={() => setClientsModal(isOpen ? null : { manager })}
                           className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
                           style={isOpen
-                            ? { border: '1px solid #8b5cf6', color: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.06)' }
+                            ? { border: '1px solid var(--accent)', color: 'var(--accent)', backgroundColor: 'var(--accent-dim)' }
                             : { border: '1px solid var(--border)', color: 'var(--text-secondary)' }
                           }
                         >

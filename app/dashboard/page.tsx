@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, Fragment } from 'react';
+import { useEffect, useRef, useState, useMemo, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
@@ -53,15 +53,17 @@ const CONTACT_STATUSES = [
 const PIPELINE_NEGOTIATION_STATUSES = [...QUOTE_STATUSES, ...NEGOTIATION_STATUSES];
 
 // Origens do card do CRM Cortex (enum `CrmOrigin`), na ordem e com o rótulo da tela do CRM.
+// Cores = paleta de gráfico do tema (globals.css): Meta na cor da marca, Google em grafite,
+// WhatsApp e Indicação nas duas categóricas; o resto fica neutro (o rótulo identifica).
 const ORIGENS_CRM = [
-  { key: 'META',      label: 'Meta Ads',    color: '#818cf8' },
-  { key: 'GOOGLE',    label: 'Google Ads',  color: '#34d399' },
-  { key: 'WHATSAPP',  label: 'WhatsApp',    color: '#4ade80' },
-  { key: 'INDICACAO', label: 'Indicação',   color: '#fbbf24' },
-  { key: 'FACHADA',   label: 'Na loja',     color: '#f472b6' },
-  { key: 'LINK_BIO',  label: 'Link da bio', color: '#c084fc' },
-  { key: 'INSTAGRAM', label: 'Direct do Instagram', color: '#fb7185' },
-  { key: 'ORGANICO',  label: 'Orgânico',    color: '#22d3ee' },
+  { key: 'META',      label: 'Meta Ads',    color: 'var(--chart-primary)' },
+  { key: 'GOOGLE',    label: 'Google Ads',  color: 'var(--chart-secondary)' },
+  { key: 'WHATSAPP',  label: 'WhatsApp',    color: 'var(--chart-4)' },
+  { key: 'INDICACAO', label: 'Indicação',   color: 'var(--chart-tertiary)' },
+  { key: 'FACHADA',   label: 'Na loja',     color: 'var(--text-muted)' },
+  { key: 'LINK_BIO',  label: 'Link da bio', color: 'var(--text-muted)' },
+  { key: 'INSTAGRAM', label: 'Direct do Instagram', color: 'var(--text-muted)' },
+  { key: 'ORGANICO',  label: 'Orgânico',    color: 'var(--text-muted)' },
   { key: 'OUTRO',     label: 'Outro',       color: 'var(--text-muted)' },
 ];
 
@@ -107,17 +109,13 @@ function fmtNum(v: number): string {
 
 type OriginTag = { label: string; bg: string; text: string };
 
-function originTagFor(utmSource: string | null, isDark: boolean): OriginTag {
-  const ORIGIN_TAGS: Record<string, OriginTag> = isDark ? {
-    meta:      { label: 'Meta',       bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
-    google:    { label: 'Google',     bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
-    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(74,222,128,0.12)',  text: '#4ade80' },
-    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',     text: 'var(--text-muted)' },
-  } : {
-    meta:      { label: 'Meta',       bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
-    google:    { label: 'Google',     bg: 'rgba(5,150,105,0.10)',  text: '#047857' },
-    WhatsApp:  { label: 'WhatsApp',   bg: 'rgba(22,163,74,0.10)',  text: '#16a34a' },
-    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)',    text: 'var(--text-muted)' },
+// Selo de origem no padrão do card do CRM: anúncio pago em limão, o resto em tom suave.
+function originTagFor(utmSource: string | null): OriginTag {
+  const ORIGIN_TAGS: Record<string, OriginTag> = {
+    meta:      { label: 'Meta',       bg: 'var(--accent-fill)', text: 'var(--on-accent)' },
+    google:    { label: 'Google',     bg: 'var(--accent-fill)', text: 'var(--on-accent)' },
+    WhatsApp:  { label: 'WhatsApp',   bg: 'var(--tint-bg)',     text: 'var(--tint-ink)' },
+    Prospeção: { label: 'Prospecção', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' },
   };
   const noTrackTag: OriginTag = { label: 'Sem rastreio', bg: 'var(--bg-elevated)', text: 'var(--text-muted)' };
   // Origens do CRM Cortex chegam em minúsculas pela projeção ('whatsapp', 'link_bio'...).
@@ -191,8 +189,8 @@ function dailyValues(
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
     <svg className={`animate-spin ${className}`} fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-      <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+      <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
     </svg>
   );
 }
@@ -271,6 +269,82 @@ interface KpiCardProps {
   info?: string;
 }
 
+// Seletor de métricas extras ("Personalizar") no padrão do design system: botão secundário com
+// contador, painel em card com as opções agrupadas e caixa de marcar; fecha ao clicar fora ou Esc.
+function MetricPicker<K extends string>({ titulo, grupos, selecionados, onToggle, onLimpar }: {
+  titulo: string;
+  grupos: { nome: string; opcoes: readonly { key: K; label: string }[] }[];
+  selecionados: readonly K[];
+  onToggle: (key: K) => void;
+  onLimpar: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const fora = (e: MouseEvent) => { if (!boxRef.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', fora);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', fora); document.removeEventListener('keydown', esc); };
+  }, [open]);
+  const total = grupos.reduce((n, g) => n + g.opcoes.length, 0);
+  const ligados = grupos.reduce((n, g) => n + g.opcoes.filter((o) => selecionados.includes(o.key)).length, 0);
+  return (
+    <div className="relative" ref={boxRef}>
+      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} className="ui-btn ui-btn-secondary ui-btn-sm">
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+          <circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" />
+        </svg>
+        Personalizar
+        {ligados > 0 && <span className="ui-badge ui-badge-lime !rounded-full">{ligados}</span>}
+      </button>
+      {open && (
+        <div className="ui-card absolute right-0 top-full mt-2 z-30 w-[340px] max-w-[calc(100vw-2rem)] !p-4"
+          style={{ boxShadow: '0 24px 60px rgba(0,0,0,0.28)' }}>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="eyebrow">{titulo}</p>
+            <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{ligados} de {total}</span>
+          </div>
+          <div className="mt-3 space-y-3">
+            {grupos.filter((g) => g.opcoes.length > 0).map((g) => (
+              <div key={g.nome}>
+                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{g.nome}</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {g.opcoes.map(({ key, label }) => {
+                    const on = selecionados.includes(key);
+                    return (
+                      <button key={key} onClick={() => onToggle(key)} aria-pressed={on}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors"
+                        style={on
+                          ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', boxShadow: 'inset 0 0 0 1px var(--accent-line)' }
+                          : { backgroundColor: 'var(--bg-base)', color: 'var(--text-secondary)', boxShadow: 'inset 0 0 0 1px var(--border)' }}>
+                        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded"
+                          style={on ? { backgroundColor: 'var(--accent-fill)' } : { boxShadow: 'inset 0 0 0 1.5px var(--border-control)' }}>
+                          {on && (
+                            <svg viewBox="0 0 10 10" fill="none" stroke="var(--on-accent)" strokeWidth="1.8" className="h-2.5 w-2.5" aria-hidden>
+                              <polyline points="1.5,5 4,7.5 8.5,2" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="min-w-0 leading-tight">{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {ligados > 0 && (
+            <button onClick={onLimpar} className="mt-3 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Limpar seleção</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = false, sub, sparkData, animKey, info }: KpiCardProps) {
   const positive = invertDelta ? delta <= 0 : delta >= 0;
   const arrow = delta >= 0 ? '↑' : '↓';
@@ -296,8 +370,8 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
           </span>
         )}
       </div>
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</p>
-      <Sparkline data={sparkData} color="#60a5fa" height={32} animKey={animKey} />
+      <p className="ui-big tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</p>
+      <Sparkline data={sparkData} color="var(--accent)" height={32} animKey={animKey} />
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
     </div>
   );
@@ -323,12 +397,12 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
       {badge && (
         <span
           className="self-start text-xs px-2 py-0.5 rounded font-medium"
-          style={{ backgroundColor: badgeColor ? `${badgeColor}18` : 'rgba(59,130,246,0.12)', color: badgeColor ?? '#60a5fa' }}
+          style={{ backgroundColor: badgeColor ? `color-mix(in srgb, ${badgeColor} 9%, transparent)` : 'var(--accent-dim)', color: badgeColor ?? 'var(--accent)' }}
         >
           {badge}
         </span>
       )}
-      <p className="text-2xl font-semibold tabular-nums" style={{ color: accent }}>{value}</p>
+      <p className="ui-big tabular-nums" style={{ color: accent }}>{value}</p>
       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
     </div>
   );
@@ -348,10 +422,8 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   const [saving, setSaving]         = useState(false);
   const [chartOpen, setChartOpen]   = useState(false);
   const [leadsOpen, setLeadsOpen]   = useState(false);
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme !== 'light';
 
-  const originTag = (utmSource: string | null) => originTagFor(utmSource, isDark);
+  const originTag = (utmSource: string | null) => originTagFor(utmSource);
 
   const { realized, target } = progress;
   const pctRaw  = target && target > 0 ? (realized / target) * 100 : 0;
@@ -359,7 +431,9 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
   const reached = target != null && target > 0 && realized >= target;
   const barColor = reached
     ? 'var(--badge-success-text)'
-    : pctRaw >= 70 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)';
+    : pctRaw >= 70 ? 'var(--warn-mark)' : 'var(--badge-error-text)';
+  // O percentual é texto: usa o tom de aviso legível, não o da barra.
+  const pctColor = pctRaw >= 70 && !reached ? 'var(--badge-warn-text)' : barColor;
 
   const startEdit = () => {
     setValue(target != null ? String(target) : '');
@@ -405,7 +479,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
           )}
           {canEdit && !editing && (
             <button onClick={startEdit} className="text-xs font-medium px-2 py-0.5 rounded transition-colors"
-              style={{ color: '#60a5fa', backgroundColor: 'rgba(59,130,246,0.12)' }}>
+              style={{ color: 'var(--accent)', backgroundColor: 'var(--accent-dim)' }}>
               {target != null ? 'Editar' : 'Definir meta'}
             </button>
           )}
@@ -427,7 +501,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
           </div>
           <button onClick={save} disabled={saving}
             className="text-xs font-semibold px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
-            style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
           <button onClick={() => setEditing(false)} className="text-xs font-medium px-2 py-2 rounded-lg" style={{ color: 'var(--text-muted)' }}>
@@ -436,7 +510,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
         </div>
       ) : target == null ? (
         <div className="flex flex-col gap-1">
-          <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(realized)}</p>
+          <p className="ui-big tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(realized)}</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {canEdit ? 'Nenhuma meta definida para o mês.' : 'Faturamento realizado · meta não definida.'}
           </p>
@@ -444,11 +518,11 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
       ) : (
         <>
           <div className="flex items-end justify-between gap-2">
-            <p className="text-2xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+            <p className="ui-big tabular-nums" style={{ color: 'var(--text-primary)' }}>
               {fmtMoney(realized)}
               <span className="text-sm font-normal" style={{ color: 'var(--text-muted)' }}> / {fmtMoney(target)}</span>
             </p>
-            <span className="text-sm font-semibold tabular-nums" style={{ color: barColor }}>{pctRaw.toFixed(0)}%</span>
+            <span className="text-sm font-semibold tabular-nums" style={{ color: pctColor }}>{pctRaw.toFixed(0)}%</span>
           </div>
           <div className="h-2 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
             <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
@@ -545,7 +619,7 @@ function MonthlyRevenueChart({ data }: { data: import('@/types').RevenueGoalProg
         <p className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Faturamento mês a mês</p>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: '#60a5fa' }} /> Receita fechada
+            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: 'var(--accent)' }} /> Receita fechada
           </span>
           {hasAnyTarget && (
             <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -556,17 +630,17 @@ function MonthlyRevenueChart({ data }: { data: import('@/types').RevenueGoalProg
       </div>
       <ResponsiveContainer width="100%" height={280}>
         <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+          <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
           <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
           <YAxis
             tick={{ fontSize: 11, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={78}
             tickFormatter={(v: number) => `R$ ${Math.round(v).toLocaleString('pt-BR')}`}
           />
           <Tooltip content={<RevenueChartTooltip />} cursor={{ fill: 'var(--text-muted)', opacity: 0.08 }} />
-          <Bar dataKey="realized" fill="#60a5fa" radius={[4, 4, 0, 0]} maxBarSize={48} />
+          <Bar dataKey="realized" fill="var(--accent)" radius={[4, 4, 0, 0]} maxBarSize={48} />
           <Line
-            dataKey="target" stroke="var(--badge-warn-text)" strokeWidth={2} strokeDasharray="5 4"
-            connectNulls dot={{ r: 3, fill: 'var(--badge-warn-text)', strokeWidth: 0 }} activeDot={{ r: 4 }}
+            dataKey="target" stroke="var(--warn-mark)" strokeWidth={1.5} strokeDasharray="5 4"
+            connectNulls dot={{ r: 3, fill: 'var(--warn-mark)', strokeWidth: 0 }} activeDot={{ r: 4 }}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -602,8 +676,8 @@ function AlertCard({ alert }: { alert: ActiveAlert }) {
 }
 
 function ScoreBadge({ score }: { score: number }) {
-  const color = score >= 75 ? '#4ade80' : score >= 50 ? '#fbbf24' : '#f87171';
-  const bg    = score >= 75 ? 'rgba(34,197,94,0.10)' : score >= 50 ? 'rgba(251,191,36,0.10)' : 'rgba(248,113,113,0.10)';
+  const color = score >= 75 ? 'var(--badge-success-text)' : score >= 50 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)';
+  const bg    = score >= 75 ? 'var(--badge-success-bg)' : score >= 50 ? 'var(--badge-warn-bg)' : 'var(--badge-error-bg)';
   const label = score >= 75 ? 'Saudável' : score >= 50 ? 'Atenção' : 'Crítico';
   return (
     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: bg, color }}>
@@ -628,7 +702,7 @@ interface FunnelEtapa { label: string; count: number }
 
 // As etapas vêm de fora: 5 fixas quando o funil é montado nas oportunidades, ou uma por
 // coluna do CRM quando é montado nos cards (`funilEtapas`).
-function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa[]; lost: number; isDark: boolean; semTaxaFinal?: boolean }) {
+function FunnelSVG({ etapas, lost, semTaxaFinal }: { etapas: FunnelEtapa[]; lost: number; semTaxaFinal?: boolean }) {
   const W = 260;
   const cx = W / 2;
   const maxHalf = 88;
@@ -637,20 +711,9 @@ function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa
   const curveOff = 26;
   const H = etapas.length * (stageH + gap) + 30;
 
-  const paleta = isDark ? [
-    { color: '#1e3a5f', textColor: '#93c5fd' },
-    { color: '#1e3a4a', textColor: '#67e8f9' },
-    { color: '#14432a', textColor: '#6ee7b7' },
-    { color: '#1a3d20', textColor: '#86efac' },
-    { color: '#0d2e14', textColor: '#4ade80' },
-  ] : [
-    { color: 'rgba(59,130,246,0.18)',  textColor: '#1d4ed8' },
-    { color: 'rgba(6,182,212,0.18)',   textColor: '#0e7490' },
-    { color: 'rgba(16,185,129,0.18)',  textColor: '#047857' },
-    { color: 'rgba(34,197,94,0.18)',   textColor: '#15803d' },
-    { color: 'rgba(74,222,128,0.22)',  textColor: '#166534' },
-  ];
-  // Distribui a paleta do azul ao verde por qualquer quantidade de etapas.
+  // Rampa sequencial de um tom só (verde da marca), do mais claro ao mais forte.
+  const paleta = [1, 2, 3, 4, 5].map((n) => ({ color: `var(--chart-seq-${n})`, textColor: 'var(--chart-seq-ink)' }));
+  // Distribui a rampa por qualquer quantidade de etapas.
   const stages = etapas.map((e, i) => ({
     ...e,
     label: e.label.length > 22 ? `${e.label.slice(0, 21)}…` : e.label,
@@ -705,7 +768,7 @@ function FunnelSVG({ etapas, lost, isDark, semTaxaFinal }: { etapas: FunnelEtapa
                   textAnchor="middle"
                   fontSize="11"
                   fontWeight="600"
-                  fill={convRates[i] >= 50 ? '#4ade80' : convRates[i] >= 25 ? '#fbbf24' : '#f87171'}
+                  fill={convRates[i] >= 50 ? 'var(--badge-success-text)' : convRates[i] >= 25 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)'}
                   fontFamily="Inter,sans-serif"
                 >
                   {/* No funil por cards a última seta liga leads do período a vendas FECHADAS no
@@ -847,7 +910,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
 
   const fmtDate = (s: string) => new Date(s + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 
-  const platformColor = campaign.platform === 'Meta' ? '#818cf8' : '#34d399';
+  const platformColor = campaign.platform === 'Meta' ? 'var(--chart-primary)' : 'var(--chart-secondary)';
 
   return (
     <>
@@ -864,7 +927,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
           style={{ backgroundColor: 'var(--bg-base)', borderBottom: '1px solid var(--border)' }}>
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: `${platformColor}18`, color: platformColor }}>
+              style={{ backgroundColor: `color-mix(in srgb, ${platformColor} 12%, transparent)`, color: platformColor }}>
               <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: platformColor }} />
               {campaign.platform}
             </span>
@@ -902,7 +965,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
               <p className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>Evolução diária</p>
               <ResponsiveContainer width="100%" height={180}>
                 <LineChart data={daily} margin={{ top: 4, right: 16, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
                   <XAxis dataKey="date" tickFormatter={fmtDate} tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
                   <YAxis yAxisId="left"  tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} tickFormatter={(v) => `R$${v}`} width={48} />
                   <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={36} />
@@ -915,8 +978,8 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                       name === 'spend' ? 'Gasto' : 'Cliques',
                     ]}
                   />
-                  <Line yAxisId="left"  type="monotone" dataKey="spend"  stroke={platformColor} strokeWidth={2} dot={false} />
-                  <Line yAxisId="right" type="monotone" dataKey="clicks" stroke="#fbbf24" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                  <Line yAxisId="left"  type="monotone" dataKey="spend"  stroke={platformColor} strokeWidth={1.75} dot={false} />
+                  <Line yAxisId="right" type="monotone" dataKey="clicks" stroke="var(--chart-tertiary)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
                 </LineChart>
               </ResponsiveContainer>
               <div className="flex items-center gap-4 mt-2">
@@ -924,7 +987,7 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
                   <span className="h-0.5 w-4 rounded" style={{ backgroundColor: platformColor }} /> Gasto
                 </span>
                 <span className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  <span className="h-0.5 w-4 rounded border-t border-dashed" style={{ borderColor: '#fbbf24' }} /> Cliques
+                  <span className="h-0.5 w-4 rounded border-t border-dashed" style={{ borderColor: 'var(--chart-tertiary)' }} /> Cliques
                 </span>
               </div>
             </div>
@@ -1119,15 +1182,15 @@ export default function DashboardPage() {
   };
 
   const BOTTOM_KPI_OPTIONS = [
-    { key: 'roas',      label: 'ROAS atribuído'  },
-    { key: 'cac',       label: 'CPL'             },  // gasto ÷ LEAD (ver leadCounts.ts)
-    { key: 'receita',   label: 'Receita fechada' },
-    { key: 'vendas',    label: 'Vendas'          },
-    { key: 'pipeline',  label: 'Pipeline'        },
-    { key: 'leads',     label: 'Leads'           },
-    { key: 'cpl',       label: 'Custo por oportunidade' },
-    { key: 'conversao', label: 'Conversão'       },
-    { key: 'ticket',    label: 'Ticket médio'    },
+    { key: 'roas',      label: 'ROAS atribuído',  grupo: 'Receita' },
+    { key: 'cac',       label: 'CPL',             grupo: 'Leads e custo' },  // gasto ÷ LEAD (ver leadCounts.ts)
+    { key: 'receita',   label: 'Receita fechada', grupo: 'Receita' },
+    { key: 'vendas',    label: 'Vendas',          grupo: 'Receita' },
+    { key: 'pipeline',  label: 'Pipeline',        grupo: 'Leads e custo' },
+    { key: 'leads',     label: 'Leads',           grupo: 'Leads e custo' },
+    { key: 'cpl',       label: 'Custo por oportunidade', grupo: 'Leads e custo' },
+    { key: 'conversao', label: 'Conversão',       grupo: 'Leads e custo' },
+    { key: 'ticket',    label: 'Ticket médio',    grupo: 'Receita' },
   ] as const;
   type BottomKpiKey = typeof BOTTOM_KPI_OPTIONS[number]['key'];
   // Os três que dividem por gasto em anúncio: não existem no plano CRM.
@@ -1168,8 +1231,8 @@ export default function DashboardPage() {
     setCrmNudgeVisible(false);
   };
 
-  const [bottomKpiPickerOpen, setBottomKpiPickerOpen] = useState(false);
   const kpisFundo = temGrowth ? visibleBottomKpis : visibleBottomKpis.filter((k) => !KPIS_DE_ANUNCIO.includes(k));
+  const limparBottomKpis = () => { setVisibleBottomKpis([]); localStorage.setItem('dashboard_bottom_kpis', '[]'); };
   const toggleBottomKpi = (key: BottomKpiKey) => {
     setVisibleBottomKpis((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
@@ -1179,21 +1242,21 @@ export default function DashboardPage() {
   };
 
   const TOPO_KPI_OPTIONS = [
-    { key: 'reach',        label: 'Alcance (Meta)'       },
-    { key: 'reach_google', label: 'Alcance (Google)'      },
-    { key: 'ig_visits',    label: 'Visitas ao perfil IG'  },
-    { key: 'resultado',    label: 'Resultado (Meta)'      },
-    { key: 'custo_result', label: 'Custo por resultado'   },
-    { key: 'frequency',    label: 'Frequência (Meta)'     },
-    { key: 'conv_meta',    label: 'Conversões Meta'       },
-    { key: 'conv_google',  label: 'Conversões Google'     },
-    { key: 'cpa',          label: 'Custo/Conversão'       },
-    { key: 'leads_meta',   label: 'Leads Meta (CRM)'      },
-    { key: 'leads_google', label: 'Leads Google (CRM)'    },
-    { key: 'cpl_meta',     label: 'CPL Meta'              },
-    { key: 'cpl_google',   label: 'CPL Google'            },
-    { key: 'cpm',          label: 'CPM'                   },
-    { key: 'cpc',          label: 'CPC'                   },
+    { key: 'reach',        label: 'Alcance (Meta)',       grupo: 'Meta Ads' },
+    { key: 'reach_google', label: 'Alcance (Google)',     grupo: 'Google Ads' },
+    { key: 'ig_visits',    label: 'Visitas ao perfil IG', grupo: 'Meta Ads' },
+    { key: 'resultado',    label: 'Resultado (Meta)',     grupo: 'Meta Ads' },
+    { key: 'custo_result', label: 'Custo por resultado',  grupo: 'Meta Ads' },
+    { key: 'frequency',    label: 'Frequência (Meta)',    grupo: 'Meta Ads' },
+    { key: 'conv_meta',    label: 'Conversões Meta',      grupo: 'Meta Ads' },
+    { key: 'conv_google',  label: 'Conversões Google',    grupo: 'Google Ads' },
+    { key: 'cpa',          label: 'Custo/Conversão',      grupo: 'Custos de mídia' },
+    { key: 'leads_meta',   label: 'Leads Meta (CRM)',     grupo: 'Meta Ads' },
+    { key: 'leads_google', label: 'Leads Google (CRM)',   grupo: 'Google Ads' },
+    { key: 'cpl_meta',     label: 'CPL Meta',             grupo: 'Meta Ads' },
+    { key: 'cpl_google',   label: 'CPL Google',           grupo: 'Google Ads' },
+    { key: 'cpm',          label: 'CPM',                  grupo: 'Custos de mídia' },
+    { key: 'cpc',          label: 'CPC',                  grupo: 'Custos de mídia' },
   ] as const;
   type TopoKpiKey = typeof TOPO_KPI_OPTIONS[number]['key'];
   const DEFAULT_TOPO_KPIS: TopoKpiKey[] = [];
@@ -1205,7 +1268,7 @@ export default function DashboardPage() {
     } catch { /* ignore */ }
     return DEFAULT_TOPO_KPIS;
   });
-  const [topoKpiPickerOpen, setTopoKpiPickerOpen] = useState(false);
+  const limparTopoKpis = () => { setVisibleTopoKpis([]); localStorage.setItem('dashboard_topo_kpis', '[]'); };
   const toggleTopoKpi = (key: TopoKpiKey) => {
     setVisibleTopoKpis((prev) => {
       const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
@@ -1473,10 +1536,10 @@ export default function DashboardPage() {
     const outras    = kommoCur.length - meta - google - whatsapp - noUtm;
     const total     = kommoCur.length || 1;
     return [
-      { label: 'Meta Ads',  count: meta,     color: '#818cf8', pct: (meta     / total) * 100 },
-      { label: 'Google Ads',count: google,   color: '#34d399', pct: (google   / total) * 100 },
-      { label: 'WhatsApp',  count: whatsapp, color: '#4ade80', pct: (whatsapp / total) * 100 },
-      { label: 'Outras origens', count: outras, color: '#fbbf24', pct: (outras / total) * 100 },
+      { label: 'Meta Ads',  count: meta,     color: 'var(--chart-primary)',   pct: (meta     / total) * 100 },
+      { label: 'Google Ads',count: google,   color: 'var(--chart-secondary)', pct: (google   / total) * 100 },
+      { label: 'WhatsApp',  count: whatsapp, color: 'var(--chart-4)',         pct: (whatsapp / total) * 100 },
+      { label: 'Outras origens', count: outras, color: 'var(--chart-tertiary)', pct: (outras / total) * 100 },
       { label: 'Sem UTM',   count: noUtm,    color: 'var(--text-muted)', pct: (noUtm    / total) * 100 },
     ];
   }, [kommoCur]);
@@ -2060,12 +2123,10 @@ export default function DashboardPage() {
     D: { bg: 'var(--badge-error-bg)',    color: 'var(--badge-error-text)' },
   };
 
-  const PLATFORM_COLORS: Record<string, { dot: string; bg: string; text: string }> = isDark ? {
-    Meta:   { dot: '#818cf8', bg: 'rgba(129,140,248,0.12)', text: '#a5b4fc' },
-    Google: { dot: '#34d399', bg: 'rgba(52,211,153,0.12)',  text: '#6ee7b7' },
-  } : {
-    Meta:   { dot: '#6366f1', bg: 'rgba(99,102,241,0.10)', text: '#4338ca' },
-    Google: { dot: '#059669', bg: 'rgba(5,150,105,0.10)',   text: '#047857' },
+  // text = número/rótulo solto sobre o card; badgeBg/badgeText = selo (limão no Meta, tom suave no Google).
+  const PLATFORM_COLORS: Record<string, { dot: string; text: string; badgeBg: string; badgeText: string }> = {
+    Meta:   { dot: 'var(--chart-primary)',   text: 'var(--accent)',         badgeBg: 'var(--accent-fill)', badgeText: 'var(--on-accent)' },
+    Google: { dot: 'var(--chart-secondary)', text: 'var(--text-secondary)', badgeBg: 'var(--tint-bg)',     badgeText: 'var(--tint-ink)' },
   };
 
   // ── Derived mkt-tab values for bottom KPIs ───────────────────────────────
@@ -2122,9 +2183,9 @@ export default function DashboardPage() {
   const etapasCadeia = temCadeia
     ? [
         { label: 'contatos',      value: funnelSummary!.contacts!.total,      cor: 'var(--text-secondary)' },
-        { label: 'leads',         value: funnelSummary!.leads!.total,         cor: '#60a5fa' },
-        { label: 'oportunidades', value: funnelSummary!.opportunities.total,  cor: '#a78bfa' },
-        { label: 'vendas',        value: funnelSummary!.won,                  cor: '#34d399' },
+        { label: 'leads',         value: funnelSummary!.leads!.total,         cor: 'var(--accent)' },
+        { label: 'oportunidades', value: funnelSummary!.opportunities.total,  cor: 'var(--text-primary)' },
+        { label: 'vendas',        value: funnelSummary!.won,                  cor: 'var(--badge-success-text)' },
       ]
     : [];
 
@@ -2204,69 +2265,77 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {/* ── 1. TOPBAR / HEADER ───────────────────────────────────────────────── */}
-      <div
-        className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3"
-        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: '#3b82f6' }}>
-            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold" style={{ color: '#60a5fa' }}>Córtex Growth</span>
-          <span className="text-sm" style={{ color: 'var(--text-muted)' }}>{organization?.name ?? '—'}</span>
-          {organization?.plan && (
-            <span className="text-xs px-2 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa' }}>
-              {organization.plan}
-            </span>
-          )}
+      {/* Cabeçalho no padrão do design system: título da tela + período. A marca já está no menu. */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="eyebrow">ATUALIZADO {lastUpdate.toUpperCase()}</p>
+          <h1 className="ui-h1 mt-1">Dashboard</h1>
+          <p className="ui-sub flex flex-wrap items-center gap-2">
+            {organization?.name ?? '—'}
+            {organization?.plan && <span className="ui-badge ui-badge-tint">{organization.plan}</span>}
+          </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Period tabs */}
-          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
-            {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => changeRange(r)}
-                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                style={range === r ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
-              >
-                {r}
-              </button>
-            ))}
-            <button
-              onClick={() => changeRange('CUSTOM')}
-              className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-              style={range === 'CUSTOM' ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
-            >
-              Personalizado
+        <div className="ui-seg" role="group" aria-label="Período">
+          {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
+            <button key={r} onClick={() => changeRange(r)} aria-pressed={range === r}>
+              {r}
             </button>
-          </div>
-
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Atualizado {lastUpdate}</span>
+          ))}
+          <button onClick={() => changeRange('CUSTOM')} aria-pressed={range === 'CUSTOM'}>
+            Personalizado
+          </button>
         </div>
       </div>
 
       {/* Custom date range */}
-      {range === 'CUSTOM' && (
-        <div className="flex items-center gap-2">
-          {/* min 90 dias: os endpoints de Meta/Google do dashboard só retornam 90d — antes disso os cards de marketing zeram */}
-          <input type="date" value={customStart} max={customEnd || undefined}
-            min={new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)}
-            onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--input-border)', color: 'var(--text-secondary)', colorScheme: isDark ? 'dark' : 'light' }}
-          />
-          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>–</span>
-          <input type="date" value={customEnd} min={customStart || undefined} max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium"
-            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--input-border)', color: 'var(--text-secondary)', colorScheme: isDark ? 'dark' : 'light' }}
-          />
-        </div>
-      )}
+      {range === 'CUSTOM' && (() => {
+        // Atalhos dentro da janela de 90 dias (os endpoints de Meta/Google do dashboard só retornam 90d).
+        const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const hoje = new Date();
+        const atalhos = [
+          { rotulo: 'Este mês', de: ymd(new Date(hoje.getFullYear(), hoje.getMonth(), 1)), ate: ymd(hoje) },
+          { rotulo: 'Mês passado', de: ymd(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)), ate: ymd(new Date(hoje.getFullYear(), hoje.getMonth(), 0)) },
+          { rotulo: 'Últimos 14 dias', de: ymd(new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 13)), ate: ymd(hoje) },
+        ];
+        const campo = { backgroundColor: 'var(--bg-base)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', colorScheme: isDark ? 'dark' : 'light' } as const;
+        return (
+          <div className="ui-card flex flex-wrap items-end gap-x-5 gap-y-3 !py-4">
+            <div>
+              <p className="eyebrow mb-2">ATALHOS</p>
+              <div className="flex flex-wrap gap-1.5">
+                {atalhos.map((a) => {
+                  const ativo = customStart === a.de && customEnd === a.ate;
+                  return (
+                    <button key={a.rotulo} aria-pressed={ativo}
+                      onClick={() => { setCustomStart(a.de); setCustomEnd(a.ate); setAnimKey((k) => k + 1); }}
+                      className={`ui-btn ui-btn-sm ${ativo ? 'ui-btn-primary' : 'ui-btn-secondary'}`}>
+                      {a.rotulo}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-end gap-2">
+              <label className="flex flex-col gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                De
+                <input type="date" value={customStart} max={customEnd || undefined}
+                  min={new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10)}
+                  onChange={(e) => { setCustomStart(e.target.value); setAnimKey((k) => k + 1); }}
+                  className="rounded-lg px-3 py-2 text-sm font-medium" style={campo} />
+              </label>
+              <span className="pb-2.5 text-xs" style={{ color: 'var(--text-muted)' }}>até</span>
+              <label className="flex flex-col gap-1.5 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                Até
+                <input type="date" value={customEnd} min={customStart || undefined} max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => { setCustomEnd(e.target.value); setAnimKey((k) => k + 1); }}
+                  className="rounded-lg px-3 py-2 text-sm font-medium" style={campo} />
+              </label>
+            </div>
+            <p className="text-xs pb-2.5" style={{ color: 'var(--text-muted)' }}>Até 90 dias para trás.</p>
+          </div>
+        );
+      })()}
 
       {/* ── 1.5 PRIMEIROS PASSOS (some quando a configuração é concluída) ──────── */}
       <PrimeirosPassos />
@@ -2290,48 +2359,19 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>marketing — topo de funil · {rangeLabel.toLowerCase()}</p>
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setTopoKpiPickerOpen((o) => !o)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Personalizar
-              </button>
-              {topoKpiPickerOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-20 rounded-xl p-3 flex flex-wrap gap-2"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', minWidth: 280, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}
-                >
-                  {TOPO_KPI_OPTIONS.map(({ key, label }) => {
-                    const on = visibleTopoKpis.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => toggleTopoKpi(key)}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                        style={on
-                          ? { backgroundColor: '#3b82f6', color: '#fff' }
-                          : { backgroundColor: 'var(--bg-surface)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            <MetricPicker
+              titulo="MÉTRICAS EXTRAS · TOPO DE FUNIL"
+              grupos={['Meta Ads', 'Google Ads', 'Custos de mídia'].map((nome) => ({ nome, opcoes: TOPO_KPI_OPTIONS.filter((o) => o.grupo === nome) }))}
+              selecionados={visibleTopoKpis}
+              onToggle={toggleTopoKpi}
+              onLimpar={limparTopoKpis}
+            />
+            <div className="ui-seg" role="group" aria-label="Plataforma">
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
                 <button
                   key={tab}
                   onClick={() => setMktTab(tab)}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                  style={mktTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+                  aria-pressed={mktTab === tab}
                 >
                   {label}
                 </button>
@@ -2380,7 +2420,7 @@ export default function DashboardPage() {
                 <BottomKpiCard title="Conversões Google" value={topoKpis.googleConv > 0 ? fmtNum(Math.round(topoKpis.googleConv)) : '—'} sub="Registradas pelo Google" accent={PLATFORM_COLORS.Google.text} info={`Conversões contadas pelo próprio Google Ads (cliques em chamada, preenchimento de formulário, etc). Pode não bater com o ${crmLabel} — depende do que está configurado no Google Ads.`} />
               )}
               {visibleTopoKpis.includes('cpa') && (
-                <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="#60a5fa" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
+                <BottomKpiCard title="Custo/Conversão" value={topoKpis.cpa != null ? fmtMoney(topoKpis.cpa) : '—'} sub={`${fmtNum(Math.round(topoKpis.totalConv))} conversões totais`} accent="var(--accent)" info="Gasto total ÷ conversões reportadas pelas plataformas (Meta + Google). Baseado nas conversões das próprias plataformas, não nas vendas do CRM." />
               )}
               {visibleTopoKpis.includes('leads_meta') && (
                 <BottomKpiCard title="Leads Meta (CRM)" value={leadsMetaCard + leadsBio > 0 ? fmtNum(leadsMetaCard + leadsBio) : '—'} sub={leadsBio > 0 ? `${leadsMetaCard} de anúncio + ${leadsBio} do link da bio` : temCadeia ? 'Contatos do Meta que passaram na triagem' : `Com utm_source=meta no ${crmLabel}`} accent={PLATFORM_COLORS.Meta.text} info={`Leads no ${crmLabel} com origem atribuída ao Meta Ads no período selecionado. Depende do campo Origem estar preenchido corretamente.`} />
@@ -2395,10 +2435,10 @@ export default function DashboardPage() {
                 <BottomKpiCard title="CPL Google" value={cplGoogleCard != null ? fmtMoney(cplGoogleCard) : '—'} sub={`${leadsGoogleCard} leads ${crmLabel}`} accent={PLATFORM_COLORS.Google.text} info={`Gasto no Google Ads ÷ leads com origem Google no ${crmLabel}. Diferente do CPL do Google, que usa o pixel — este usa os leads reais no CRM.`} />
               )}
               {visibleTopoKpis.includes('cpm') && (
-                <BottomKpiCard title="CPM" value={topoKpis.cpm != null ? fmtMoney(topoKpis.cpm) : '—'} sub="Custo por mil impressões" accent="#60a5fa" info="Custo por mil impressões: gasto ÷ impressões × 1000. Mede o custo de alcançar audiência — sobe quando a competição pelo público aumenta." />
+                <BottomKpiCard title="CPM" value={topoKpis.cpm != null ? fmtMoney(topoKpis.cpm) : '—'} sub="Custo por mil impressões" accent="var(--accent)" info="Custo por mil impressões: gasto ÷ impressões × 1000. Mede o custo de alcançar audiência — sobe quando a competição pelo público aumenta." />
               )}
               {visibleTopoKpis.includes('cpc') && (
-                <BottomKpiCard title="CPC" value={topoKpis.cpc != null ? fmtMoney(topoKpis.cpc) : '—'} sub="Custo por clique" accent="#60a5fa" info="Custo por clique: gasto ÷ cliques totais. Combina CPC do Meta e do Google ponderado pelo gasto de cada plataforma." />
+                <BottomKpiCard title="CPC" value={topoKpis.cpc != null ? fmtMoney(topoKpis.cpc) : '—'} sub="Custo por clique" accent="var(--accent)" info="Custo por clique: gasto ÷ cliques totais. Combina CPC do Meta e do Google ponderado pelo gasto de cada plataforma." />
               )}
             </div>
           )}
@@ -2436,8 +2476,8 @@ export default function DashboardPage() {
               </button>
               <Link
                 href="/dashboard/crm"
-                className="px-4 py-2 rounded-lg text-xs font-medium text-white"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="px-4 py-2 rounded-lg text-xs font-medium text-[var(--on-accent)]"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
               >
                 Ver o CRM
               </Link>
@@ -2450,8 +2490,8 @@ export default function DashboardPage() {
       {!hasCrmSource && platformConv.totalConv > 0 && (
         <div>
           <SectionLabel>conversões das plataformas · {rangeLabel.toLowerCase()}</SectionLabel>
-          <div className="mb-3 flex items-start gap-2 px-4 py-2.5 rounded-xl" style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)' }}>
-            <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="#60a5fa" strokeWidth={1.5}>
+          <div className="mb-3 flex items-start gap-2 px-4 py-2.5 rounded-xl" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
+            <svg className="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
             </svg>
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -2459,7 +2499,7 @@ export default function DashboardPage() {
             </span>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <BottomKpiCard title="Conversões totais" value={fmtNum(Math.round(platformConv.totalConv))} sub={`Meta ${fmtNum(Math.round(platformConv.metaConv))} · Google ${fmtNum(Math.round(platformConv.googleConv))}`} accent="#60a5fa" info="Conversões contadas pelo próprio Meta e Google (leads, mensagens, compras configuradas na plataforma). Não são vendas confirmadas no CRM." />
+            <BottomKpiCard title="Conversões totais" value={fmtNum(Math.round(platformConv.totalConv))} sub={`Meta ${fmtNum(Math.round(platformConv.metaConv))} · Google ${fmtNum(Math.round(platformConv.googleConv))}`} accent="var(--accent)" info="Conversões contadas pelo próprio Meta e Google (leads, mensagens, compras configuradas na plataforma). Não são vendas confirmadas no CRM." />
             <BottomKpiCard title="CPL real" value={platformConv.cpl != null ? fmtBRL(platformConv.cpl) : '—'} sub="Gasto ÷ conversões" info="Custo por conversão: gasto total ÷ conversões reportadas pelas plataformas." />
             <BottomKpiCard title="CPL Meta" value={platformConv.metaCpl != null ? fmtBRL(platformConv.metaCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.metaConv))} conversões`} accent={PLATFORM_COLORS.Meta.text} info="Gasto no Meta Ads ÷ conversões reportadas pelo Meta." />
             <BottomKpiCard title="CPL Google" value={platformConv.googleCpl != null ? fmtBRL(platformConv.googleCpl) : '—'} sub={`${fmtNum(Math.round(platformConv.googleConv))} conversões`} accent={PLATFORM_COLORS.Google.text} info="Gasto no Google Ads ÷ conversões reportadas pelo Google." />
@@ -2525,7 +2565,7 @@ export default function DashboardPage() {
                   title="CPL"
                   value={manualRevenueSummary.totals.cac != null ? fmtBRL(manualRevenueSummary.totals.cac) : '—'}
                   sub="Gasto / leads pagos (Meta + Google)"
-                  accent="#60a5fa"
+                  accent="var(--accent)"
                   info="Custo por lead: gasto em anúncios ÷ leads de canais pagos informados manualmente. Não é custo por cliente (CAC)."
                 />
               </div>
@@ -2549,7 +2589,7 @@ export default function DashboardPage() {
               <Link
                 href="/dashboard/dados-manuais"
                 className="shrink-0 px-4 py-2 rounded-lg text-xs font-medium transition-colors"
-                style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
+                style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
               >
                 Inserir dados →
               </Link>
@@ -2582,7 +2622,7 @@ export default function DashboardPage() {
                       </div>
                     )}
                     <div className="text-center px-2 sm:px-3">
-                      <p className="text-2xl font-bold leading-none" style={{ color: etapa.cor }}>{fmtNum(etapa.value)}</p>
+                      <p className="ui-big leading-none" style={{ color: etapa.cor }}>{fmtNum(etapa.value)}</p>
                       <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-muted)' }}>{etapa.label}</p>
                     </div>
                   </div>
@@ -2599,46 +2639,16 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>resultado consolidado — fundo de funil</p>
-            <div className="relative">
-              <button
-                onClick={() => setBottomKpiPickerOpen((o) => !o)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                style={{
-                  backgroundColor: bottomKpiPickerOpen ? 'rgba(59,130,246,0.10)' : 'var(--bg-surface)',
-                  border: '1px solid var(--border)',
-                  color: bottomKpiPickerOpen ? '#60a5fa' : 'var(--text-muted)',
-                }}
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Personalizar
-              </button>
-              {bottomKpiPickerOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-20 rounded-xl p-3 flex flex-wrap gap-2"
-                  style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', minWidth: 248, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}
-                >
-                  {BOTTOM_KPI_OPTIONS.filter(({ key }) => temGrowth || !KPIS_DE_ANUNCIO.includes(key)).map(({ key, label }) => {
-                    const on = visibleBottomKpis.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        onClick={() => toggleBottomKpi(key)}
-                        className="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
-                        style={on
-                          ? { backgroundColor: '#3b82f6', color: '#fff' }
-                          : { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }
-                        }
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <MetricPicker
+              titulo="CARDS · FUNDO DE FUNIL"
+              grupos={['Receita', 'Leads e custo'].map((nome) => ({
+                nome,
+                opcoes: BOTTOM_KPI_OPTIONS.filter((o) => o.grupo === nome && (temGrowth || !KPIS_DE_ANUNCIO.includes(o.key))),
+              }))}
+              selecionados={visibleBottomKpis}
+              onToggle={toggleBottomKpi}
+              onLimpar={limparBottomKpis}
+            />
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {kpisFundo.includes('roas') && (
@@ -2659,9 +2669,9 @@ export default function DashboardPage() {
                 title="CPL"
                 value={cplPorLead != null ? fmtBRL(cplPorLead) : '—'}
                 badge={temCadeia ? undefined : mktLeadsBadge}
-                badgeColor="#60a5fa"
+                badgeColor="var(--accent)"
                 sub={temCadeia ? `Gasto / ${qtdLeadsCpl} leads de anúncio` : 'Custo por lead no período'}
-                accent="#60a5fa"
+                accent="var(--accent)"
                 info={temCadeia
                   ? 'Gasto em anúncios ÷ LEADS de canal pago (contato que passou na triagem). Antes este número dividia por OPORTUNIDADE — lead que já chegou em orçamento — e por isso saía várias vezes maior do que o custo real de trazer um lead.'
                   : 'Custo por lead: gasto em anúncios ÷ leads atribuídos a canais pagos. Não confundir com CAC (custo por cliente conquistado) — esse está em Saúde Financeira como CAC real.'}
@@ -2708,7 +2718,7 @@ export default function DashboardPage() {
                 title="Leads"
                 value={fmtNum(funilGerados)}
                 sub={`${funnelCounts.won} vendas · ${funnelCounts.lost} perdidos`}
-                accent="#60a5fa"
+                accent="var(--accent)"
                 info="Total de leads que entraram no CRM no período, de todos os canais (pago, WhatsApp, orgânico)."
               />
             )}
@@ -2717,7 +2727,7 @@ export default function DashboardPage() {
                 title="Custo por oportunidade"
                 value={custoPorOportunidade != null ? fmtBRL(custoPorOportunidade) : '—'}
                 sub={temCadeia ? `Gasto / ${qtdOportunidades} oportunidades` : `Gasto / ${funnelCounts.generated} leads`}
-                accent="#60a5fa"
+                accent="var(--accent)"
                 info="Gasto em anúncios ÷ OPORTUNIDADES: o lead que já chegou em orçamento e tem valor. É sempre maior que o CPL, e é o número comparável com o histórico anterior ao CRM Cortex."
               />
             )}
@@ -2767,7 +2777,7 @@ export default function DashboardPage() {
                   key={tab}
                   onClick={() => setFunnelTab(tab)}
                   className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                  style={funnelTab === tab ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+                  style={funnelTab === tab ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' } : { color: 'var(--text-muted)' }}
                 >
                   {label}
                 </button>
@@ -2779,7 +2789,7 @@ export default function DashboardPage() {
             {/* Left: funnel SVG + right info panel */}
             <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <div className="flex flex-col justify-center">
-                <FunnelSVG etapas={funilEtapas} lost={funnelCounts.lost} isDark={isDark} semTaxaFinal={funilPorCards} />
+                <FunnelSVG etapas={funilEtapas} lost={funnelCounts.lost} semTaxaFinal={funilPorCards} />
               </div>
 
               <div className="flex-1 flex flex-col gap-3 min-w-0">
@@ -3192,8 +3202,8 @@ export default function DashboardPage() {
                 {negotiatingLeads.slice(0, 50).map((l) => (
                   <div key={l.externalId} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs mt-1" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                     <span className="font-medium truncate" style={{ color: 'var(--text-primary)', minWidth: 0, flexBasis: '32%' }}>{l.name ?? `Lead #${l.externalId}`}</span>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: originTagFor(l.utmSource, isDark).bg, color: originTagFor(l.utmSource, isDark).text }}>
-                      {originTagFor(l.utmSource, isDark).label}
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0" style={{ backgroundColor: originTagFor(l.utmSource).bg, color: originTagFor(l.utmSource).text }}>
+                      {originTagFor(l.utmSource).label}
                     </span>
                     <span className="flex-1 truncate" style={{ color: 'var(--text-muted)' }}>{l.status}</span>
                     <span className="font-semibold tabular-nums shrink-0" style={{ color: l.price ? 'var(--text-primary)' : 'var(--text-muted)' }}>
@@ -3239,7 +3249,7 @@ export default function DashboardPage() {
                       onClick={() => setColPickerOpen((o) => !o)}
                       title="Configurar colunas"
                       className="flex items-center justify-center rounded-md transition-colors"
-                      style={{ width: 26, height: 26, backgroundColor: colPickerOpen ? 'rgba(59,130,246,0.15)' : 'var(--border)', color: colPickerOpen ? '#3b82f6' : 'var(--text-muted)' }}
+                      style={{ width: 26, height: 26, backgroundColor: colPickerOpen ? 'var(--accent-dim)' : 'var(--border)', color: colPickerOpen ? 'var(--accent)' : 'var(--text-muted)' }}
                     >
                       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" style={{ width: 13, height: 13 }}>
                         <rect x="1" y="3" width="14" height="1.5" rx="0.75" />
@@ -3269,10 +3279,10 @@ export default function DashboardPage() {
                           >
                             <span
                               className="flex-shrink-0 rounded"
-                              style={{ width: 13, height: 13, border: '1px solid', borderColor: visibleCols.includes(key) ? '#3b82f6' : '#334155', backgroundColor: visibleCols.includes(key) ? '#3b82f6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                              style={{ width: 13, height: 13, border: '1px solid', borderColor: visibleCols.includes(key) ? 'var(--accent)' : '#334155', backgroundColor: visibleCols.includes(key) ? 'var(--accent-fill)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                               {visibleCols.includes(key) && (
-                                <svg viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" style={{ width: 8, height: 8 }}>
+                                <svg viewBox="0 0 10 10" fill="none" stroke="var(--on-accent)" strokeWidth="1.8" style={{ width: 8, height: 8 }}>
                                   <polyline points="1.5,5 4,7.5 8.5,2" />
                                 </svg>
                               )}
@@ -3341,7 +3351,7 @@ export default function DashboardPage() {
                               <span className="block truncate">{c.name}</span>
                             </td>
                             <td className="px-4 py-2.5">
-                              <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: plt.bg, color: plt.text }}>
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: plt.badgeBg, color: plt.badgeText }}>
                                 <span className="h-1 w-1 rounded-full" style={{ backgroundColor: plt.dot }} />
                                 {c.platform}
                               </span>
@@ -3396,8 +3406,8 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 {[
                   // Leads e CPL na MESMA base dos cards e do comparativo (lead, não oportunidade).
-                  { label: 'Meta Ads',   data: { ...cplByChannel.meta,   leads: leadsMetaCard,   cpl: cplMetaCard },   color: '#818cf8' },
-                  { label: 'Google Ads', data: { ...cplByChannel.google, leads: leadsGoogleCard, cpl: cplGoogleCard }, color: '#34d399' },
+                  { label: 'Meta Ads',   data: { ...cplByChannel.meta,   leads: leadsMetaCard,   cpl: cplMetaCard },   color: 'var(--chart-primary)' },
+                  { label: 'Google Ads', data: { ...cplByChannel.google, leads: leadsGoogleCard, cpl: cplGoogleCard }, color: 'var(--chart-secondary)' },
                 ].map(({ label, data, color }) => (
                   data.spend > 0 && (
                     <div key={label}>
@@ -3486,7 +3496,7 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Projeção do mês</p>
               {projection ? (
                 <>
-                  <p className="text-2xl font-semibold tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
+                  <p className="ui-big tabular-nums mt-2" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(projection.projected)}</p>
                   <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>
                     ritmo de vendas do mês corrente
                   </p>
@@ -3517,8 +3527,8 @@ export default function DashboardPage() {
               <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>ROAS por canal</p>
               <div className="space-y-4">
                 {([
-                  { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   spend: attributionSummary.spendMeta,   color: '#818cf8', accent: 'rgba(129,140,248,0.12)' },
-                  { label: 'Google Ads', roas: attributionSummary.roasGoogle, spend: attributionSummary.spendGoogle, color: '#34d399', accent: 'rgba(52,211,153,0.12)'  },
+                  { label: 'Meta Ads',   roas: attributionSummary.roasMeta,   spend: attributionSummary.spendMeta,   color: 'var(--chart-primary)', accent: 'var(--accent-dim)' },
+                  { label: 'Google Ads', roas: attributionSummary.roasGoogle, spend: attributionSummary.spendGoogle, color: 'var(--chart-secondary)', accent: 'var(--bg-elevated)' },
                 ] as const).map(({ label, roas, spend, color }) => {
                   const hasSpend  = spend > 0;
                   const roasColor = roas != null && roas >= 2 ? 'var(--badge-success-text)' : roas != null ? 'var(--badge-error-text)' : 'var(--text-muted)';
@@ -3571,7 +3581,7 @@ export default function DashboardPage() {
               onClick={handleGenerateInsights}
               disabled={isGenerating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity mb-3"
-              style={{ backgroundColor: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.30)', color: '#60a5fa', opacity: isGenerating ? 0.6 : 1, cursor: isGenerating ? 'not-allowed' : 'pointer' }}
+              style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)', color: 'var(--accent)', opacity: isGenerating ? 0.6 : 1, cursor: isGenerating ? 'not-allowed' : 'pointer' }}
             >
               {isGenerating ? <><Spinner className="h-3 w-3" /> Gerando...</> : '⚡ Gerar relatório'}
             </button>

@@ -8,11 +8,11 @@ import type { ManualRevenuePeriod, ManualRevenueSource } from '@/types';
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const SOURCES: { key: ManualRevenueSource; label: string; color: string }[] = [
-  { key: 'META',    label: 'Meta Ads',    color: '#1877F2' },
-  { key: 'GOOGLE',  label: 'Google Ads',  color: '#EA4335' },
-  { key: 'ORGANIC', label: 'Orgânico',    color: '#22c55e' },
-  { key: 'DIRECT',  label: 'Direto',      color: '#a855f7' },
-  { key: 'OTHER',   label: 'Outro',       color: '#64748b' },
+  { key: 'META',    label: 'Meta Ads',    color: 'var(--chart-primary)' },
+  { key: 'GOOGLE',  label: 'Google Ads',  color: 'var(--chart-secondary)' },
+  { key: 'ORGANIC', label: 'Orgânico',    color: 'var(--chart-tertiary)' },
+  { key: 'DIRECT',  label: 'Direto',      color: 'var(--chart-4)' },
+  { key: 'OTHER',   label: 'Outro',       color: 'var(--text-muted)' },
 ];
 
 const MONTH_NAMES = [
@@ -202,7 +202,7 @@ export default function DadosManuaisPage() {
           </svg>
         </button>
         <div>
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="ui-h1">
             Dados Manuais de Receita
           </h1>
           <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -214,13 +214,13 @@ export default function DadosManuaisPage() {
       {/* Banner de orientação */}
       <div
         className="flex items-start gap-3 p-4 rounded-xl"
-        style={{ backgroundColor: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)' }}
+        style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}
       >
-        <svg className="h-5 w-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="#3b82f6" strokeWidth={1.5}>
+        <svg className="h-5 w-5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
         </svg>
         <div>
-          <p className="text-sm font-medium" style={{ color: '#60a5fa' }}>
+          <p className="text-sm font-medium" style={{ color: 'var(--accent)' }}>
             Insira pelo menos os últimos 3 meses de dados para análises mais precisas.
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
@@ -264,7 +264,7 @@ export default function DadosManuaisPage() {
           {isEditing && (
             <span
               className="text-xs px-2 py-0.5 rounded-full"
-              style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
             >
               Editando período existente
             </span>
@@ -359,7 +359,7 @@ export default function DadosManuaisPage() {
             onClick={handleSave}
             disabled={saving}
             className="px-5 py-2 rounded-lg text-sm font-medium transition-opacity"
-            style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: saving ? 0.6 : 1 }}
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: saving ? 0.6 : 1 }}
           >
             {saving ? 'Salvando...' : isEditing ? 'Atualizar período' : 'Salvar período'}
           </button>
@@ -397,8 +397,8 @@ export default function DadosManuaisPage() {
                   key={p.id}
                   className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl"
                   style={{
-                    border: isSelected ? '1px solid rgba(59,130,246,0.4)' : '1px solid var(--border)',
-                    backgroundColor: isSelected ? 'rgba(59,130,246,0.05)' : 'transparent',
+                    border: isSelected ? '1px solid var(--accent-line)' : '1px solid var(--border)',
+                    backgroundColor: isSelected ? 'var(--accent-dim)' : 'transparent',
                   }}
                 >
                   <button
@@ -412,7 +412,7 @@ export default function DadosManuaisPage() {
                       {p.isIncomplete && (
                         <span
                           className="text-xs px-1.5 py-0.5 rounded"
-                          style={{ backgroundColor: 'rgba(245,158,11,0.1)', color: '#fbbf24' }}
+                          style={{ backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' }}
                         >
                           Incompleto
                         </span>

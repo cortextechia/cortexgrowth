@@ -16,8 +16,8 @@ function Spinner() {
   );
 }
 
-// Identidade visual por plano. As cores são deliberadamente distintas entre si
-// (ciano → violeta → âmbar) para o banner ser reconhecido pela cor, não pelo texto.
+// Conteúdo de cada plano. No visual Cromalex todos usam o limão: o plano escolhido
+// se destaca pela borda e pela lista aberta, não por uma cor própria.
 // O conteúdo de `inclui` vem do que os planos REALMENTE entregam (planLimits.ts):
 // limite de usuários, cap de clientes no CRM e integração Kommo.
 const IDENTIDADE: Record<string, {
@@ -28,36 +28,36 @@ const IDENTIDADE: Record<string, {
   inclui: string[];
 }> = {
   DEMO: {
-    cor: 'var(--plano-demo)',
-    corSuave: 'var(--plano-demo-soft)',
+    cor: 'var(--accent)',
+    corSuave: 'var(--accent-dim)',
     chamada: 'Para conhecer a plataforma',
     publico: 'até 4 usuários · mensal',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   CRM: {
-    cor: 'var(--plano-pro)',
-    corSuave: 'var(--plano-pro-soft)',
+    cor: 'var(--accent)',
+    corSuave: 'var(--accent-dim)',
     chamada: 'Só o CRM',
     publico: '1 usuário',
     inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
   },
   STARTER: {
-    cor: 'var(--plano-starter)',
-    corSuave: 'var(--plano-starter-soft)',
+    cor: 'var(--accent)',
+    corSuave: 'var(--accent-dim)',
     chamada: 'Growth + CRM',
     publico: 'até 3 usuários',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
-    cor: 'var(--plano-pro)',
-    corSuave: 'var(--plano-pro-soft)',
+    cor: 'var(--accent)',
+    corSuave: 'var(--accent-dim)',
     chamada: 'Para equipe pequena',
     publico: 'até 3 usuários',
     inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
   },
   ENTERPRISE: {
-    cor: 'var(--plano-enterprise)',
-    corSuave: 'var(--plano-enterprise-soft)',
+    cor: 'var(--accent)',
+    corSuave: 'var(--accent-dim)',
     chamada: 'Para agência',
     publico: 'usuários ilimitados',
     inclui: ['Tudo do Professional', 'Usuários sem limite', 'Vários clientes na mesma conta'],
@@ -91,10 +91,10 @@ function BannerPlano({
       className="banner-plano group relative w-full overflow-hidden rounded-2xl px-5 py-4 text-left"
       style={{
         background: selecionado
-          ? `linear-gradient(100deg, ${id.corSuave} 0%, rgba(255,255,255,0.02) 62%)`
-          : 'rgba(255,255,255,0.025)',
+          ? `linear-gradient(100deg, ${id.corSuave} 0%, var(--bg-surface) 62%)`
+          : 'var(--bg-surface)',
         border: `1px solid ${selecionado ? id.cor : 'var(--border)'}`,
-        boxShadow: selecionado ? `0 0 0 1px ${id.cor}22, 0 14px 40px -22px ${id.cor}` : 'none',
+        boxShadow: selecionado ? `0 0 0 1px ${id.cor}` : 'none',
       }}
     >
       {/* Barra de cor: identidade do plano mesmo quando não selecionado */}
@@ -108,7 +108,7 @@ function BannerPlano({
             </span>
             {opcao.plan === 'STARTER' && (
               <span className="whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                style={{ backgroundColor: id.cor, color: 'var(--bg-base)' }}>
+                style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
                 Mais escolhido
               </span>
             )}
@@ -119,7 +119,7 @@ function BannerPlano({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-extrabold leading-none tabular-nums tracking-tight"
+          <p className="ui-big leading-none tabular-nums tracking-tight"
             style={{ color: selecionado ? id.cor : 'var(--text-secondary)' }}>
             {brl(info.monthlyEquivalent)}
           </p>
@@ -236,14 +236,14 @@ function RegisterContent() {
   };
 
   const inputStyle = {
-    backgroundColor: 'var(--input-bg)',
+    backgroundColor: 'var(--bg-base)',
     border: '1px solid var(--input-border)',
     color: 'var(--text-primary)',
   };
 
   const onFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     e.target.style.borderColor = 'var(--accent)';
-    e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)';
+    e.target.style.boxShadow = '0 0 0 1px var(--accent)';
   };
 
   const onBlur = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -269,8 +269,8 @@ function RegisterContent() {
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 lg:py-14">
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
+            <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>
@@ -282,11 +282,9 @@ function RegisterContent() {
           {/* ── Planos ─────────────────────────────────────────────────── */}
           {escolhePlano ? (
             <div>
-              <h1 className="text-3xl lg:text-4xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
-                Escolha o tamanho da{' '}
-                <span style={{ background: 'linear-gradient(135deg, var(--plano-starter), var(--plano-pro) 55%, var(--plano-enterprise))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  sua operação.
-                </span>
+              <p className="eyebrow">PASSO 1 DE 2 · PLANO</p>
+              <h1 className="cromo mt-2 text-3xl lg:text-[40px] font-extrabold leading-[1.05]" style={{ letterSpacing: '-0.035em' }}>
+                Escolha o tamanho da sua operação.
               </h1>
               <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
                 Meta Ads, Google Ads e CRM no mesmo painel. Você troca de plano quando a operação crescer.
@@ -301,12 +299,12 @@ function RegisterContent() {
                       aria-pressed={ativo}
                       className="rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors"
                       style={{
-                        backgroundColor: ativo ? 'var(--input-border)' : 'transparent',
-                        color: ativo ? 'var(--text-primary)' : 'var(--text-muted)',
+                        backgroundColor: ativo ? 'var(--accent-fill)' : 'transparent',
+                        color: ativo ? 'var(--on-accent)' : 'var(--text-muted)',
                       }}>
                       {ROTULO_CICLO[c]}
                       {desconto && (
-                        <span className="ml-1.5 font-bold" style={{ color: ativo ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>{desconto}</span>
+                        <span className="ml-1.5 font-bold" style={{ color: ativo ? 'var(--on-accent)' : 'var(--text-muted)' }}>{desconto}</span>
                       )}
                     </button>
                   );
@@ -337,12 +335,12 @@ function RegisterContent() {
           )}
 
           {/* ── Formulário ─────────────────────────────────────────────── */}
-          <div className="rounded-2xl p-7" style={{
+          <div className="rounded-3xl p-8" style={{
             backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border)',
-            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--border-md)',
           }}>
-            <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Criar conta</h2>
+            {escolhePlano && <p className="eyebrow">PASSO 2 DE 2 · SEUS DADOS</p>}
+            <h2 className="mt-1.5 text-2xl font-extrabold" style={{ color: 'var(--text-primary)' }}>Criar conta</h2>
             {escolhePlano && infoAtual && (
               <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
                 {/* cicloEfetivo: com DEMO marcado e o seletor em Anual, dizer "anual"
@@ -411,10 +409,10 @@ function RegisterContent() {
               </div>
 
               <button type="submit" disabled={isLoading}
-                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
-                style={{ backgroundColor: 'var(--accent)' }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold text-[var(--on-accent)] transition-all disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+                style={{ backgroundColor: 'var(--accent-fill)' }}
                 onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}>
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}>
                 {isLoading && <Spinner />}
                 {isLoading ? 'Criando conta...' : 'Criar conta'}
               </button>
@@ -427,14 +425,14 @@ function RegisterContent() {
 
             <p className="mt-3 text-center text-xs" style={{ color: 'var(--text-muted)' }}>
               Ao criar uma conta, você concorda com nossa{' '}
-              <Link href="/privacy" className="hover:text-blue-400 transition-colors">política de privacidade</Link>.
+              <Link href="/privacy" className="transition-colors hover:text-[var(--text-primary)]">política de privacidade</Link>.
             </p>
           </div>
         </div>
 
         <p className="mt-10 text-xs" style={{ color: 'var(--text-muted)' }}>
           © 2026 IA Cortex Tech ·{' '}
-          <Link href="/privacy" className="hover:text-blue-400 transition-colors">Privacidade</Link>
+          <Link href="/privacy" className="transition-colors hover:text-[var(--text-primary)]">Privacidade</Link>
         </p>
       </div>
 
@@ -463,7 +461,7 @@ function RegisterContent() {
 
 export default function RegisterPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--accent)]" /></div>}>
       <RegisterContent />
     </Suspense>
   );

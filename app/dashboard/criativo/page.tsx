@@ -29,7 +29,7 @@ export default function CriativoPage() {
 
       {/* Cabeçalho */}
       <div>
-        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Criativos</h1>
+        <h1 className="ui-h1">Criativos</h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
           Gere briefings, copy e ideias de criativo a partir dos dados da conta.
         </p>

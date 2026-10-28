@@ -153,7 +153,7 @@ function ReportCard({
                 </div>
               )}
               {content.orchestrator.topRecommendations.length > 0 && (
-                <div className="rounded-lg p-3" style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
+                <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-dim)' }}>
                   <p className="text-xs font-medium mb-2" style={{ color: 'var(--accent)' }}>Top recomendações</p>
                   <ul className="space-y-1">
                     {content.orchestrator.topRecommendations.map((r, i) => (
@@ -176,7 +176,7 @@ function ReportCard({
               onClick={(e) => { e.stopPropagation(); onExport(); }}
               disabled={exporting}
               className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-opacity disabled:opacity-60"
-              style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}
             >
               {exporting ? (
                 <>
@@ -232,19 +232,19 @@ function SectionDivider({
 }) {
   return (
     <div className="flex items-center gap-3 py-2">
-      <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, ${accent}33, transparent)` }} />
+      <div className="flex-1 h-px" style={{ background: `linear-gradient(to right, color-mix(in srgb, ${accent} 20%, transparent), transparent)` }} />
       <div className="flex items-center gap-2 flex-shrink-0">
         <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: accent }}>{label}</span>
         {badge && (
           <span
             className="text-xs font-medium px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: `${accent}18`, color: accent, border: `1px solid ${accent}33` }}
+            style={{ backgroundColor: `color-mix(in srgb, ${accent} 9%, transparent)`, color: accent, border: `1px solid color-mix(in srgb, ${accent} 20%, transparent)` }}
           >
             {badge}
           </span>
         )}
       </div>
-      <div className="flex-1 h-px" style={{ background: `linear-gradient(to left, ${accent}33, transparent)` }} />
+      <div className="flex-1 h-px" style={{ background: `linear-gradient(to left, color-mix(in srgb, ${accent} 20%, transparent), transparent)` }} />
     </div>
   );
 }
@@ -345,7 +345,7 @@ export default function ReportsPage() {
       {/* ── CABEÇALHO ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>Relatórios</h1>
+          <h1 className="ui-h1">Relatórios</h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
             Análises de performance geradas pelos agentes de IA.
           </p>
@@ -368,7 +368,7 @@ export default function ReportsPage() {
           onClick={handleGenerate}
           disabled={generating}
           className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-opacity disabled:opacity-60"
-          style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+          style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
         >
           {generating ? (
             <>
@@ -394,7 +394,7 @@ export default function ReportsPage() {
           SEÇÃO 1 — INTELIGÊNCIA ANALÍTICA
       ══════════════════════════════════════════════════════════════════════════ */}
       <div className="space-y-4">
-        <SectionDivider label="Inteligência Analítica" accent="#3b82f6" />
+        <SectionDivider label="Inteligência Analítica" accent="var(--accent)" />
 
         {/* Score history chart */}
         {chartData.length > 1 && (
@@ -411,18 +411,18 @@ export default function ReportsPage() {
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--chart-axis)' }} tickLine={false} axisLine={false} width={28} />
                 <Tooltip content={<ChartTooltip />} />
-                <Line type="monotone" dataKey="Geral"     stroke="#3b82f6" strokeWidth={2}   dot={false} />
-                <Line type="monotone" dataKey="Marketing" stroke="#a855f7" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-                <Line type="monotone" dataKey="Vendas"    stroke="#22c55e" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
-                <Line type="monotone" dataKey="ROAS"      stroke="#f59e0b" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="Geral"     stroke="var(--chart-primary)" strokeWidth={2}   dot={false} />
+                <Line type="monotone" dataKey="Marketing" stroke="var(--chart-secondary)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="Vendas"    stroke="var(--chart-tertiary)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+                <Line type="monotone" dataKey="ROAS"      stroke="var(--chart-4)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
               </LineChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap gap-4 mt-3">
               {[
-                { label: 'Geral',     color: '#3b82f6' },
-                { label: 'Marketing', color: '#a855f7' },
-                { label: 'Vendas',    color: '#22c55e' },
-                { label: 'ROAS',      color: '#f59e0b' },
+                { label: 'Geral',     color: 'var(--chart-primary)' },
+                { label: 'Marketing', color: 'var(--chart-secondary)' },
+                { label: 'Vendas',    color: 'var(--chart-tertiary)' },
+                { label: 'ROAS',      color: 'var(--chart-4)' },
               ].map(({ label, color }) => (
                 <div key={label} className="flex items-center gap-1.5">
                   <div className="h-2 w-4 rounded-full" style={{ backgroundColor: color }} />
@@ -447,9 +447,9 @@ export default function ReportsPage() {
           >
             <div
               className="h-12 w-12 rounded-xl flex items-center justify-center mb-4"
-              style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}
+              style={{ backgroundColor: 'var(--accent-dim)' }}
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="#60a5fa" strokeWidth={1.5}>
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
               </svg>
             </div>
@@ -461,7 +461,7 @@ export default function ReportsPage() {
               onClick={handleGenerate}
               disabled={generating}
               className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-60"
-              style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
             >
               {generating ? 'Gerando…' : 'Gerar relatório'}
             </button>
@@ -488,19 +488,19 @@ export default function ReportsPage() {
       <Link
         href="/dashboard/criativo"
         className="group flex items-center gap-4 rounded-2xl p-5 transition-colors"
-        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid rgba(168,85,247,0.15)' }}
-        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.35)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(168,85,247,0.15)'; }}
+        style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--accent-dim)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent-line)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--accent-dim)'; }}
       >
-        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.25)' }}>
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="#c084fc" strokeWidth={1.7}>
+        <div className="h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="var(--accent)" strokeWidth={1.7}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
           </svg>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Inteligência Criativa</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            Briefings, copy e ideias de criativo agora ficam na aba <span style={{ color: '#c084fc' }}>Criativos</span>. Clique para abrir.
+            Briefings, copy e ideias de criativo agora ficam na aba <span style={{ color: 'var(--accent)' }}>Criativos</span>. Clique para abrir.
           </p>
         </div>
         <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="var(--text-muted)" strokeWidth={2}>

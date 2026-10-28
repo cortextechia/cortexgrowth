@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useHistorico } from '@/hooks/useApi';
@@ -24,13 +24,25 @@ Chart.register(CategoryScale, LinearScale, BarController, BarElement, LineContro
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const fmtK = (v: number) => `R$${(v / 1000).toFixed(0)}k`;
-const rcol = (v: number) => (v >= 4.5 ? '#1D9E75' : v >= 3 ? '#BA7517' : '#E24B4A');
-const ccol = (v: number) => (v >= 15 ? '#1D9E75' : v >= 12 ? '#BA7517' : '#E24B4A');
+
+// O Chart.js desenha em canvas e não entende var(--x): as cores saem dos tokens do tema
+// (globals.css) lidos na hora, então a paleta continua tendo uma fonte só.
+interface Cores { principal: string; comparacao: string; eixo: string; grade: string; fundo: string; ok: string; atencao: string; ruim: string }
+function lerCores(): Cores {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n: string) => cs.getPropertyValue(n).trim();
+  return {
+    principal: v('--chart-primary'), comparacao: v('--chart-secondary'), eixo: v('--chart-axis'), grade: v('--chart-grid'),
+    fundo: v('--bg-surface'), ok: v('--badge-success-text'), atencao: v('--badge-warn-text'), ruim: v('--badge-error-text'),
+  };
+}
+const rcol = (v: number, c: Cores) => (v >= 4.5 ? c.ok : v >= 3 ? c.atencao : c.ruim);
+const ccol = (v: number, c: Cores) => (v >= 15 ? c.ok : v >= 12 ? c.atencao : c.ruim);
 
 // Plugin: labels sobrepostos nos gráficos Investimento vs Receita
-function makeIRPlugin(invColor: string, surfaceBg: string) {
+function makeIRPlugin(c: Cores) {
   return {
-    id: `ir_${invColor}`,
+    id: `ir_${Math.random()}`,
     afterDatasetsDraw(chart: Chart) {
       const { ctx, scales } = chart as any;
       const x = scales['x'];
@@ -42,13 +54,13 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
         const inv = data.datasets[1].data[i] as number;
         const xPos = x.getPixelForValue(i);
         const roas = data.roasArr[i] as number;
-        const col = rcol(roas);
+        const col = rcol(roas, c);
 
         if (rv > 0) {
           const yBar = y.getPixelForValue(rv);
           ctx.save();
           ctx.font = '600 12px Inter,sans-serif';
-          ctx.fillStyle = '#1D9E75';
+          ctx.fillStyle = c.principal;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           ctx.fillText(fmtK(rv), xPos, yBar - 4);
@@ -60,7 +72,7 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
           ctx.save();
           ctx.beginPath();
           ctx.arc(xPos, yInv, 16, 0, 2 * Math.PI);
-          ctx.fillStyle = surfaceBg;
+          ctx.fillStyle = c.fundo;
           ctx.fill();
           ctx.strokeStyle = col;
           ctx.lineWidth = 1.5;
@@ -78,7 +90,7 @@ function makeIRPlugin(invColor: string, surfaceBg: string) {
 }
 
 // Plugin: labels sobrepostos nos gráficos Leads vs Vendas
-function makeLVPlugin(surfaceBg: string) {
+function makeLVPlugin(c: Cores) {
   return {
     id: `lv_${Math.random()}`,
     afterDatasetsDraw(chart: Chart) {
@@ -94,13 +106,13 @@ function makeLVPlugin(surfaceBg: string) {
 
         const xPos = x.getPixelForValue(i);
         const conv = data.convArr[i] as number;
-        const col = ccol(conv);
+        const col = ccol(conv, c);
 
         if (lv > 0) {
           const yBar = y.getPixelForValue(lv);
           ctx.save();
           ctx.font = '600 12px Inter,sans-serif';
-          ctx.fillStyle = '#7F77DD';
+          ctx.fillStyle = c.comparacao;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           ctx.fillText(String(lv), xPos, yBar - 4);
@@ -111,7 +123,7 @@ function makeLVPlugin(surfaceBg: string) {
           const yVenda = y.getPixelForValue(venda);
           ctx.save();
           ctx.font = '600 12px Inter,sans-serif';
-          ctx.fillStyle = '#1D9E75';
+          ctx.fillStyle = c.principal;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           ctx.fillText(String(venda), xPos, yVenda - 21);
@@ -123,7 +135,7 @@ function makeLVPlugin(surfaceBg: string) {
           ctx.save();
           ctx.beginPath();
           ctx.arc(xPos, yVenda, 16, 0, 2 * Math.PI);
-          ctx.fillStyle = surfaceBg;
+          ctx.fillStyle = c.fundo;
           ctx.fill();
           ctx.strokeStyle = col;
           ctx.lineWidth = 1.5;
@@ -141,17 +153,17 @@ function makeLVPlugin(surfaceBg: string) {
 }
 
 // Constrói configuração de gráfico IR (Investimento vs Receita)
-function buildIRConfig(d: HistoricoPoint[], invColor: string, axisColor: string, gridColor: string, surfaceBg: string): ChartConfiguration {
+function buildIRConfig(d: HistoricoPoint[], c: Cores): ChartConfiguration {
   const maxVal = Math.max(...d.map((r) => Math.max(r.rec, r.inv))) * 1.35 || 10;
   return {
     type: 'bar',
-    plugins: [makeIRPlugin(invColor, surfaceBg)] as any,
+    plugins: [makeIRPlugin(c)] as any,
     data: {
       labels: d.map((r) => r.m),
       roasArr: d.map((r) => r.roas),
       datasets: [
-        { type: 'bar' as const, data: d.map((r) => r.rec), backgroundColor: 'rgba(29,158,117,0.7)', borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.8, order: 2 },
-        { type: 'line' as const, data: d.map((r) => r.inv), borderColor: invColor, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2.5, order: 1 },
+        { type: 'bar' as const, data: d.map((r) => r.rec), backgroundColor: c.principal, borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.8, maxBarThickness: 44, order: 2 },
+        { type: 'line' as const, data: d.map((r) => r.inv), borderColor: c.comparacao, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 1.75, order: 1 },
       ],
     } as any,
     options: {
@@ -159,25 +171,25 @@ function buildIRConfig(d: HistoricoPoint[], invColor: string, axisColor: string,
       layout: { padding: { top: 34, left: 4, right: 4 } },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
-        y: { min: 0, max: maxVal, ticks: { callback: (v: any) => fmtK(v), font: { size: 11 }, color: axisColor }, grid: { color: gridColor }, border: { display: false } },
-        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: axisColor }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: maxVal, ticks: { callback: (v: any) => fmtK(v), font: { size: 11 }, color: c.eixo }, grid: { color: c.grade }, border: { display: false } },
+        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: c.eixo }, grid: { display: false }, border: { display: false } },
       },
     },
   };
 }
 
 // Constrói configuração de gráfico LV (Leads vs Vendas)
-function buildLVConfig(d: HistoricoPoint[], axisColor: string, gridColor: string, surfaceBg: string): ChartConfiguration {
+function buildLVConfig(d: HistoricoPoint[], c: Cores): ChartConfiguration {
   const maxVal = Math.max(...d.map((r) => r.leads)) * 1.35 || 10;
   return {
     type: 'bar',
-    plugins: [makeLVPlugin(surfaceBg)] as any,
+    plugins: [makeLVPlugin(c)] as any,
     data: {
       labels: d.map((r) => r.m),
       convArr: d.map((r) => r.conv),
       datasets: [
-        { type: 'bar' as const, data: d.map((r) => r.leads), backgroundColor: 'rgba(127,119,221,0.7)', borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.8, order: 2 },
-        { type: 'line' as const, data: d.map((r) => r.vendas), borderColor: '#1D9E75', backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 2.5, order: 1 },
+        { type: 'bar' as const, data: d.map((r) => r.leads), backgroundColor: c.comparacao, borderRadius: 4, barPercentage: 0.55, categoryPercentage: 0.8, maxBarThickness: 44, order: 2 },
+        { type: 'line' as const, data: d.map((r) => r.vendas), borderColor: c.principal, backgroundColor: 'transparent', tension: 0.3, pointRadius: 0, borderWidth: 1.75, order: 1 },
       ],
     } as any,
     options: {
@@ -185,8 +197,8 @@ function buildLVConfig(d: HistoricoPoint[], axisColor: string, gridColor: string
       layout: { padding: { top: 34, left: 4, right: 4 } },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       scales: {
-        y: { min: 0, max: maxVal, ticks: { font: { size: 11 }, color: axisColor }, grid: { color: gridColor }, border: { display: false } },
-        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: axisColor }, grid: { display: false }, border: { display: false } },
+        y: { min: 0, max: maxVal, ticks: { font: { size: 11 }, color: c.eixo }, grid: { color: c.grade }, border: { display: false } },
+        x: { ticks: { font: { size: 11 }, maxRotation: 40, autoSkip: false, color: c.eixo }, grid: { display: false }, border: { display: false } },
       },
     },
   };
@@ -195,17 +207,8 @@ function buildLVConfig(d: HistoricoPoint[], axisColor: string, gridColor: string
 // ─── Sub-componentes ───────────────────────────────────────────────────────────
 
 function Badge({ type }: { type: 'total' | 'meta' | 'google' }) {
-  const styles = {
-    total:  { bg: 'rgba(100,116,139,0.15)', color: '#94a3b8' },
-    meta:   { bg: 'rgba(127,119,221,0.12)', color: '#7F77DD'  },
-    google: { bg: 'rgba(29,158,117,0.12)',  color: '#1D9E75'  },
-  }[type];
-  const labels = { total: 'Total', meta: 'Meta Ads', google: 'Google Ads' };
-  return (
-    <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-md mb-2" style={{ backgroundColor: styles.bg, color: styles.color }}>
-      {labels[type]}
-    </span>
-  );
+  const labels = { total: 'TOTAL', meta: 'META ADS', google: 'GOOGLE ADS' };
+  return <span className={`ui-badge mb-2 ${type === 'total' ? 'ui-badge-tint' : 'ui-badge-lime'}`}>{labels[type]}</span>;
 }
 
 function Legend({ items }: { items: { color: string; label: string; line?: boolean }[] }) {
@@ -277,10 +280,8 @@ export default function HistoricoPage() {
 
   const slice = useCallback((arr: HistoricoPoint[]) => arr.slice(-period), [period]);
 
-  const isDark    = resolvedTheme !== 'light';
-  const axisColor = isDark ? '#475569' : '#94a3b8';
-  const gridColor = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)';
-  const surfaceBg = isDark ? '#0f1629' : '#ffffff';
+  // resolvedTheme na dependência: troca de tema relê os tokens e redesenha.
+  const cores = useMemo(() => (resolvedTheme && typeof document !== 'undefined' ? lerCores() : null), [resolvedTheme]);
 
   // Refs dos 6 canvas
   const c1 = useRef<HTMLCanvasElement>(null);
@@ -291,12 +292,12 @@ export default function HistoricoPage() {
   const c6 = useRef<HTMLCanvasElement>(null);
 
   // Configs derivadas dos dados
-  const cfg1 = data ? buildIRConfig(slice(data.total),  '#378ADD', axisColor, gridColor, surfaceBg) : null;
-  const cfg2 = data ? buildIRConfig(slice(data.meta),   '#7F77DD', axisColor, gridColor, surfaceBg) : null;
-  const cfg3 = data ? buildIRConfig(slice(data.google), '#EF9F27', axisColor, gridColor, surfaceBg) : null;
-  const cfg4 = data ? buildLVConfig(slice(data.total),  axisColor, gridColor, surfaceBg)            : null;
-  const cfg5 = data ? buildLVConfig(slice(data.meta),   axisColor, gridColor, surfaceBg)            : null;
-  const cfg6 = data ? buildLVConfig(slice(data.google), axisColor, gridColor, surfaceBg)            : null;
+  const cfg1 = data && cores ? buildIRConfig(slice(data.total),  cores) : null;
+  const cfg2 = data && cores ? buildIRConfig(slice(data.meta),   cores) : null;
+  const cfg3 = data && cores ? buildIRConfig(slice(data.google), cores) : null;
+  const cfg4 = data && cores ? buildLVConfig(slice(data.total),  cores) : null;
+  const cfg5 = data && cores ? buildLVConfig(slice(data.meta),   cores) : null;
+  const cfg6 = data && cores ? buildLVConfig(slice(data.google), cores) : null;
 
   useChart(c1, cfg1);
   useChart(c2, cfg2);
@@ -305,16 +306,15 @@ export default function HistoricoPage() {
   useChart(c5, cfg5);
   useChart(c6, cfg6);
 
-  const cardStyle = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
 
   return (
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3" style={cardStyle}>
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Evolução Histórica</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{organization?.name} · evolução mensal por canal de aquisição</p>
+          <h1 className="ui-h1">Evolução</h1>
+          <p className="ui-sub">{organization?.name} · evolução mensal por canal de aquisição</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -322,8 +322,7 @@ export default function HistoricoPage() {
           <button
             onClick={handleBackfill}
             disabled={backfilling || isLoading}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
-            style={{ backgroundColor: 'rgba(239,159,39,0.12)', color: '#EF9F27', border: '1px solid rgba(239,159,39,0.3)' }}
+            className="ui-btn ui-btn-secondary ui-btn-sm"
           >
             {backfilling ? (
               <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
@@ -339,13 +338,12 @@ export default function HistoricoPage() {
           </button>
 
           {/* Seletor de período */}
-          <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+          <div className="ui-seg" role="group" aria-label="Período">
             {([3, 6, 12] as Period[]).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
-                style={period === p ? { backgroundColor: '#3b82f6', color: '#fff' } : { color: 'var(--text-muted)' }}
+                aria-pressed={period === p}
               >
                 {p} meses
               </button>
@@ -380,8 +378,8 @@ export default function HistoricoPage() {
       {isLoading && (
         <div className="flex items-center justify-center py-20" style={{ color: 'var(--text-muted)' }}>
           <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="#3b82f6" strokeWidth="4" />
-            <path className="opacity-75" fill="#3b82f6" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
+            <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
           Carregando histórico...
         </div>
@@ -390,18 +388,16 @@ export default function HistoricoPage() {
       {!isLoading && data && (
         <>
           {/* ── Bloco 1: Investimento vs Receita ─────────────────────────────── */}
-          <div className="rounded-xl p-5" style={cardStyle}>
-            <p className="text-sm font-medium pb-3 mb-4" style={{ color: 'var(--text-primary)', borderBottom: '0.5px solid var(--border)' }}>
-              Investimento vs receita — ROAS no cruzamento
-            </p>
+          <div className="ui-card">
+            <h2 className="ui-h2 mb-4">Investimento vs receita — ROAS no cruzamento</h2>
 
             {/* Total — largura completa */}
             <div className="mb-6">
               <Badge type="total" />
               <Legend items={[
-                { color: '#1D9E75', label: 'Receita fechada' },
-                { color: '#378ADD', label: 'Investimento', line: true },
-                { color: '#888', label: 'ROAS', line: false },
+                { color: 'var(--chart-primary)', label: 'Receita fechada' },
+                { color: 'var(--chart-secondary)', label: 'Investimento', line: true },
+                { color: 'var(--text-muted)', label: 'ROAS', line: false },
               ]} />
               <div style={{ position: 'relative', height: 280 }}>
                 <canvas ref={c1} />
@@ -413,8 +409,8 @@ export default function HistoricoPage() {
               <div>
                 <Badge type="meta" />
                 <Legend items={[
-                  { color: '#1D9E75', label: 'Receita' },
-                  { color: '#7F77DD', label: 'Investimento', line: true },
+                  { color: 'var(--chart-primary)', label: 'Receita' },
+                  { color: 'var(--chart-secondary)', label: 'Investimento', line: true },
                 ]} />
                 <div style={{ position: 'relative', height: 220 }}>
                   <canvas ref={c2} />
@@ -423,8 +419,8 @@ export default function HistoricoPage() {
               <div>
                 <Badge type="google" />
                 <Legend items={[
-                  { color: '#1D9E75', label: 'Receita' },
-                  { color: '#EF9F27', label: 'Investimento', line: true },
+                  { color: 'var(--chart-primary)', label: 'Receita' },
+                  { color: 'var(--chart-secondary)', label: 'Investimento', line: true },
                 ]} />
                 <div style={{ position: 'relative', height: 220 }}>
                   <canvas ref={c3} />
@@ -434,18 +430,16 @@ export default function HistoricoPage() {
           </div>
 
           {/* ── Bloco 2: Leads vs Vendas ──────────────────────────────────────── */}
-          <div className="rounded-xl p-5" style={cardStyle}>
-            <p className="text-sm font-medium pb-3 mb-4" style={{ color: 'var(--text-primary)', borderBottom: '0.5px solid var(--border)' }}>
-              Leads gerados vs vendas fechadas — taxa de conversão no cruzamento
-            </p>
+          <div className="ui-card">
+            <h2 className="ui-h2 mb-4">Leads gerados vs vendas fechadas — taxa de conversão no cruzamento</h2>
 
             {/* Total */}
             <div className="mb-6">
               <Badge type="total" />
               <Legend items={[
-                { color: '#7F77DD', label: 'Leads gerados' },
-                { color: '#1D9E75', label: 'Vendas fechadas', line: true },
-                { color: '#888', label: 'Taxa de conversão' },
+                { color: 'var(--chart-secondary)', label: 'Leads gerados' },
+                { color: 'var(--chart-primary)', label: 'Vendas fechadas', line: true },
+                { color: 'var(--text-muted)', label: 'Taxa de conversão' },
               ]} />
               <div style={{ position: 'relative', height: 280 }}>
                 <canvas ref={c4} />
@@ -457,8 +451,8 @@ export default function HistoricoPage() {
               <div>
                 <Badge type="meta" />
                 <Legend items={[
-                  { color: '#7F77DD', label: 'Leads' },
-                  { color: '#1D9E75', label: 'Vendas', line: true },
+                  { color: 'var(--chart-secondary)', label: 'Leads' },
+                  { color: 'var(--chart-primary)', label: 'Vendas', line: true },
                 ]} />
                 <div style={{ position: 'relative', height: 220 }}>
                   <canvas ref={c5} />
@@ -467,8 +461,8 @@ export default function HistoricoPage() {
               <div>
                 <Badge type="google" />
                 <Legend items={[
-                  { color: '#7F77DD', label: 'Leads' },
-                  { color: '#1D9E75', label: 'Vendas', line: true },
+                  { color: 'var(--chart-secondary)', label: 'Leads' },
+                  { color: 'var(--chart-primary)', label: 'Vendas', line: true },
                 ]} />
                 <div style={{ position: 'relative', height: 220 }}>
                   <canvas ref={c6} />
@@ -480,7 +474,7 @@ export default function HistoricoPage() {
       )}
 
       {!isLoading && !data && (
-        <div className="rounded-xl p-10 flex flex-col items-center justify-center text-center" style={cardStyle}>
+        <div className="ui-card !p-10 flex flex-col items-center justify-center text-center">
           <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Sem dados históricos</p>
           <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Sincronize Meta Ads, Google Ads e Kommo para ver a evolução mensal.</p>
         </div>

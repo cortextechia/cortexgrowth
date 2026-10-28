@@ -51,7 +51,7 @@ function ProgressBar({ currentIndex }: { currentIndex: number }) {
               className="flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold shrink-0 transition-all"
               style={
                 i < currentIndex
-                  ? { backgroundColor: 'var(--accent)', color: '#fff' }
+                  ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }
                   : i === currentIndex
                   ? { backgroundColor: 'var(--accent-dim)', border: '2px solid var(--accent)', color: 'var(--accent)' }
                   : { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-muted)' }
@@ -181,10 +181,10 @@ function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
         <button
           onClick={() => void handleNext()}
           disabled={isSaving}
-          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
           onMouseEnter={e => { if (!isSaving) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
         >
           {isSaving && <Spinner />}
           {isSaving ? 'Salvando...' : 'Começar configuração'}
@@ -339,9 +339,9 @@ function StepOAuth({
         <button
           onClick={onNext}
           className="w-full rounded-lg py-2.5 text-sm font-medium text-white transition-all"
-          style={{ backgroundColor: isConnected ? 'var(--accent)' : 'var(--accent-dim)', color: isConnected ? '#fff' : 'var(--accent)' }}
+          style={{ backgroundColor: isConnected ? 'var(--accent-fill)' : 'var(--accent-dim)', color: isConnected ? 'var(--on-accent)' : 'var(--accent)' }}
           onMouseEnter={e => { if (isConnected) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-          onMouseLeave={e => { if (isConnected) e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={e => { if (isConnected) e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
         >
           {isConnected ? 'Continuar' : 'Continuar assim mesmo'}
         </button>
@@ -490,10 +490,10 @@ function StepBusiness({ onNext, onSkip }: { onNext: () => void; onSkip: () => vo
         <button
           onClick={() => void handleSave()}
           disabled={isSaving}
-          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
-          style={{ backgroundColor: 'var(--accent)' }}
+          className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)] transition-all disabled:opacity-60"
+          style={{ backgroundColor: 'var(--accent-fill)' }}
           onMouseEnter={e => { if (!isSaving) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
         >
           {isSaving && <Spinner />}
           {isSaving ? 'Salvando...' : 'Salvar e continuar'}
@@ -648,9 +648,9 @@ function StepWebsite({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
           onClick={() => void handleSave()}
           disabled={isSaving}
           className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
-          style={{ backgroundColor: saved ? 'var(--badge-success-text)' : 'var(--accent)' }}
+          style={{ backgroundColor: saved ? 'var(--badge-success-text)' : 'var(--accent-fill)', color: saved ? 'var(--bg-base)' : 'var(--on-accent)' }}
           onMouseEnter={e => { if (!isSaving && !saved) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-          onMouseLeave={e => { if (!isSaving && !saved) e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+          onMouseLeave={e => { if (!isSaving && !saved) e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
         >
           {isSaving && <Spinner />}
           {saved ? <><CheckIcon className="h-4 w-4" /> Salvo!</> : isSaving ? 'Salvando...' : (websiteUrl.trim() || instagram.trim()) ? 'Salvar e continuar' : 'Continuar sem informar'}
@@ -752,10 +752,10 @@ function StepDone({ onFinish }: { onFinish: (destino: string) => void }) {
       <button
         onClick={() => void handleFinish('/dashboard/perfil')}
         disabled={isFinishing}
-        className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-white transition-all disabled:opacity-60"
-        style={{ backgroundColor: 'var(--accent)' }}
+        className="w-full flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)] transition-all disabled:opacity-60"
+        style={{ backgroundColor: 'var(--accent-fill)' }}
         onMouseEnter={e => { if (!isFinishing) e.currentTarget.style.backgroundColor = 'var(--accent-dark)'; }}
-        onMouseLeave={e => { if (!isFinishing) e.currentTarget.style.backgroundColor = 'var(--accent)'; }}
+        onMouseLeave={e => { if (!isFinishing) e.currentTarget.style.backgroundColor = 'var(--accent-fill)'; }}
       >
         {isFinishing && <Spinner />}
         {isFinishing ? 'Abrindo...' : 'Completar meu perfil'}
@@ -801,8 +801,8 @@ function OnboardingContent() {
       <div className="relative z-10 w-full" style={{ maxWidth: '420px' }}>
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8 justify-center">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
-            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
+            <svg className="w-4 h-4 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           </div>

@@ -17,31 +17,31 @@ const CICLO: Record<BillingCycle, string> = {
   ANNUAL: 'Anual',
 };
 
-// Identidade visual por plano, a mesma do cadastro — o cliente reconhece o plano
-// pela cor. As vars --plano-* existem nos dois temas.
+// Conteúdo de cada plano, o mesmo do cadastro. No visual Cromalex todos usam o limão:
+// o escolhido se destaca pela borda, não por uma cor própria.
 const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: string; publico: string; inclui: string[] }> = {
   DEMO: {
-    cor: 'var(--plano-demo)', corSuave: 'var(--plano-demo-soft)',
+    cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Para conhecer a plataforma', publico: 'até 4 usuários · mensal',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   CRM: {
-    cor: 'var(--plano-pro)', corSuave: 'var(--plano-pro-soft)',
+    cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Só o CRM', publico: '1 usuário',
     inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
   },
   STARTER: {
-    cor: 'var(--plano-starter)', corSuave: 'var(--plano-starter-soft)',
+    cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Growth + CRM', publico: 'até 3 usuários',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
-    cor: 'var(--plano-pro)', corSuave: 'var(--plano-pro-soft)',
+    cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Para equipe pequena', publico: 'até 3 usuários',
     inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
   },
   ENTERPRISE: {
-    cor: 'var(--plano-enterprise)', corSuave: 'var(--plano-enterprise-soft)',
+    cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Para agência', publico: 'usuários ilimitados',
     inclui: ['Tudo do Professional', 'Usuários sem limite', 'Vários clientes na mesma conta'],
   },
@@ -82,12 +82,12 @@ function BannerPlano({
       aria-pressed={selecionado}
       className="relative w-full overflow-hidden rounded-2xl px-5 py-4 text-left transition-shadow"
       style={{
-        // Fundo do não-selecionado é var(--bg-elevated), NÃO o rgba(255,255,255,X) do
-        // cadastro: aquele é dark-only e sumiria no tema claro.
+        // Fundo do não-selecionado é var(--bg-elevated): rgba(255,255,255,X) é dark-only e
+        // sumiria no tema claro.
         backgroundColor: selecionado ? 'var(--bg-surface)' : 'var(--bg-elevated)',
         backgroundImage: selecionado ? `linear-gradient(100deg, ${id.corSuave} 0%, transparent 62%)` : 'none',
         border: `1px solid ${selecionado ? id.cor : 'var(--border)'}`,
-        boxShadow: selecionado ? `0 0 0 1px ${id.cor}22, 0 14px 40px -22px ${id.cor}` : 'none',
+        boxShadow: selecionado ? `0 0 0 1px ${id.cor}` : 'none',
       }}
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: id.cor, opacity: selecionado ? 1 : 0.45 }} />
@@ -109,7 +109,7 @@ function BannerPlano({
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-2xl font-extrabold leading-none tabular-nums tracking-tight"
+          <p className="ui-big leading-none tabular-nums tracking-tight"
             style={{ color: selecionado ? id.cor : 'var(--text-secondary)' }}>
             {fmtMoney(info.monthlyEquivalent)}
           </p>
@@ -283,7 +283,7 @@ export default function PlanoCheckout({
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button type="button" onClick={gerarCobranca} disabled={gerando || docIncompleto}
               className="rounded-lg px-5 py-2.5 text-sm font-semibold disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent)', color: '#fff' }}>
+              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
               {/* "Gerar cobrança" é linguagem de quem EMITE. Para quem paga, o botão
                   leva à fatura do Asaas, onde ele escolhe PIX, boleto ou cartão. */}
               {gerando ? 'Abrindo pagamento…' : trocandoPlano ? 'Mudar de plano e pagar' : 'Ir para o pagamento'}

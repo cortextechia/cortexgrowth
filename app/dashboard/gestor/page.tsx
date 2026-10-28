@@ -66,7 +66,7 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
             </p>
           </div>
           {!loading && (
-            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
+            <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}>
               {commissionableClients.length} {commissionableClients.length === 1 ? 'cliente' : 'clientes'}
             </span>
           )}
@@ -90,8 +90,8 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
               return (
                 <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(34,197,94,0.1)' }}>
-                      <span className="text-sm font-bold" style={{ color: '#4ade80' }}>{client.name.charAt(0).toUpperCase()}</span>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--badge-success-bg)' }}>
+                      <span className="text-sm font-bold" style={{ color: 'var(--badge-success-text)' }}>{client.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
@@ -101,7 +101,7 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold tabular-nums" style={{ color: '#4ade80' }}>
+                    <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--badge-success-text)' }}>
                       {fmtMoney(commission)}<span className="text-xs font-normal">/mês</span>
                     </p>
                     <p className="text-xs" style={{ color: 'var(--text-muted)' }}>comissão 10%</p>
@@ -127,7 +127,7 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
               <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(100,116,139,0.1)' }}>
-                    <span className="text-sm font-bold" style={{ color: '#64748b' }}>{client.name.charAt(0).toUpperCase()}</span>
+                    <span className="text-sm font-bold" style={{ color: 'var(--text-muted)' }}>{client.name.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
@@ -175,15 +175,15 @@ function TabRelatorio({
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Minha Conta</p>
           <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.12)' }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: '#a855f7' }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--accent)' }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                 </svg>
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{selfEntry.name}</p>
-                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#c084fc' }}>Você</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>Você</span>
                 </div>
                 <span className="text-xs" style={{ color: PLAN_COLORS[selfEntry.plan] ?? '#64748b' }}>{PLAN_LABELS[selfEntry.plan] ?? selfEntry.plan}</span>
               </div>
@@ -191,7 +191,7 @@ function TabRelatorio({
             <button
               onClick={() => onViewDashboard(selfEntry)}
               className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid rgba(59,130,246,0.2)' }}
+              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}
             >
               Dashboard
             </button>
@@ -205,7 +205,7 @@ function TabRelatorio({
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes</p>
             {!loading && (
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}>
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>
                 {realClients.length} {realClients.length === 1 ? 'cliente' : 'clientes'}
               </span>
             )}
@@ -213,7 +213,7 @@ function TabRelatorio({
           <button
             onClick={onCreateClient}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{ backgroundColor: '#3b82f6', color: '#fff' }}
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -235,14 +235,14 @@ function TabRelatorio({
             {realClients.map((client) => (
               <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
-                    <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{client.name.charAt(0).toUpperCase()}</span>
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
+                    <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{client.name.charAt(0).toUpperCase()}</span>
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
                       {client.source === 'LINK' && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
+                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}>
                           via link
                         </span>
                       )}
@@ -253,7 +253,7 @@ function TabRelatorio({
                 <div className="flex items-center gap-2 shrink-0">
                   {client.source === 'MANAGER' && (
                     client.claimed ? (
-                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}>
+                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}>
                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                         </svg>
@@ -263,7 +263,7 @@ function TabRelatorio({
                       <button
                         onClick={() => onInviteClient(client)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                        style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80' }}
+                        style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)', color: 'var(--badge-success-text)' }}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -285,7 +285,7 @@ function TabRelatorio({
                   <button
                     onClick={() => onManageReports(client)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid rgba(59,130,246,0.2)', color: 'var(--accent)' }}
+                    style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)', color: 'var(--accent)' }}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -468,18 +468,18 @@ function TabConfiguracoes({
           <div className="space-y-2">
             <div
               className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer"
-              style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1.5px dashed rgba(34,197,94,0.3)' }}
+              style={{ backgroundColor: 'var(--badge-success-bg)', border: '1.5px dashed var(--badge-success-text)' }}
               onClick={onCopyReferral}
             >
-              <span className="text-xs font-mono flex-1 truncate" style={{ color: '#4ade80' }}>
+              <span className="text-xs font-mono flex-1 truncate" style={{ color: 'var(--badge-success-text)' }}>
                 {referral.referralLink}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onCopyReferral(); }}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shrink-0"
                 style={copiedReferral
-                  ? { backgroundColor: 'rgba(34,197,94,0.15)', color: '#4ade80' }
-                  : { backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}
+                  ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }
+                  : { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
               >
                 {copiedReferral ? '✓ Copiado!' : 'Copiar'}
               </button>
@@ -516,18 +516,18 @@ function TabConfiguracoes({
           <div className="space-y-2">
             <div
               className="inline-flex items-center gap-4 rounded-xl px-4 py-3 cursor-pointer w-full justify-between"
-              style={{ backgroundColor: 'rgba(59,130,246,0.06)', border: '1.5px dashed rgba(59,130,246,0.3)' }}
+              style={{ backgroundColor: 'var(--accent-dim)', border: '1.5px dashed var(--accent-line)' }}
               onClick={onCopy}
             >
-              <span className="text-2xl font-bold tracking-[0.25em] font-mono" style={{ color: '#60a5fa' }}>
+              <span className="text-2xl font-bold tracking-[0.25em] font-mono" style={{ color: 'var(--accent)' }}>
                 {invite.code}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onCopy(); }}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shrink-0"
                 style={copied
-                  ? { backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }
-                  : { backgroundColor: 'rgba(59,130,246,0.1)', color: '#60a5fa' }}
+                  ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }
+                  : { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
               >
                 {copied ? '✓ Copiado!' : 'Copiar'}
               </button>
@@ -548,7 +548,7 @@ function TabConfiguracoes({
             </div>
           </div>
         ) : (
-          <button onClick={onFetchInvite} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: '#3b82f6', color: '#fff' }}>
+          <button onClick={onFetchInvite} className="text-xs px-4 py-2 rounded-lg" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
             Gerar código
           </button>
         )}
@@ -564,15 +564,13 @@ function TabConfiguracoes({
             </p>
           </div>
           <button
+            type="button"
+            role="switch"
+            aria-checked={briefing.enabled}
+            aria-label="Briefing semanal ativo"
             onClick={() => setBriefing((b) => ({ ...b, enabled: !b.enabled }))}
-            className="shrink-0 relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
-            style={{ backgroundColor: briefing.enabled ? '#3b82f6' : 'var(--border-md)' }}
-          >
-            <span
-              className="inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform"
-              style={{ transform: briefing.enabled ? 'translateX(18px)' : 'translateX(2px)' }}
-            />
-          </button>
+            className="ui-switch"
+          />
         </div>
 
         {loadingBriefing ? (
@@ -590,7 +588,7 @@ function TabConfiguracoes({
                   onClick={() => setBriefing((b) => ({ ...b, notificationChannel: ch }))}
                   className="flex-1 py-1.5 text-xs font-medium transition-colors"
                   style={briefing.notificationChannel === ch
-                    ? { backgroundColor: '#3b82f6', color: '#fff' }
+                    ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }
                     : { backgroundColor: 'transparent', color: 'var(--text-muted)' }}
                 >
                   {ch === 'TELEGRAM' ? 'Telegram' : 'WhatsApp'}
@@ -605,7 +603,7 @@ function TabConfiguracoes({
                   <button
                     onClick={onConnectTelegram}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-medium"
-                    style={{ backgroundColor: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa' }}
+                    style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)', color: 'var(--accent)' }}
                   >
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.04l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.868.519z" /></svg>
                     Conectar Telegram
@@ -621,7 +619,7 @@ function TabConfiguracoes({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 justify-center">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: '#3b82f6' }} />
+                      <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão...</p>
                     </div>
                   </div>
@@ -630,7 +628,7 @@ function TabConfiguracoes({
                 {telegramPhase === 'connected' && (
                   <div className="flex items-center justify-between px-3 py-2.5 rounded-lg" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)' }}>
                     <div className="flex items-center gap-2">
-                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                      <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--badge-success-text)' }} />
                       <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{briefing.chatName || 'Telegram conectado'}</span>
                     </div>
                     <button onClick={onDisconnectTelegram} className="text-xs px-2 py-1 rounded" style={{ color: 'var(--text-muted)' }}>
@@ -678,7 +676,7 @@ function TabConfiguracoes({
                   onClick={onSaveBriefing}
                   disabled={savingBriefing}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-                  style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: savingBriefing ? 0.6 : 1 }}
+                  style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: savingBriefing ? 0.6 : 1 }}
                 >
                   {savingBriefing ? <Spinner className="h-3 w-3" /> : null}
                   Salvar
@@ -719,8 +717,8 @@ function TabConfiguracoes({
               <div key={client.id} className="rounded-xl px-4 py-3 space-y-2" style={{ border: '1px solid var(--border)' }}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(59,130,246,0.1)' }}>
-                      <span className="text-sm font-bold" style={{ color: '#60a5fa' }}>{client.name.charAt(0).toUpperCase()}</span>
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
+                      <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{client.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
@@ -732,7 +730,7 @@ function TabConfiguracoes({
                   <button
                     onClick={() => onDisconnect(client)}
                     className="shrink-0 text-xs px-3 py-1.5 rounded-lg"
-                    style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}
+                    style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}
                   >
                     Remover
                   </button>
@@ -922,7 +920,7 @@ function CreateDashboardModal({
             onClick={() => void handleCreate()}
             disabled={!canCreate || creating}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-            style={{ backgroundColor: '#3b82f6', color: '#fff', opacity: (!canCreate || creating) ? 0.5 : 1 }}
+            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: (!canCreate || creating) ? 0.5 : 1 }}
           >
             {creating ? <Spinner className="h-4 w-4" /> : null}
             Criar Dashboard
@@ -977,19 +975,19 @@ function ClaimLinkModal({ client, onClose }: { client: TrafficManagerClient; onC
         {loading ? (
           <div className="flex items-center gap-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}><Spinner /> Gerando link...</div>
         ) : err ? (
-          <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>{err}</p>
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}>{err}</p>
         ) : (
           <>
             <div
               className="flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer"
-              style={{ backgroundColor: 'rgba(34,197,94,0.06)', border: '1.5px dashed rgba(34,197,94,0.3)' }}
+              style={{ backgroundColor: 'var(--badge-success-bg)', border: '1.5px dashed var(--badge-success-text)' }}
               onClick={() => void copy()}
             >
-              <span className="text-xs font-mono flex-1 truncate" style={{ color: '#4ade80' }}>{link}</span>
+              <span className="text-xs font-mono flex-1 truncate" style={{ color: 'var(--badge-success-text)' }}>{link}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); void copy(); }}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shrink-0"
-                style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#4ade80' }}
+                style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}
               >
                 {copied ? '✓ Copiado!' : 'Copiar'}
               </button>
@@ -1246,8 +1244,10 @@ export default function GestorPage() {
     <>
       {toast && (
         <div
-          className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg text-white"
-          style={{ backgroundColor: toast.type === 'success' ? 'var(--bg-elevated)' : '#dc2626', border: '1px solid var(--border-md)' }}
+          className="fixed top-5 right-5 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+          style={toast.type === 'success'
+            ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--badge-success-text)' }
+            : { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}
         >
           {toast.message}
         </div>
@@ -1255,7 +1255,7 @@ export default function GestorPage() {
 
       {/* ── Header com tabs ─────────────────────────────────────────────── */}
       <div className="mb-6">
-        <h1 className="text-lg font-bold mb-4" style={{ color: 'var(--text-primary)' }}>Gestão</h1>
+        <h1 className="ui-h1 mb-4">Gestão</h1>
         <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
           {TABS.map((tab) => (
             <button

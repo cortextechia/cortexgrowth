@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
+import { Dropdown } from '@/components/Dropdown';
 import type { CrmClientSummary, CrmOrigin, CrmTagOption, CrmStatus } from '@/types';
 
 // ── Helpers locais (espelham os do CRM; mantidos aqui para não acoplar esta
@@ -26,6 +27,9 @@ const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
 const originLabel = (o: CrmOrigin) => ORIGIN_OPTIONS.find((x) => x.key === o)?.label ?? o;
 
 // Período de CHEGADA do contato. Dia local no formato do backend (YYYY-MM-DD).
+// Campo de data do período personalizado no mesmo formato de pílula dos filtros.
+const campoData = { backgroundColor: 'var(--bg-surface)', boxShadow: 'inset 0 0 0 1px var(--border-control)', color: 'var(--text-primary)', border: 0 } as const;
+
 const PERIODOS = [
   { key: '', label: 'Chegada: qualquer data', dias: 0 },
   { key: 'hoje', label: 'Chegaram hoje', dias: 1 },
@@ -217,7 +221,7 @@ export default function CrmContatosPage() {
     <div>
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <div className="flex-1 min-w-[200px]">
-          <h1 className="text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>Contatos</h1>
+          <h1 className="ui-h1">Contatos</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             {temPeriodo || fOrigin
               ? <><strong>{total}</strong> contato{total === 1 ? '' : 's'}{fOrigin ? ` de ${originLabel(fOrigin as CrmOrigin)}` : ''}{temPeriodo ? ' chegaram no período' : ''} · mostrando {clients.length}</>
@@ -244,53 +248,43 @@ export default function CrmContatosPage() {
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <button
           onClick={() => setFUnread((v) => !v)}
-          className="rounded-lg px-3 py-1.5 text-sm"
-          style={fUnread
-            ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)' }
-            : { ...input }}
+          className="ui-filtro"
+          data-ativo={fUnread}
+          aria-pressed={fUnread}
         >
           Não respondidos{unreadCount > 0 ? ` (${unreadCount})` : ''}
         </button>
         {responsibleOptions.length > 0 && (
-          <select value={fResponsible} onChange={(e) => setFResponsible(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-            <option value="">Responsável: todos</option>
-            <option value="_none">Sem responsável</option>
-            {responsibleOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
+          <Dropdown variant="pill" label="Responsável" value={fResponsible} onChange={setFResponsible}
+            options={[
+              { value: '', label: 'todos' },
+              { value: '_none', label: 'Sem responsável' },
+              ...responsibleOptions.map(([id, name]) => ({ value: id, label: name })),
+            ]} />
         )}
         {tags.length > 0 && (
-          <select value={fTag} onChange={(e) => setFTag(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-            <option value="">Tag: todas</option>
-            {tags.map((t) => <option key={t.id} value={t.label}>{t.label}</option>)}
-          </select>
+          <Dropdown variant="pill" label="Tag" value={fTag} onChange={setFTag}
+            options={[{ value: '', label: 'todas' }, ...tags.map((t) => ({ value: t.label, label: t.label }))]} />
         )}
-        <select value={fPeriodo} onChange={(e) => setFPeriodo(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-          {PERIODOS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-        </select>
+        <Dropdown variant="pill" label="Chegada" value={fPeriodo} onChange={setFPeriodo}
+          options={PERIODOS.map((p) => ({ value: p.key, label: p.key ? p.label : 'qualquer data' }))} />
         {fPeriodo === 'custom' && (
           <>
-            <input type="date" value={fDe} max={fAte || undefined} onChange={(e) => setFDe(e.target.value)} aria-label="Chegada a partir de" className="rounded-lg px-2.5 py-1.5 text-sm" style={input} />
+            <input type="date" value={fDe} max={fAte || undefined} onChange={(e) => setFDe(e.target.value)} aria-label="Chegada a partir de" className="rounded-full px-3 py-1.5 text-sm" style={campoData} />
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>até</span>
-            <input type="date" value={fAte} min={fDe || undefined} onChange={(e) => setFAte(e.target.value)} aria-label="Chegada até" className="rounded-lg px-2.5 py-1.5 text-sm" style={input} />
+            <input type="date" value={fAte} min={fDe || undefined} onChange={(e) => setFAte(e.target.value)} aria-label="Chegada até" className="rounded-full px-3 py-1.5 text-sm" style={campoData} />
           </>
         )}
-        <select value={fOrigin} onChange={(e) => setFOrigin(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-          <option value="">Origem: todas</option>
-          {ORIGIN_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
-        </select>
+        <Dropdown variant="pill" label="Origem" value={fOrigin} onChange={setFOrigin}
+          options={[{ value: '', label: 'todas' }, ...ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]} />
         {clientTypeOptions.length > 0 && (
-          <select value={fClientType} onChange={(e) => setFClientType(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-            <option value="">Tipo: todos</option>
-            {clientTypeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <Dropdown variant="pill" label="Tipo" value={fClientType} onChange={setFClientType}
+            options={[{ value: '', label: 'todos' }, ...clientTypeOptions.map((t) => ({ value: t, label: t }))]} />
         )}
-        <select value={fSale} onChange={(e) => setFSale(e.target.value)} className="rounded-lg px-2.5 py-1.5 text-sm" style={input}>
-          <option value="">Venda: todas</option>
-          <option value="won">Com venda ganha</option>
-          <option value="lost">Com venda perdida</option>
-        </select>
+        <Dropdown variant="pill" label="Venda" value={fSale} onChange={setFSale}
+          options={[{ value: '', label: 'todas' }, { value: 'won', label: 'Com venda ganha' }, { value: 'lost', label: 'Com venda perdida' }]} />
         {hasActiveFilter && (
-          <button onClick={clearFilters} className="text-xs px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>
+          <button onClick={clearFilters} className="text-xs font-semibold px-2 py-1.5" style={{ color: 'var(--text-muted)' }}>
             ✕ limpar ({filtered.length} de {clients.length})
           </button>
         )}

@@ -28,13 +28,13 @@ export default function EsqueciSenhaPage() {
     return (
       <AuthShell>
         <Caixa titulo="Verifique seu e-mail" tom="sucesso">
-          <p className="text-sm text-center" style={{ color: '#94a3b8' }}>
-            Se existir uma conta com <strong style={{ color: '#cbd5e1' }}>{email}</strong>, o link de
+          <p className="text-sm text-center" style={{ color: 'var(--text-secondary)' }}>
+            Se existir uma conta com <strong style={{ color: 'var(--text-primary)' }}>{email}</strong>, o link de
             redefinição chegou na caixa de entrada. Ele vale por 1 hora.
           </p>
           <Link href="/auth/login"
-            className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-white"
-            style={{ backgroundColor: '#3b82f6' }}>
+            className="mt-6 block w-full rounded-lg py-2.5 text-center text-sm font-medium text-[var(--on-accent)]"
+            style={{ backgroundColor: 'var(--accent-fill)' }}>
             Voltar ao login
           </Link>
         </Caixa>
@@ -45,7 +45,7 @@ export default function EsqueciSenhaPage() {
   return (
     <AuthShell>
       <Caixa titulo="Esqueceu a senha?">
-        <p className="text-sm text-center mb-5" style={{ color: '#94a3b8' }}>
+        <p className="text-sm text-center mb-5" style={{ color: 'var(--text-secondary)' }}>
           Informe o e-mail da conta e enviaremos um link para criar uma nova senha.
         </p>
         <form onSubmit={enviar} className="space-y-4">
@@ -56,13 +56,13 @@ export default function EsqueciSenhaPage() {
             style={inputStyle}
           />
           <button type="submit" disabled={enviando}
-            className="w-full rounded-lg py-2.5 text-sm font-medium text-white disabled:opacity-60"
-            style={{ backgroundColor: '#3b82f6' }}>
+            className="w-full rounded-lg py-2.5 text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}>
             {enviando ? 'Enviando…' : 'Enviar link'}
           </button>
         </form>
         <p className="mt-5 text-center text-sm" style={{ color: '#475569' }}>
-          Lembrou? <Link href="/auth/login" style={{ color: '#60a5fa' }}>Entrar</Link>
+          Lembrou? <Link href="/auth/login" style={{ color: 'var(--accent)' }}>Entrar</Link>
         </p>
       </Caixa>
     </AuthShell>
