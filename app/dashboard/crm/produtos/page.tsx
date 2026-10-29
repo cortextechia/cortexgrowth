@@ -1,6 +1,6 @@
 'use client';
 
-// Catálogo de produtos do CRM (pedido do Ruan, 28/10/2026 — EM AVALIAÇÃO, não deployado).
+// Catálogo de produtos do CRM (pedido do Ruan, 28/10/2026).
 // Cadastra aqui; no card, a venda é montada escolhendo produto + quantidade + desconto.
 // Sem "excluir": desativar tira da lista da venda nova e preserva o relatório.
 

@@ -192,7 +192,7 @@ const NAV_ITEMS = [
     busca: ['Funil', 'Kanban', 'Leads', 'Cards', 'WhatsApp', 'Conversas', 'Tarefas', 'Novos contatos', 'Relatório de vendas', 'Respostas rápidas', 'Motivos de perda', 'Tags'],
     children: [
       { href: '/dashboard/crm/contatos', label: 'Contatos', busca: ['Clientes', 'Lista de contatos', 'Exportar'] },
-      // EM AVALIAÇÃO (pedido do Ruan 28/10/2026) — só na branch feat/produtos-crm.
+      // Catálogo de produtos (pedido do Ruan 28/10/2026).
       { href: '/dashboard/crm/produtos', label: 'Produtos', adminOnly: true, busca: ['Catálogo', 'Cadastrar produto', 'SKU', 'Preço', 'Desconto'] },
       { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true, busca: ['Mensagem em massa', 'Promoção', 'Agendar mensagem'] },
       { href: '/dashboard/crm/automacoes', label: 'Automações', adminOnly: true, busca: ['Boas-vindas', 'Mensagem automática', 'Rodízio de vendedores'] },

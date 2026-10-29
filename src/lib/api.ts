@@ -1252,7 +1252,7 @@ class ApiService {
     return response.data;
   }
 
-  // Produtos do CRM (EM AVALIAÇÃO — pedido do Ruan 28/10/2026, não deployado)
+  // Produtos do CRM (pedido do Ruan 28/10/2026)
   async getCrmProducts(all = false): Promise<{ success: boolean; data: import('@/types').CrmProduct[] }> {
     const response = await this.client.get('/crm/products', { params: all ? { all: 'true' } : {} });
     return response.data;

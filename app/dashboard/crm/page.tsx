@@ -2370,7 +2370,7 @@ function ReportModal({ onClose }: { onClose: () => void }) {
               </ReportSecao>
             )}
 
-            {/* Produtos mais vendidos (EM AVALIAÇÃO) — só vendas montadas por produto */}
+            {/* Produtos mais vendidos — só vendas montadas por produto */}
             {(report.products?.length ?? 0) > 0 && (
               <ReportSecao titulo="Produtos mais vendidos" nota="Vendas ganhas no período montadas por produto. A receita já desconta o desconto da venda, dividido entre os produtos dela.">
                 <div className="overflow-x-auto">
@@ -3638,7 +3638,7 @@ function ClientDrawer(props: {
                       </div>
                     )}
 
-                    {/* Produtos (EM AVALIAÇÃO): o valor da venda sai daqui */}
+                    {/* Produtos: o valor da venda sai daqui */}
                     {(s.items?.length ?? 0) > 0 && (
                       <ul className="text-[11px] mt-1.5 ml-1 space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
                         {s.items!.map((i) => (
@@ -5684,7 +5684,7 @@ function NewClientModal({ onClose, onSaved }: {
   );
 }
 
-// ── Venda por produto (EM AVALIAÇÃO — pedido do Ruan 28/10/2026, não deployado) ──
+// ── Venda por produto (pedido do Ruan 28/10/2026) ──
 // O preço vem do catálogo; o que o cliente negociou entra como desconto (R$ ou %).
 // O total mostrado aqui é só prévia: quem calcula de verdade é o backend.
 

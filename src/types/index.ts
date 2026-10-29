@@ -981,12 +981,12 @@ export interface CrmSale {
   closedAt: string | null;
   createdAt: string;
   segments?: CrmSaleSegment[];
-  /** Venda montada por produto (EM AVALIAÇÃO). Com itens, value = Σ itens − discount. */
+  /** Venda montada por produto. Com itens, value = Σ itens − discount. */
   items?: CrmSaleItem[];
   discount?: number;
 }
 
-/** Catálogo de produtos do CRM (EM AVALIAÇÃO — pedido do Ruan 28/10/2026). */
+/** Catálogo de produtos do CRM (pedido do Ruan 28/10/2026). */
 export interface CrmProduct {
   id: string;
   name: string;
@@ -1180,7 +1180,7 @@ export interface CrmReport {
   discards: { total: number; reasons: { reason: string; count: number }[] };
   /** De onde vêm os leads e onde se vende mais. `label` já traz a UF só em caso de homônimas. */
   cities: { label: string; leads: number; wonCount: number; wonValue: number }[];
-  /** Produtos das vendas ganhas no período (EM AVALIAÇÃO). Receita já com o desconto rateado. */
+  /** Produtos das vendas ganhas no período. Receita já com o desconto rateado. */
   products?: { name: string; sales: number; quantity: number; revenue: number }[];
   sellers: { id: string | null; name: string; wonCount: number; wonValue: number; lostCount: number; winRate: number | null; avgTicket: number }[];
 }
