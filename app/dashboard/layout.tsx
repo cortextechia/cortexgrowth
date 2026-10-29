@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { ABAS_DASHBOARD, abaDaUrl, hrefAba } from '@/lib/abasDashboard';
+import { BuscaGlobal, type DestinoBusca } from '@/components/BuscaGlobal';
 import Link from 'next/link';
 import { ProtectedRoute, PermissionGuard } from '@/components/ProtectedRoute';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -123,10 +125,17 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
+type NavChild = { href: string; label: string; adminOnly?: boolean; soGrowth?: boolean; busca?: string[] };
+
+// `busca`: termos extras para a busca do menu achar a tela por outro nome.
 const NAV_ITEMS = [
   {
+    // Submenu com as abas (28/10/2026): mesma divisão do CRM. A Evolução, que era item
+    // solto do menu, virou uma delas. exact: o item pai não acende junto com a aba.
     href: '/dashboard',
     label: 'Dashboard',
+    exact: true,
+    children: ABAS_DASHBOARD.map((a): NavChild => ({ href: hrefAba(a.key), label: a.label, soGrowth: a.soGrowth, busca: a.busca })),
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
@@ -137,6 +146,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/integrations',
     label: 'Integrações',
+    busca: ['Conectar Meta', 'Conectar Google', 'Formulários da Meta', 'Direct do Instagram', 'Saldo da conta de anúncios', 'Kommo'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
@@ -147,6 +157,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/users',
     label: 'Usuários',
+    busca: ['Vendedores', 'Convidar usuário', 'Equipe'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
@@ -157,6 +168,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/gestor',
     label: 'Gestão',
+    busca: ['Clientes do gestor', 'Comissão', 'Briefing semanal'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
@@ -177,28 +189,20 @@ const NAV_ITEMS = [
       </svg>
     ),
     roles: null,
+    busca: ['Funil', 'Kanban', 'Leads', 'Cards', 'WhatsApp', 'Conversas', 'Tarefas', 'Novos contatos', 'Relatório de vendas', 'Respostas rápidas', 'Motivos de perda', 'Tags'],
     children: [
-      { href: '/dashboard/crm/contatos', label: 'Contatos' },
-      { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true },
-      { href: '/dashboard/crm/automacoes', label: 'Automações', adminOnly: true },
+      { href: '/dashboard/crm/contatos', label: 'Contatos', busca: ['Clientes', 'Lista de contatos', 'Exportar'] },
+      { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true, busca: ['Mensagem em massa', 'Promoção', 'Agendar mensagem'] },
+      { href: '/dashboard/crm/automacoes', label: 'Automações', adminOnly: true, busca: ['Boas-vindas', 'Mensagem automática', 'Rodízio de vendedores'] },
       // "Rastreio" e não "Criativos": já existe um item Criativos no menu (a
       // Inteligência Criativa da IA) e dois rótulos iguais confundem.
-      { href: '/dashboard/crm/criativos', label: 'Rastreio', adminOnly: true },
-    ],
-  },
-  {
-    href: '/dashboard/historico',
-    label: 'Evolução',
-    icon: (
-      <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941" />
-      </svg>
-    ),
-    roles: null,
+      { href: '/dashboard/crm/criativos', label: 'Rastreio', adminOnly: true, busca: ['De qual anúncio veio o lead', 'Link da bio', 'Frase do anúncio'] },
+    ] as NavChild[],
   },
   {
     href: '/dashboard/reports',
     label: 'Relatórios',
+    busca: ['Relatório de campanha', 'Análise das campanhas'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
@@ -209,6 +213,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/criativo',
     label: 'Criativos',
+    busca: ['Ideias de anúncio', 'Briefing', 'Copy', 'Concorrentes', 'Inteligência competitiva'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
@@ -219,6 +224,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/relatorios',
     label: 'Relatórios Auto.',
+    busca: ['Relatório automático', 'Telegram', 'Relatório no WhatsApp', 'Alertas de anomalia', 'Agendar relatório'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
@@ -229,6 +235,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/seo',
     label: 'SEO / AIO',
+    busca: ['Site', 'Google', 'Diagnóstico do site', 'Concorrentes'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0H3" />
@@ -241,6 +248,7 @@ const NAV_ITEMS = [
     // que o ad blocker cancela no browser pelo path.
     href: '/dashboard/perfil',
     label: 'Perfil da conta',
+    busca: ['Perfil da empresa', 'Nota de configuração', 'Instagram da empresa', 'Configuração inicial'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
@@ -251,6 +259,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/assinatura',
     label: 'Assinatura',
+    busca: ['Plano', 'Pagamento', 'Fatura', 'Cobrança'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
@@ -261,6 +270,7 @@ const NAV_ITEMS = [
   {
     href: '/dashboard/organizations',
     label: 'Organizações',
+    busca: ['Cota de IA', 'Empresas'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
@@ -370,10 +380,16 @@ function AvisoAssinaturaEncerrando() {
   );
 }
 
+// useSearchParams (aba ativa do submenu do Dashboard) exige Suspense no App Router.
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={null}><DashboardLayoutConteudo>{children}</DashboardLayoutConteudo></Suspense>;
+}
+
+function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
   const { user, organization, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const abaParam = useSearchParams().get('aba');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -424,10 +440,38 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.title = unreadCrm > 0 ? `(${unreadCrm}) ${base}` : base;
   }, [unreadCrm, pathname]);
 
-  // Submenu do CRM (dropdown p/ Contatos): por padrão segue a rota (aberto quando
-  // se está na seção CRM); ao clicar na seta, a escolha do usuário passa a valer.
-  const [crmMenuToggled, setCrmMenuToggled] = useState<boolean | null>(null);
-  const crmMenuOpen = crmMenuToggled ?? pathname.startsWith('/dashboard/crm');
+  // Submenus (Dashboard, CRM): por padrão seguem a rota (aberto quando se está na
+  // seção); ao clicar na seta, a escolha do usuário passa a valer.
+  const [menuToggled, setMenuToggled] = useState<Record<string, boolean>>({});
+
+  // Subitem com ?aba= (abas do Dashboard) acende pela aba da URL, não só pelo caminho.
+  const abaAtual = abaDaUrl(abaParam, temGrowth);
+  const childIsActive = (href: string) => {
+    const [base, query] = href.split('?');
+    if (query) return pathname === base && new URLSearchParams(query).get('aba') === abaAtual;
+    return pathname === href || pathname.startsWith(href + '/');
+  };
+  const childBloqueado = (c: NavChild) => !temGrowth && (!!c.soGrowth || c.href in TELAS_DO_GROWTH);
+
+  // Destinos da busca: o mesmo menu, com o mesmo filtro de quem vê o quê.
+  const destinosBusca = useMemo(() => {
+    const out: DestinoBusca[] = [];
+    for (const item of NAV_ITEMS) {
+      if (item.href.startsWith('/dashboard/crm') && !crmVisible) continue;
+      if (item.roles && (!user || !item.roles.includes(user.role))) continue;
+      const filhos = (('children' in item ? item.children : undefined) as NavChild[] | undefined) ?? [];
+      // O "Dashboard" puro só abriria a aba padrão — as abas já estão na lista.
+      if (item.href !== '/dashboard') {
+        out.push({ titulo: item.label, href: item.href, termos: 'busca' in item ? item.busca : undefined, bloqueado: !temGrowth && item.href in TELAS_DO_GROWTH });
+      }
+      for (const c of filhos) {
+        if (c.adminOnly && !canBroadcast) continue;
+        out.push({ titulo: c.label, caminho: item.label, href: c.href, termos: c.busca, bloqueado: childBloqueado(c) });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crmVisible, user, temGrowth, canBroadcast]);
 
   useEffect(() => {
     if (!isTrafficManager) return;
@@ -460,15 +504,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       .filter((item) => !item.href.startsWith('/dashboard/crm') || crmVisible)
       .map((item) => {
       const exact = 'exact' in item && item.exact;
-      const isActive = exact
-        ? pathname === item.href
-        : (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href)));
-      const childItems = (('children' in item ? item.children : undefined) as { href: string; label: string; adminOnly?: boolean }[] | undefined)
+      const childItems = (('children' in item ? item.children : undefined) as NavChild[] | undefined)
         ?.filter((c) => !c.adminOnly || canBroadcast);
+      const algumFilhoAtivo = !!childItems?.some((c) => childIsActive(c.href));
+      // O Dashboard é coberto pelas abas: com uma aba acesa, o pai não acende junto.
+      const isActive = (exact
+        ? pathname === item.href
+        : (pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))))
+        && !(expanded && algumFilhoAtivo);
 
-      // Item com submenu (CRM) e sidebar expandida → linha com seta + filhos indentados.
+      // Item com submenu (Dashboard, CRM) e sidebar expandida → linha com seta + filhos indentados.
       // Recolhida (só ícone): cai no render padrão (submenu não faz sentido sem rótulo).
       if (childItems && childItems.length > 0 && expanded) {
+        const menuOpen = menuToggled[item.href] ?? (pathname === item.href || algumFilhoAtivo);
         const node = (
           <div key={item.href}>
             <div
@@ -486,19 +534,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 {item.href === '/dashboard/crm' && <UnreadBadge count={unreadCrm} />}
               </Link>
               <button
-                onClick={() => setCrmMenuToggled(!crmMenuOpen)}
+                onClick={() => setMenuToggled((m) => ({ ...m, [item.href]: !menuOpen }))}
                 className="px-2 py-2 shrink-0 transition-transform"
                 style={{ color: isActive ? 'var(--on-accent)' : 'var(--text-muted)' }}
-                aria-label={crmMenuOpen ? 'Recolher submenu do CRM' : 'Expandir submenu do CRM'}
-                aria-expanded={crmMenuOpen}
+                aria-label={menuOpen ? `Recolher submenu do ${item.label}` : `Expandir submenu do ${item.label}`}
+                aria-expanded={menuOpen}
               >
-                <svg className={`h-4 w-4 transition-transform duration-150 ${crmMenuOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none">
+                <svg className={`h-4 w-4 transition-transform duration-150 ${menuOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="none">
                   <path d="M5.5 7.5 10 12l4.5-4.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             </div>
-            {crmMenuOpen && childItems.map((child) => {
-              const childActive = pathname === child.href || pathname.startsWith(child.href + '/');
+            {menuOpen && childItems.map((child) => {
+              const childActive = childIsActive(child.href);
               return (
                 <Link
                   key={child.href}
@@ -512,7 +560,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   onMouseLeave={e => { if (!childActive) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
                 >
                   {child.label}
-                  {!temGrowth && child.href in TELAS_DO_GROWTH && (
+                  {childBloqueado(child) && (
                     <span className="ml-auto" title="Não faz parte do plano CRM"><IconeCadeado className="h-3.5 w-3.5" /></span>
                   )}
                 </Link>
@@ -734,6 +782,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
 
               <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                <BuscaGlobal destinos={destinosBusca} />
                 <span
                   className="hidden sm:inline text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{ backgroundColor: isTrafficManager ? 'rgba(168,85,247,0.12)' : 'var(--accent-dim)', color: isTrafficManager ? '#c084fc' : 'var(--accent)' }}

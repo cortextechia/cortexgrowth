@@ -1,7 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo, Fragment } from 'react';
+import { useEffect, useRef, useState, useMemo, Fragment, Suspense } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ABAS_DASHBOARD, abaDaUrl, hrefAba } from '@/lib/abasDashboard';
+import { IconeCadeado } from '@/components/RecursoBloqueado';
+import { Evolucao } from '@/components/Evolucao';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights, usePlano } from '@/hooks/useApi';
@@ -1117,7 +1121,12 @@ function CampaignDrawer({ campaign, campaignRows, adsetRows, googleCampaignRows,
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// useSearchParams (a aba vem da URL) exige Suspense no App Router.
 export default function DashboardPage() {
+  return <Suspense fallback={null}><DashboardConteudo /></Suspense>;
+}
+
+function DashboardConteudo() {
   const { user, organization } = useAuth();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme !== 'light';
@@ -1133,6 +1142,12 @@ export default function DashboardPage() {
   // Plano CRM: marketing, campanhas, ROAS/CPL e a análise da IA ficam com cadeado — o resto
   // do painel (funil, vendas, meta, ranking) é o CRM e segue igual.
   const { temGrowth } = usePlano();
+  // A aba mora na URL (?aba=) para o submenu do Dashboard e a busca abrirem direto nela.
+  const router = useRouter();
+  const aba = abaDaUrl(useSearchParams().get('aba'), temGrowth);
+  // Trocar de aba (aqui, pelo menu ou pela busca) volta ao topo: só a query muda, então o
+  // Next mantém a rolagem e a aba nova abria no meio, na altura em que a anterior estava.
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [aba]);
 
   const [range, setRange]             = useState<Range>('30D');
   const [customStart, setCustomStart] = useState('');
@@ -2275,7 +2290,28 @@ export default function DashboardPage() {
             {organization?.plan && <span className="ui-badge ui-badge-tint">{organization.plan}</span>}
           </p>
         </div>
+      </div>
 
+      {/* Abas + período presos no topo: quem estava no fim da página tinha que subir tudo
+          para trocar a data (feedback do Ruan, 28/10). top-14 = altura da barra do layout.
+          Só do tablet para cima: no celular as abas quebram em duas linhas e a barra presa
+          comeria um quinto da tela. */}
+      <div className="md:sticky md:top-14 z-[5] -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--bg-base) 88%, transparent)', backdropFilter: 'blur(12px)', borderBottom: '1px solid var(--border)' }}>
+        <div className="ui-seg" role="group" aria-label="Seção do dashboard">
+          {ABAS_DASHBOARD.map((a) => (
+            <button key={a.key} aria-pressed={aba === a.key}
+              onClick={() => router.replace(hrefAba(a.key), { scroll: false })}
+              className="inline-flex items-center gap-1.5"
+              title={!temGrowth && a.soGrowth ? 'Não faz parte do plano CRM' : undefined}>
+              {a.label}
+              {!temGrowth && a.soGrowth && <IconeCadeado className="h-3.5 w-3.5" />}
+            </button>
+          ))}
+        </div>
+
+        {/* A Evolução é por mês e tem o seletor dela; o período daqui não vale lá. */}
+        {aba !== 'evolucao' && (
         <div className="ui-seg" role="group" aria-label="Período">
           {(['7D', '30D', '90D'] as Exclude<Range, 'CUSTOM'>[]).map((r) => (
             <button key={r} onClick={() => changeRange(r)} aria-pressed={range === r}>
@@ -2286,10 +2322,11 @@ export default function DashboardPage() {
             Personalizado
           </button>
         </div>
+        )}
       </div>
 
       {/* Custom date range */}
-      {range === 'CUSTOM' && (() => {
+      {aba !== 'evolucao' && range === 'CUSTOM' && (() => {
         // Atalhos dentro da janela de 90 dias (os endpoints de Meta/Google do dashboard só retornam 90d).
         const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const hoje = new Date();
@@ -2349,6 +2386,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ═══ ABA ANÚNCIOS ═══════════════════════════════════════════════════════ */}
+      {aba === 'anuncios' && (<>
 
       {/* ── 3. KPIs TOPO DE FUNIL ─────────────────────────────────────────────── */}
       {!temGrowth ? (
@@ -2517,6 +2557,11 @@ export default function DashboardPage() {
           )}
         </div>
       )}
+
+      </>)}
+
+      {/* ═══ ABA VENDAS E CRM ═══════════════════════════════════════════════════ */}
+      {aba === 'vendas' && (<>
 
       {/* ── DADOS MANUAIS — banner quando sem CRM ───────────────────────────── */}
       {!hasCrmSource && (
@@ -3231,8 +3276,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── 6. CAMPANHAS + CPL POR CANAL ─────────────────────────────────────── */}
-      {temGrowth && (campaigns.length > 0 || cplByChannel.meta.spend > 0 || cplByChannel.google.spend > 0) && (
+      </>)}
+
+      {/* ── 6. CAMPANHAS + CPL POR CANAL (aba Anúncios) ──────────────────────── */}
+      {aba === 'anuncios' && temGrowth && (campaigns.length > 0 || cplByChannel.meta.spend > 0 || cplByChannel.google.spend > 0) && (
         <div>
           <SectionLabel>campanhas e performance por canal</SectionLabel>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -3432,10 +3479,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── 7. SAÚDE FINANCEIRA E PROJEÇÃO ───────────────────────────────────── */}
+      {/* ── 7. SAÚDE FINANCEIRA E PROJEÇÃO (aba Vendas e CRM) ────────────────── */}
       {/* Depende de receita (CRM ou dados manuais) — sem fonte de receita, todos os KPIs
           ficam "—", então oculta a seção e deixa as conversões das plataformas no lugar. */}
-      {attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
+      {aba === 'vendas' && attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>saúde financeira e projeção</SectionLabel>
           <div className={`grid grid-cols-1 gap-3 ${temGrowth ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
@@ -3568,8 +3615,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── 8. INTELIGÊNCIA DE IA ─────────────────────────────────────────────── */}
-      {!temGrowth ? (
+      {/* ═══ ABA EVOLUÇÃO ═══════════════════════════════════════════════════════ */}
+      {aba === 'evolucao' && (!temGrowth ? (
+        <RecursoBloqueado titulo="Evolução"
+          texto="Evolução mês a mês do investimento, dos leads e do retorno dos anúncios. Faz parte do plano Growth + CRM." />
+      ) : <Evolucao />)}
+
+      {/* ── 8. INTELIGÊNCIA DE IA (aba Análise da IA) ─────────────────────────── */}
+      {aba !== 'ia' ? null : !temGrowth ? (
         <RecursoBloqueado titulo="Inteligência de IA"
           texto="Análise do período escrita pela IA, com recomendações sobre marketing e vendas. Faz parte do plano Growth + CRM." />
       ) : (
