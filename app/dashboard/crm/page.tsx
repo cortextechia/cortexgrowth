@@ -12,7 +12,7 @@ import { apiService, API_BASE_URL } from '@/lib/api';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
-  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage,
+  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage, CrmProduct,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -434,7 +434,8 @@ export default function CrmPage() {
   // Aceita detail (drawer) ou summary (coluna Recorrente) — o modal só usa esses campos
   const [saleModalClient, setSaleModalClient] = useState<Pick<CrmClientSummary, 'id' | 'name' | 'origin' | 'stageId'> | null>(null);
   // id+value bastam para os modais de desfecho — permite abrir tanto do drawer quanto do kanban
-  const [winSaleTarget, setWinSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
+  const [winSaleTarget, setWinSaleTarget] = useState<Pick<CrmSale, 'id' | 'value' | 'items'> | null>(null);
+  const [itemsSaleTarget, setItemsSaleTarget] = useState<CrmSale | null>(null);
   const [loseSaleTarget, setLoseSaleTarget] = useState<Pick<CrmSale, 'id' | 'value'> | null>(null);
   const [showStagesEditor, setShowStagesEditor] = useState(false);
   const [showLostReasonsEditor, setShowLostReasonsEditor] = useState(false);
@@ -1664,6 +1665,7 @@ export default function CrmPage() {
           onClose={closeClient}
           onNewSale={() => detail && setSaleModalClient(detail)}
           onWin={(s) => setWinSaleTarget(s)}
+          onEditSaleItems={(s) => setItemsSaleTarget(s)}
           onLose={(s) => setLoseSaleTarget(s)}
           onChangeClientStage={async (stageId) => {
             if (!detail) return;
@@ -1783,6 +1785,19 @@ export default function CrmPage() {
             showToast('success', 'Venda registrada.');
             await refreshDetail();
             await loadAll(searchRef.current.trim() || undefined, { force: true });
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {itemsSaleTarget && (
+        <SaleItemsModal
+          sale={itemsSaleTarget}
+          onClose={() => setItemsSaleTarget(null)}
+          onSaved={async () => {
+            setItemsSaleTarget(null);
+            showToast('success', 'Produtos da venda atualizados.');
+            await refreshDetail();
           }}
           onError={(msg) => showToast('error', msg)}
         />
@@ -2355,6 +2370,34 @@ function ReportModal({ onClose }: { onClose: () => void }) {
               </ReportSecao>
             )}
 
+            {/* Produtos mais vendidos (EM AVALIAÇÃO) — só vendas montadas por produto */}
+            {(report.products?.length ?? 0) > 0 && (
+              <ReportSecao titulo="Produtos mais vendidos" nota="Vendas ganhas no período montadas por produto. A receita já desconta o desconto da venda, dividido entre os produtos dela.">
+                <div className="overflow-x-auto">
+                  <table className="ui-table !text-[13px]">
+                    <thead>
+                      <tr>
+                        <th>Produto</th>
+                        <th className="ui-num">Vendas</th>
+                        <th className="ui-num">Unidades</th>
+                        <th className="ui-num">Receita</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.products!.map((p) => (
+                        <tr key={p.name}>
+                          <td>{p.name}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.sales}</td>
+                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.quantity}</td>
+                          <td className="ui-num font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.revenue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </ReportSecao>
+            )}
+
             {/* Por vendedor */}
             {report.sellers.length > 0 && (
               <ReportSecao titulo="Por vendedor">
@@ -2858,6 +2901,7 @@ function ClientDrawer(props: {
   onClose: () => void;
   onNewSale: () => void;
   onWin: (s: CrmSale) => void;
+  onEditSaleItems: (s: CrmSale) => void;
   onLose: (s: CrmSale) => void;
   onChangeClientStage: (stageId: string) => void;
   onAcceptTriage: () => Promise<void>;
@@ -3575,7 +3619,7 @@ function ClientDrawer(props: {
                       ) : (
                         <span className="flex items-center gap-1.5">
                           <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(s.value)}</span>
-                          {s.status === 'OPEN' && (s.segments?.length ?? 0) === 0 && (
+                          {s.status === 'OPEN' && (s.segments?.length ?? 0) === 0 && (s.items?.length ?? 0) === 0 && (
                             <button
                               onClick={() => { setEditingValueSale(s.id); setValueDraft(s.value > 0 ? maskMoney(String(s.value).replace('.', ',')) : ''); }}
                               className="text-xs"
@@ -3592,6 +3636,26 @@ function ClientDrawer(props: {
                       <div className="text-[11px] mt-1.5 ml-1" style={{ color: 'var(--text-muted)' }}>
                         ↳ {s.segments!.map((seg) => `${seg.name} ${fmtMoney(seg.value)}`).join(' · ')}
                       </div>
+                    )}
+
+                    {/* Produtos (EM AVALIAÇÃO): o valor da venda sai daqui */}
+                    {(s.items?.length ?? 0) > 0 && (
+                      <ul className="text-[11px] mt-1.5 ml-1 space-y-0.5" style={{ color: 'var(--text-secondary)' }}>
+                        {s.items!.map((i) => (
+                          <li key={i.id} className="flex justify-between gap-2">
+                            <span className="truncate">{i.quantity}× {i.name}</span>
+                            <span className="tabular-nums shrink-0">{fmtMoney(i.unitPrice * i.quantity)}</span>
+                          </li>
+                        ))}
+                        {(s.discount ?? 0) > 0 && (
+                          <li className="flex justify-between gap-2"><span>Desconto</span><span className="tabular-nums">− {fmtMoney(s.discount!)}</span></li>
+                        )}
+                      </ul>
+                    )}
+                    {s.status === 'OPEN' && (s.segments?.length ?? 0) === 0 && (
+                      <button onClick={() => props.onEditSaleItems(s)} className="text-[11px] mt-1.5 ml-1 font-medium" style={{ color: 'var(--accent)' }}>
+                        {(s.items?.length ?? 0) > 0 ? 'Editar produtos' : '+ Montar por produtos'}
+                      </button>
                     )}
 
                     {s.status === 'LOST' && s.lostReason && (
@@ -5620,6 +5684,169 @@ function NewClientModal({ onClose, onSaved }: {
   );
 }
 
+// ── Venda por produto (EM AVALIAÇÃO — pedido do Ruan 28/10/2026, não deployado) ──
+// O preço vem do catálogo; o que o cliente negociou entra como desconto (R$ ou %).
+// O total mostrado aqui é só prévia: quem calcula de verdade é o backend.
+
+type LinhaProduto = { productId: string; quantity: number };
+type Desconto = { modo: 'reais' | 'pct'; texto: string };
+
+function subtotalDe(linhas: LinhaProduto[], produtos: CrmProduct[]): number {
+  return linhas.reduce((s, l) => s + (produtos.find((p) => p.id === l.productId)?.price ?? 0) * l.quantity, 0);
+}
+
+function descontoEmReais(subtotal: number, d: Desconto): number {
+  const n = parseMoney(d.texto);
+  const v = d.modo === 'pct' ? (subtotal * Math.min(n, 100)) / 100 : n;
+  return Math.round(v * 100) / 100;
+}
+
+function ProdutosDaVenda({ produtos, linhas, setLinhas, desconto, setDesconto }: {
+  produtos: CrmProduct[];
+  linhas: LinhaProduto[];
+  setLinhas: (f: (p: LinhaProduto[]) => LinhaProduto[]) => void;
+  desconto: Desconto;
+  setDesconto: (d: Desconto) => void;
+}) {
+  const subtotal = subtotalDe(linhas, produtos);
+  const desc = descontoEmReais(subtotal, desconto);
+  const total = subtotal - desc;
+  return (
+    <div className="space-y-2">
+      {linhas.map((l, i) => {
+        const p = produtos.find((x) => x.id === l.productId);
+        return (
+          <div key={i} className="flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <Dropdown
+                value={l.productId}
+                onChange={(v) => setLinhas((prev) => prev.map((x, j) => (j === i ? { ...x, productId: v } : x)))}
+                options={produtos.map((x) => ({ value: x.id, label: `${x.name} · ${fmtMoney(x.price)}` }))}
+              />
+            </div>
+            <input type="number" min={1} max={100000} aria-label="Quantidade"
+              className="w-16 rounded-lg px-2 py-2 text-sm text-center" style={input} value={l.quantity}
+              onChange={(e) => setLinhas((prev) => prev.map((x, j) => (j === i ? { ...x, quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : x)))} />
+            <span className="w-24 text-right text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+              {p ? fmtMoney(p.price * l.quantity) : '—'}
+            </span>
+            <button onClick={() => setLinhas((prev) => prev.filter((_, j) => j !== i))} className="text-xs px-1"
+              style={{ color: 'var(--text-muted)' }} aria-label="Remover produto">✕</button>
+          </div>
+        );
+      })}
+      <button onClick={() => setLinhas((prev) => [...prev, { productId: produtos[0]!.id, quantity: 1 }])}
+        className="text-xs font-medium" style={{ color: 'var(--accent)' }}>+ adicionar produto</button>
+
+      <div className="rounded-lg p-3 space-y-1.5 text-sm" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+        <div className="flex justify-between"><span style={{ color: 'var(--text-secondary)' }}>Total dos produtos</span><span className="tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(subtotal)}</span></div>
+        <div className="flex items-center justify-between gap-2">
+          <span style={{ color: 'var(--text-secondary)' }}>Desconto</span>
+          <div className="flex items-center gap-1.5">
+            <div className="ui-seg !p-0.5" role="group" aria-label="Tipo de desconto">
+              <button className="!px-2 !py-1 !text-xs" aria-pressed={desconto.modo === 'reais'} onClick={() => setDesconto({ modo: 'reais', texto: '' })}>R$</button>
+              <button className="!px-2 !py-1 !text-xs" aria-pressed={desconto.modo === 'pct'} onClick={() => setDesconto({ modo: 'pct', texto: '' })}>%</button>
+            </div>
+            <input className="w-24 rounded-lg px-2 py-1 text-sm text-right" style={input} inputMode="decimal" placeholder="0"
+              value={desconto.texto}
+              onChange={(e) => setDesconto({ ...desconto, texto: desconto.modo === 'reais' ? maskMoney(e.target.value) : e.target.value.replace(/[^\d,]/g, '') })} />
+          </div>
+        </div>
+        {desconto.modo === 'pct' && desc > 0 && (
+          <p className="text-right text-xs" style={{ color: 'var(--text-secondary)' }}>− {fmtMoney(desc)}</p>
+        )}
+        <div className="flex justify-between pt-1.5 font-semibold" style={{ borderTop: '1px solid var(--border)' }}>
+          <span style={{ color: 'var(--text-primary)' }}>Total da venda</span>
+          <span className="tabular-nums" style={{ color: total < 0 ? 'var(--badge-error-text)' : 'var(--text-primary)' }}>{fmtMoney(total)}</span>
+        </div>
+        {total < 0 && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>O desconto passou do total dos produtos.</p>}
+      </div>
+    </div>
+  );
+}
+
+// Catálogo ativo, carregado quando o modal abre.
+function useProdutosCrm(): CrmProduct[] | null {
+  const [produtos, setProdutos] = useState<CrmProduct[] | null>(null);
+  useEffect(() => {
+    apiService.getCrmProducts().then((r) => setProdutos(r.data)).catch(() => setProdutos([]));
+  }, []);
+  return produtos;
+}
+
+// Editar os produtos de uma venda em aberto (a partir do card).
+function SaleItemsModal({ sale, onClose, onSaved, onError }: {
+  sale: Pick<CrmSale, 'id' | 'items' | 'discount'>;
+  onClose: () => void;
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const produtos = useProdutosCrm();
+  return (
+    <ModalShell title="Produtos da venda" onClose={onClose}>
+      {!produtos ? (
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando…</p>
+      ) : produtos.length === 0 ? (
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum produto cadastrado. Cadastre em CRM › Produtos.</p>
+      ) : (
+        <SaleItemsForm sale={sale} produtos={produtos} onSaved={onSaved} onError={onError} />
+      )}
+    </ModalShell>
+  );
+}
+
+// Montado só com o catálogo em mãos: as linhas iniciais dependem dele.
+function SaleItemsForm({ sale, produtos, onSaved, onError }: {
+  sale: Pick<CrmSale, 'id' | 'items' | 'discount'>;
+  produtos: CrmProduct[];
+  onSaved: () => void;
+  onError: (msg: string) => void;
+}) {
+  const ativo = (id: string | null) => !!id && produtos.some((p) => p.id === id);
+  // Item cujo produto foi desativado não está no catálogo ativo: a venda não pode
+  // ser regravada com ele (o backend recusa). Avisa em vez de sumir calado.
+  const desativados = (sale.items ?? []).filter((i) => !ativo(i.productId));
+  const [linhas, setLinhas] = useState<LinhaProduto[]>(
+    (sale.items ?? []).filter((i) => ativo(i.productId)).map((i) => ({ productId: i.productId!, quantity: i.quantity })),
+  );
+  const [desconto, setDesconto] = useState<Desconto>({
+    modo: 'reais', texto: sale.discount ? maskMoney(sale.discount.toFixed(2).replace('.', ',')) : '',
+  });
+  const [saving, setSaving] = useState(false);
+  const subtotal = subtotalDe(linhas, produtos);
+  const negativo = subtotal - descontoEmReais(subtotal, desconto) < 0;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await apiService.setCrmSaleItems(sale.id, { items: linhas, discount: linhas.length ? descontoEmReais(subtotal, desconto) : 0 });
+      onSaved();
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar os produtos.'));
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {desativados.length > 0 && (
+        <p className="text-xs" style={{ color: 'var(--text-primary)' }}>
+          <span style={{ color: 'var(--badge-warn-text)' }}>●</span> {desativados.map((i) => i.name).join(', ')} saiu do catálogo e não volta ao salvar.
+        </p>
+      )}
+      <ProdutosDaVenda produtos={produtos} linhas={linhas} setLinhas={setLinhas} desconto={desconto} setDesconto={setDesconto} />
+      {linhas.length === 0 && (
+        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Sem produtos, a venda volta a ter o valor digitado (o atual fica).</p>
+      )}
+      <button onClick={save} disabled={saving || negativo}
+        className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+        style={{ backgroundColor: 'var(--accent-fill)' }}>
+        {saving ? 'Salvando...' : 'Salvar produtos'}
+      </button>
+    </div>
+  );
+}
+
 function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
   client: Pick<CrmClientSummary, 'id' | 'name' | 'origin' | 'stageId'>;
   stages: CrmStage[];
@@ -5634,22 +5861,35 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
   const [origin, setOrigin] = useState<CrmOrigin>(client.origin);
   const [segments, setSegments] = useState<{ name: string; value: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  // Por produtos só aparece com catálogo: org sem produto cadastrado vê o modal de sempre.
+  const produtos = useProdutosCrm();
+  const [modo, setModo] = useState<'valor' | 'produtos'>('valor');
+  const [linhas, setLinhas] = useState<LinhaProduto[]>([]);
+  const [desconto, setDesconto] = useState<Desconto>({ modo: 'reais', texto: '' });
+  const porProdutos = modo === 'produtos' && !!produtos?.length;
+  const subtotal = porProdutos ? subtotalDe(linhas, produtos!) : 0;
+  const descReais = porProdutos ? descontoEmReais(subtotal, desconto) : 0;
 
   const parsedValue = parseMoney(value);
   const segSum = segments.reduce((acc, s) => acc + parseMoney(s.value), 0);
-  const segMismatch = segments.length > 0 && Math.abs(segSum - parsedValue) > 0.01;
+  const segMismatch = !porProdutos && segments.length > 0 && Math.abs(segSum - parsedValue) > 0.01;
 
   const save = async () => {
-    if (parsedValue < 0 || value.trim() === '') { onError('Informe o valor da venda.'); return; }
+    if (porProdutos) {
+      if (linhas.length === 0) { onError('Adicione ao menos um produto.'); return; }
+      if (descReais > subtotal) { onError('O desconto passou do total dos produtos.'); return; }
+    } else if (parsedValue < 0 || value.trim() === '') { onError('Informe o valor da venda.'); return; }
     if (segMismatch) { onError(`Soma dos segmentos (${fmtMoney(segSum)}) difere do valor (${fmtMoney(parsedValue)}).`); return; }
     setSaving(true);
     try {
       await apiService.createCrmSale(client.id, {
-        value: parsedValue,
+        // Com produtos o backend recalcula o valor; o enviado é só a prévia.
+        value: porProdutos ? Math.max(0, subtotal - descReais) : parsedValue,
         ...(title.trim() ? { title: title.trim() } : {}),
         ...(stageId ? { stageId } : {}),
         origin,
-        ...(segments.length > 0
+        ...(porProdutos ? { items: linhas, discount: descReais } : {}),
+        ...(!porProdutos && segments.length > 0
           ? { segments: segments.filter((s) => s.name.trim()).map((s) => ({ name: s.name.trim(), value: parseMoney(s.value) })) }
           : {}),
       });
@@ -5667,10 +5907,23 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
           <label className="text-xs block mb-1" style={label}>Título (opcional)</label>
           <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} placeholder="Ex: Corte e Dobra galpão" value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
+        {!!produtos?.length && (
+          <div className="ui-seg" role="group" aria-label="Como informar o valor">
+            <button aria-pressed={modo === 'valor'} onClick={() => setModo('valor')}>Digitar valor</button>
+            <button aria-pressed={modo === 'produtos'}
+              onClick={() => { setModo('produtos'); if (linhas.length === 0) setLinhas([{ productId: produtos[0]!.id, quantity: 1 }]); }}>
+              Por produtos
+            </button>
+          </div>
+        )}
+        {porProdutos ? (
+          <ProdutosDaVenda produtos={produtos!} linhas={linhas} setLinhas={setLinhas} desconto={desconto} setDesconto={setDesconto} />
+        ) : (
         <div>
           <label className="text-xs block mb-1" style={label}>Valor (R$) *</label>
           <input className="w-full rounded-lg px-3 py-2 text-sm" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} />
         </div>
+        )}
         <div>
           <label className="text-xs block mb-1" style={label}>Origem desta venda</label>
           <Dropdown
@@ -5680,7 +5933,8 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
           />
         </div>
 
-        {/* Segmentos */}
+        {/* Segmentos — só no valor digitado: com produtos o valor muda sozinho e a soma quebraria */}
+        {!porProdutos && (
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="text-xs" style={label}>Segmentos (divisão do valor, opcional)</label>
@@ -5701,10 +5955,11 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
             </p>
           )}
         </div>
+        )}
 
         <button
           onClick={save}
-          disabled={saving || segMismatch}
+          disabled={saving || segMismatch || (porProdutos && descReais > subtotal)}
           className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
           style={{ backgroundColor: 'var(--accent-fill)' }}
         >
@@ -5716,7 +5971,7 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
 }
 
 function WinModal({ sale, onClose, onConfirm }: {
-  sale: Pick<CrmSale, 'id' | 'value'>;
+  sale: Pick<CrmSale, 'id' | 'value' | 'items'>;
   onClose: () => void;
   onConfirm: (value?: number) => void;
 }) {
@@ -5729,7 +5984,12 @@ function WinModal({ sale, onClose, onConfirm }: {
         Confirme o valor final da venda — ele entra no dashboard, na Meta do Mês e no LTV do cliente.
       </p>
       <label className="text-xs block mb-1" style={label}>Valor final (R$) *</label>
-      <input className="w-full rounded-lg px-3 py-2 text-sm mb-1" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} autoFocus />
+      {/* Venda por produto fecha pelo valor dos produtos; para mudar, edite os produtos. */}
+      <input className="w-full rounded-lg px-3 py-2 text-sm mb-1 disabled:opacity-70" style={input} inputMode="decimal" placeholder="0,00" value={value} onChange={(e) => setValue(maskMoney(e.target.value))} autoFocus
+        disabled={(sale.items?.length ?? 0) > 0} />
+      {(sale.items?.length ?? 0) > 0 && (
+        <p className="text-[11px] mb-2" style={{ color: 'var(--text-secondary)' }}>Valor dos produtos com desconto. Para mudar, edite os produtos da venda.</p>
+      )}
       {parsed <= 0 && <p className="text-[11px] mb-2" style={{ color: 'var(--badge-warn-text)' }}>Venda ganha precisa de valor maior que zero.</p>}
       <button
         onClick={() => onConfirm(parsed !== sale.value ? parsed : undefined)}

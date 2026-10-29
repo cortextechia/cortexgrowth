@@ -1227,7 +1227,7 @@ class ApiService {
     return response.data;
   }
 
-  async createCrmSale(clientId: string, data: { value: number; title?: string; stageId?: string; origin?: string; segments?: { name: string; value: number }[] }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
+  async createCrmSale(clientId: string, data: { value: number; title?: string; stageId?: string; origin?: string; segments?: { name: string; value: number }[]; items?: { productId: string; quantity: number }[]; discount?: number }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
     const response = await this.client.post(`/crm/clients/${clientId}/sales`, data);
     return response.data;
   }
@@ -1249,6 +1249,27 @@ class ApiService {
 
   async updateCrmSale(saleId: string, data: { value?: number; title?: string }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
     const response = await this.client.put(`/crm/sales/${saleId}`, data);
+    return response.data;
+  }
+
+  // Produtos do CRM (EM AVALIAÇÃO — pedido do Ruan 28/10/2026, não deployado)
+  async getCrmProducts(all = false): Promise<{ success: boolean; data: import('@/types').CrmProduct[] }> {
+    const response = await this.client.get('/crm/products', { params: all ? { all: 'true' } : {} });
+    return response.data;
+  }
+
+  async createCrmProduct(data: { name: string; sku?: string | null; price: number }): Promise<{ success: boolean; message: string; data: import('@/types').CrmProduct }> {
+    const response = await this.client.post('/crm/products', data);
+    return response.data;
+  }
+
+  async updateCrmProduct(id: string, data: { name?: string; sku?: string | null; price?: number; active?: boolean }): Promise<{ success: boolean; message: string; data: import('@/types').CrmProduct }> {
+    const response = await this.client.put(`/crm/products/${id}`, data);
+    return response.data;
+  }
+
+  async setCrmSaleItems(saleId: string, data: { items: { productId: string; quantity: number }[]; discount?: number }): Promise<{ success: boolean; message: string; data: import('@/types').CrmSale }> {
+    const response = await this.client.put(`/crm/sales/${saleId}/items`, data);
     return response.data;
   }
 
