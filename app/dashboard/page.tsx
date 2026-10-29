@@ -2752,9 +2752,11 @@ function DashboardConteudo() {
                 title="Pipeline em negociação"
                 value={mktPipeline > 0 ? fmtMoney(mktPipeline) : '—'}
                 badge={mktPipeline > 0 ? 'Potencial ativo' : undefined}
-                badgeColor="var(--badge-warn-text)"
+                // Cor da marca, não a de aviso: no tema claro o laranja de aviso lia como
+                // vermelho e o pipeline parecia prejuízo (feedback do Benny, 28/10).
+                badgeColor="var(--accent)"
                 sub={mktTab === 'total' ? 'Inclui leads sem UTM' : 'Aguardando fechamento'}
-                accent={mktPipeline > 0 ? 'var(--badge-warn-text)' : 'var(--text-muted)'}
+                accent={mktPipeline > 0 ? 'var(--accent)' : 'var(--text-muted)'}
                 info="Valor somado dos leads que já receberam orçamento/proposta ou estão negociando no CRM — estado atual, independente do período selecionado no filtro. Pode virar receita se fechar, mas não é receita garantida. Veja a lista completa na seção 'Pipeline em negociação' abaixo."
               />
             )}
