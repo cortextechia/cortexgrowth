@@ -1666,6 +1666,7 @@ function DashboardConteudo() {
     const metaRev     = metaWon.reduce((s, l) => s + (l.price ?? 0), 0);
     const googleRev   = googleWon.reduce((s, l) => s + (l.price ?? 0), 0);
     const bioWon      = kommoWonCur.filter((l) => l.utmSource === 'link_bio');
+    const bioRev      = bioWon.reduce((s, l) => s + (l.price ?? 0), 0);
     // Ticket só com venda de valor registrado — venda de R$ 0 derrubaria a média.
     const ticket = (won: KommoLead[]) => {
       const comValor = won.filter((l) => (l.price ?? 0) > 0);
@@ -1675,12 +1676,14 @@ function DashboardConteudo() {
       bio: {
         leads:  kommoCur.filter((l) => l.utmSource === 'link_bio').length,
         won:    bioWon.length,
+        rev:    bioRev,
         ticket: ticket(bioWon),
       },
       meta: {
         leads: metaLeads.length,
         cpl:   metaLeads.length > 0 && metaSpend > 0 ? metaSpend / metaLeads.length : null,
         won:   metaWon.length,
+        rev:   metaRev,
         ticket: ticket(metaWon),
         roas:  metaSpend > 0 ? metaRev / metaSpend : null,
         spend: metaSpend,
@@ -1689,6 +1692,7 @@ function DashboardConteudo() {
         leads: googleLeads.length,
         cpl:   googleLeads.length > 0 && googleSpend > 0 ? googleSpend / googleLeads.length : null,
         won:   googleWon.length,
+        rev:   googleRev,
         ticket: ticket(googleWon),
         roas:  googleSpend > 0 ? googleRev / googleSpend : null,
         spend: googleSpend,
@@ -3033,6 +3037,12 @@ function DashboardConteudo() {
                       meta:   String(compMeta.won),
                       bio:    String(compBio.won),
                       google: String(compGoogle.won),
+                    },
+                    {
+                      label: 'Faturamento',
+                      meta:   fmtMoney(compMeta.rev),
+                      bio:    fmtMoney(compBio.rev),
+                      google: fmtMoney(compGoogle.rev),
                     },
                     {
                       label: 'Conversão',
