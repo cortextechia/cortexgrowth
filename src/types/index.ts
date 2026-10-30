@@ -572,11 +572,20 @@ export interface CreativeAnalysis {
   createdAt: string;
 }
 
+// Texto pronto de uma tela de estático/carrossel
+export interface CreativeScreen {
+  role: string;
+  title: string;
+  text?: string;
+}
+
 export interface CreativeIdea {
   angle: string;
   hook: string;
   format: string;
   duration?: string;
+  screens?: CreativeScreen[];
+  cta?: string;
   rationale: string;
 }
 
@@ -609,6 +618,7 @@ export interface CreativeBriefingOutput {
     duration?: string;
     aspectRatio: string;
     structure: string[];
+    screens?: CreativeScreen[];
   };
   copy: {
     headline: string;

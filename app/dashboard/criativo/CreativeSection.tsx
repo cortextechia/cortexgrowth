@@ -5,7 +5,7 @@ import { apiService } from '@/lib/api';
 import {
   CreativeAnalysis, FatigueCampaign, CreativeIdeasOutput,
   CreativeBriefingOutput, CopyOutput, CompetitiveOutput, CreativeProfile,
-  CreativeCampaign, CreativePlatform,
+  CreativeCampaign, CreativePlatform, CreativeScreen,
 } from '@/types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -24,6 +24,28 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="text-xs px-2 py-0.5 rounded-md" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-dim)' }}>
       {children}
     </span>
+  );
+}
+
+// Texto de cada tela do estático/carrossel, na ordem em que a pessoa vê
+function Screens({ screens, cta }: { screens: CreativeScreen[]; cta?: string | undefined }) {
+  return (
+    <div className="mt-2 space-y-1.5">
+      <ol className="space-y-1.5">
+        {screens.map((s, i) => (
+          <li key={i} className="flex gap-2 rounded-md p-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+            <span className="flex-shrink-0 font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              {screens.length > 1 ? `${i + 1}.` : ''} {s.role}
+            </span>
+            <span>
+              <span className="block font-semibold" style={{ color: 'var(--text-primary)' }}>{s.title}</span>
+              {s.text && <span className="block" style={{ color: 'var(--text-secondary)' }}>{s.text}</span>}
+            </span>
+          </li>
+        ))}
+      </ol>
+      {cta && <p className="font-medium" style={{ color: 'var(--text-primary)' }}>CTA: {cta}</p>}
+    </div>
   );
 }
 
@@ -264,7 +286,8 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
                 <Tag>{idea.format}</Tag>
               </div>
               <p className="italic mb-1" style={{ color: 'var(--text-primary)' }}>"{idea.hook}"</p>
-              <p style={{ color: 'var(--text-muted)' }}>{idea.rationale}</p>
+              {idea.screens && idea.screens.length > 0 && <Screens screens={idea.screens} cta={idea.cta} />}
+              <p className="mt-1" style={{ color: 'var(--text-muted)' }}>{idea.rationale}</p>
             </div>
           ))}
           {result.testingRecommendation && (
@@ -369,6 +392,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
                 {result.format.structure.map((s, i) => <li key={i}>{s}</li>)}
               </ol>
             )}
+            {result.format?.screens && result.format.screens.length > 0 && <Screens screens={result.format.screens} />}
           </div>
           <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
             <p className="font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Copy</p>
