@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type { BillingCycle, PlanOption } from '@/types';
 import Link from 'next/link';
+import LogoCromalex from '@/components/LogoCromalex';
 
 function Spinner() {
   return (
@@ -32,28 +33,28 @@ const IDENTIDADE: Record<string, {
     corSuave: 'var(--accent-dim)',
     chamada: 'Para conhecer a plataforma',
     publico: 'até 4 usuários · mensal',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cromalex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   CRM: {
     cor: 'var(--accent)',
     corSuave: 'var(--accent-dim)',
     chamada: 'Só o CRM',
     publico: '1 usuário',
-    inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
+    inclui: ['CRM Cromalex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
   },
   STARTER: {
     cor: 'var(--accent)',
     corSuave: 'var(--accent-dim)',
     chamada: 'Growth + CRM',
     publico: 'até 3 usuários',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cromalex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
     cor: 'var(--accent)',
     corSuave: 'var(--accent-dim)',
     chamada: 'Para equipe pequena',
     publico: 'até 3 usuários',
-    inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
+    inclui: ['Tudo do Starter', 'CRM Cromalex sem limite de clientes', 'Integração com o Kommo'],
   },
   ENTERPRISE: {
     cor: 'var(--accent)',
@@ -269,12 +270,8 @@ function RegisterContent() {
 
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10 lg:py-14">
         <div className="flex items-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
-            <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+          <LogoCromalex size={32} />
+          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[1fr_400px] lg:gap-12 lg:items-start">

@@ -2,8 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Política de Privacidade — Cortex Growth',
-  description: 'Saiba como o Cortex Growth coleta, usa e protege seus dados pessoais.',
+  title: 'Política de Privacidade — Cromalex Growth',
+  description: 'Saiba como o Cromalex Growth coleta, usa e protege seus dados pessoais.',
 };
 
 export default function PrivacyPage() {
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
               </svg>
             </div>
-            <span className="font-bold text-white">Cortex Growth</span>
+            <span className="font-bold text-white">Cromalex Growth</span>
           </Link>
           <Link href="/" className="text-sm transition-colors" style={{ color: '#94a3b8' }}>
             ← Voltar
@@ -39,13 +39,13 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>1. Introdução</h2>
             <p>
-              O <strong style={{ color: '#f1f5f9' }}>Cortex Growth</strong>, desenvolvido e operado pela <strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong>
+              O <strong style={{ color: '#f1f5f9' }}>Cromalex Growth</strong>, desenvolvido e operado pela <strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong>
               {' '}(CNPJ 52.722.681/0001-03), é uma plataforma SaaS de analytics de marketing que centraliza dados
               de Meta Ads, Google Ads e Kommo CRM em um único dashboard inteligente.
             </p>
             <p className="mt-3">
               Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos suas informações
-              ao utilizar nossa plataforma. Ao criar uma conta e usar o Cortex Growth, você concorda com os termos desta política.
+              ao utilizar nossa plataforma. Ao criar uma conta e usar o Cromalex Growth, você concorda com os termos desta política.
             </p>
           </section>
 
@@ -158,7 +158,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Exclusão de dados do usuário</h2>
             <p>
-              Para solicitar a exclusão completa dos seus dados da plataforma Cortex Growth, envie um e-mail para{' '}
+              Para solicitar a exclusão completa dos seus dados da plataforma Cromalex Growth, envie um e-mail para{' '}
               <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
                 privacidade@iacortextech.com.br
               </a>{' '}
@@ -172,7 +172,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>9. Cookies</h2>
             <p>
-              O Cortex Growth não utiliza cookies de rastreamento ou publicidade. Utilizamos apenas o armazenamento
+              O Cromalex Growth não utiliza cookies de rastreamento ou publicidade. Utilizamos apenas o armazenamento
               local (localStorage) do navegador para manter a sessão autenticada, com tokens JWT que expiram automaticamente.
             </p>
           </section>

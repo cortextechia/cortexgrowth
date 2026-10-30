@@ -190,8 +190,8 @@ export default function CrmContatosPage() {
         <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Contatos do CRM</h1>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
           {status.kommoConnected
-            ? 'Esta organização usa o Kommo como CRM. O CRM Cortex não está ativo aqui.'
-            : 'Ative o CRM Cortex na página do funil para começar a cadastrar contatos.'}
+            ? 'Esta organização usa o Kommo como CRM. O CRM Cromalex não está ativo aqui.'
+            : 'Ative o CRM Cromalex na página do funil para começar a cadastrar contatos.'}
         </p>
       </div>
     );

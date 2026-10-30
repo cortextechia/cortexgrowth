@@ -2074,7 +2074,7 @@ function DashboardConteudo() {
   );
   // Nome do CRM nos textos de tela: org no CRM Cortex lia "Kommo" em toda parte
   // porque a projeção compartilha o read model. Só os deep-links continuam fixos.
-  const crmLabel = hasKommo ? 'Kommo' : 'CRM Cortex';
+  const crmLabel = hasKommo ? 'Kommo' : 'CRM Cromalex';
 
   const negotiatingLeads = useMemo(() => {
     const domain = integrations.find((i) => i.type === 'KOMMO' && i.status === 'CONNECTED')?.externalId ?? null;
@@ -2779,7 +2779,7 @@ function DashboardConteudo() {
                 value={custoPorOportunidade != null ? fmtBRL(custoPorOportunidade) : '—'}
                 sub={temCadeia ? `Gasto / ${qtdOportunidades} oportunidades` : `Gasto / ${funnelCounts.generated} leads`}
                 accent="var(--accent)"
-                info="Gasto em anúncios ÷ OPORTUNIDADES: o lead que já chegou em orçamento e tem valor. É sempre maior que o CPL, e é o número comparável com o histórico anterior ao CRM Cortex."
+                info="Gasto em anúncios ÷ OPORTUNIDADES: o lead que já chegou em orçamento e tem valor. É sempre maior que o CPL, e é o número comparável com o histórico anterior ao CRM Cromalex."
               />
             )}
             {visibleBottomKpis.includes('conversao') && (

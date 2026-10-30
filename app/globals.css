@@ -63,6 +63,8 @@
   --auth-glow-1: rgba(200,255,62,0.07);
   --auth-glow-2: rgba(255,255,255,0.03);
   --auth-grid:   rgba(255,255,255,0.025);
+  /* Arco cromado do logo (mesmos tons da landing, --cx-logo-*). */
+  --logo-1: #ffffff; --logo-2: #9aa0a8; --logo-3: #5d636b; --logo-4: #dfe2e6;
 }
 
 /* ─── Light theme ────────────────────────────────────────────────────────── */
@@ -121,6 +123,7 @@
   --auth-glow-1: rgba(120,170,0,0.10);
   --auth-glow-2: rgba(0,0,0,0.03);
   --auth-grid:   rgba(0,0,0,0.03);
+  --logo-1: #5d636b; --logo-2: #1b1d21; --logo-3: #7d838c; --logo-4: #2a2d32;
 }
 
 @theme inline {

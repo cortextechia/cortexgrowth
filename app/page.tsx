@@ -5,7 +5,6 @@ import CromalexLanding from '@/components/landing/CromalexLanding';
 const manrope = Manrope({ subsets: ['latin'], weight: ['600', '700', '800'], variable: '--font-cx-display' });
 const geistMono = Geist_Mono({ subsets: ['latin'], weight: ['500'], variable: '--font-cx-mono' });
 
-// Só a landing leva o nome novo; o app segue "Cortex Growth" até a troca completa.
 export const metadata: Metadata = {
   title: 'Cromalex Growth — CRM com WhatsApp que mostra qual anúncio vende',
   description:

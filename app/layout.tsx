@@ -11,7 +11,7 @@ const manrope = Manrope({ subsets: ["latin"], weight: ["600", "700", "800"], var
 const geistMono = Geist_Mono({ subsets: ["latin"], weight: ["500"], variable: "--font-mono-cx" });
 
 export const metadata: Metadata = {
-  title: "Cortex Growth",
+  title: "Cromalex Growth",
   icons: {
     icon: "/favicon.svg",
   },

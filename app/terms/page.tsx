@@ -2,8 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Termos de Serviço — Cortex Growth',
-  description: 'Leia os Termos de Serviço do Cortex Growth antes de utilizar a plataforma.',
+  title: 'Termos de Serviço — Cromalex Growth',
+  description: 'Leia os Termos de Serviço do Cromalex Growth antes de utilizar a plataforma.',
 };
 
 export default function TermsPage() {
@@ -19,7 +19,7 @@ export default function TermsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
               </svg>
             </div>
-            <span className="font-bold text-white">Cortex Growth</span>
+            <span className="font-bold text-white">Cromalex Growth</span>
           </Link>
           <Link href="/" className="text-sm transition-colors" style={{ color: '#94a3b8' }}>
             ← Voltar
@@ -39,7 +39,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>1. Aceitação dos Termos</h2>
             <p>
-              Ao criar uma conta e utilizar o <strong style={{ color: '#f1f5f9' }}>Cortex Growth</strong>, você concorda com estes Termos de Serviço.
+              Ao criar uma conta e utilizar o <strong style={{ color: '#f1f5f9' }}>Cromalex Growth</strong>, você concorda com estes Termos de Serviço.
               A plataforma é desenvolvida e operada pela <strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong>
               {' '}(CNPJ 52.722.681/0001-03), com sede em Maranguape, CE.
             </p>
@@ -51,7 +51,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>2. Descrição do Serviço</h2>
             <p>
-              O Cortex Growth é uma plataforma SaaS de analytics de marketing que consolida dados de Meta Ads,
+              O Cromalex Growth é uma plataforma SaaS de analytics de marketing que consolida dados de Meta Ads,
               Google Ads e Kommo CRM em um único dashboard, utilizando inteligência artificial para gerar
               insights e recomendações automáticas.
             </p>
@@ -79,7 +79,7 @@ export default function TermsPage() {
               autorização explícita do usuário via OAuth. Ao conectar essas integrações:
             </p>
             <ul className="space-y-2 mt-3 list-disc list-inside">
-              <li>Você autoriza o Cortex Growth a acessar os dados das plataformas conectadas em seu nome.</li>
+              <li>Você autoriza o Cromalex Growth a acessar os dados das plataformas conectadas em seu nome.</li>
               <li>Você declara ter os direitos necessários para compartilhar esses dados.</li>
               <li>Você pode revogar o acesso a qualquer momento desconectando a integração na plataforma ou diretamente nas configurações da plataforma de origem.</li>
             </ul>
@@ -94,7 +94,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>5. Planos e Pagamentos</h2>
             <div className="space-y-3">
-              <p>O Cortex Growth oferece planos pagos com diferentes funcionalidades:</p>
+              <p>O Cromalex Growth oferece planos pagos com diferentes funcionalidades:</p>
               <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <ul className="space-y-1">
                   <li><strong style={{ color: '#f1f5f9' }}>Starter</strong> — 1 usuário · sem integração CRM</li>
@@ -112,19 +112,19 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>6. Propriedade Intelectual</h2>
             <p>
-              Todo o conteúdo, código-fonte, design e funcionalidades do Cortex Growth são propriedade exclusiva
+              Todo o conteúdo, código-fonte, design e funcionalidades do Cromalex Growth são propriedade exclusiva
               da Cortex Tech Locação e Desenvolvimento de Sistemas Ltda. É proibida a reprodução, distribuição
               ou criação de obras derivadas sem autorização expressa por escrito.
             </p>
             <p className="mt-3">
               Os dados de campanhas e métricas sincronizados pertencem ao usuário e às plataformas de origem.
-              O Cortex Growth não reivindica propriedade sobre esses dados.
+              O Cromalex Growth não reivindica propriedade sobre esses dados.
             </p>
           </section>
 
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>7. Limitação de Responsabilidade</h2>
-            <p>O Cortex Growth não se responsabiliza por:</p>
+            <p>O Cromalex Growth não se responsabiliza por:</p>
             <ul className="space-y-2 mt-3 list-disc list-inside">
               <li>Decisões tomadas com base nos dados ou insights gerados pela plataforma.</li>
               <li>Interrupções temporárias de serviço por manutenção ou falhas de terceiros.</li>
@@ -140,7 +140,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Disponibilidade do Serviço</h2>
             <p>
-              Nos esforçamos para manter o Cortex Growth disponível 24/7, mas não garantimos disponibilidade
+              Nos esforçamos para manter o Cromalex Growth disponível 24/7, mas não garantimos disponibilidade
               ininterrupta. Realizamos manutenções programadas com aviso prévio quando possível.
               Não nos responsabilizamos por indisponibilidades causadas por falhas de infraestrutura de terceiros.
             </p>

@@ -289,7 +289,7 @@ export default function CrmDisparosPage() {
         <h1 className="ui-h2">Disparos</h1>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           {status && !status.enabled
-            ? status.kommoConnected ? 'Esta organização usa o Kommo como CRM.' : 'Ative o CRM Cortex na página do funil para usar os disparos.'
+            ? status.kommoConnected ? 'Esta organização usa o Kommo como CRM.' : 'Ative o CRM Cromalex na página do funil para usar os disparos.'
             : 'Apenas administradores podem criar disparos em massa.'}
         </p>
       </div>

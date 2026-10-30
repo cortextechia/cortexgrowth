@@ -6,6 +6,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import { IntegrationStatus, type SetupScore } from '@/types';
+import LogoCromalex from '@/components/LogoCromalex';
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 
@@ -801,12 +802,8 @@ function OnboardingContent() {
       <div className="relative z-10 w-full" style={{ maxWidth: '420px' }}>
         {/* Logo */}
         <div className="flex items-center gap-2 mb-8 justify-center">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
-            <svg className="w-4 h-4 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+          <LogoCromalex size={28} />
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
         </div>
 
         <ProgressBar currentIndex={stepIndex} />

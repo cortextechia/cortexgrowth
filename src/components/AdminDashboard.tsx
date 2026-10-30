@@ -99,7 +99,7 @@ export default function AdminDashboard() {
       {/* Título */}
       <div>
         <h1 className="ui-h1">
-          Cortex Growth — <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>visão geral</span>
+          Cromalex Growth — <span style={{ color: 'var(--accent)', fontStyle: 'italic' }}>visão geral</span>
         </h1>
         <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>Métricas do SaaS em tempo real.</p>
       </div>

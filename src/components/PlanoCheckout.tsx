@@ -23,22 +23,22 @@ const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: strin
   DEMO: {
     cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Para conhecer a plataforma', publico: 'até 4 usuários · mensal',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cromalex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   CRM: {
     cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Só o CRM', publico: '1 usuário',
-    inclui: ['CRM Cortex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
+    inclui: ['CRM Cromalex sem limite de clientes', 'WhatsApp da equipe dentro do CRM', 'Automações e disparos'],
   },
   STARTER: {
     cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Growth + CRM', publico: 'até 3 usuários',
-    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cortex sem limite de clientes', 'Relatórios e insights de IA'],
+    inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cromalex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {
     cor: 'var(--accent)', corSuave: 'var(--accent-dim)',
     chamada: 'Para equipe pequena', publico: 'até 3 usuários',
-    inclui: ['Tudo do Starter', 'CRM Cortex sem limite de clientes', 'Integração com o Kommo'],
+    inclui: ['Tudo do Starter', 'CRM Cromalex sem limite de clientes', 'Integração com o Kommo'],
   },
   ENTERPRISE: {
     cor: 'var(--accent)', corSuave: 'var(--accent-dim)',

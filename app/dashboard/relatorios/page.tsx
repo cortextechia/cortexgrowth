@@ -1169,7 +1169,7 @@ const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fie
   },
   CRM_UNANSWERED: {
     label: 'CRM: WhatsApp sem resposta',
-    description: 'Cliente do CRM Cortex com mensagem de WhatsApp aguardando resposta há muitas horas',
+    description: 'Cliente do CRM Cromalex com mensagem de WhatsApp aguardando resposta há muitas horas',
     fields: [{ key: 'hoursUnanswered', label: 'Horas sem resposta', unit: 'horas', min: 1, max: 168, step: 1 }],
   },
   CRM_FOLLOWUP_DIGEST: {

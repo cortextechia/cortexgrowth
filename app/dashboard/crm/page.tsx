@@ -693,7 +693,7 @@ export default function CrmPage() {
     // Porta de mão única: nenhum caminho do código desconecta o CRM_CORTEX (não
     // existe disableCrm). Desfazer exige UPDATE manual na integração, e enquanto
     // isso o relatório do cliente passa a mostrar "Leads: 0".
-    if (!confirm('Ativar o CRM Cortex? Depois de ativado não dá para desativar pela tela — o dashboard passa a contar leads e vendas por aqui.')) return;
+    if (!confirm('Ativar o CRM Cromalex? Depois de ativado não dá para desativar pela tela — o dashboard passa a contar leads e vendas por aqui.')) return;
     setEnabling(true);
     try {
       const res = await apiService.enableCrm();
@@ -967,9 +967,9 @@ export default function CrmPage() {
   if (status && !status.enabled && status.kommoConnected) {
     return (
       <div className="max-w-lg mx-auto mt-16 rounded-xl p-8 text-center" style={card}>
-        <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>CRM Cortex indisponível</h1>
+        <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>CRM Cromalex indisponível</h1>
         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Esta organização já usa o <strong>Kommo</strong> como CRM. O CRM Cortex é uma alternativa
+          Esta organização já usa o <strong>Kommo</strong> como CRM. O CRM Cromalex é uma alternativa
           para quem não tem CRM — usar os dois ao mesmo tempo contaria as vendas em dobro.
         </p>
       </div>
@@ -982,7 +982,7 @@ export default function CrmPage() {
       <div className="max-w-2xl mx-auto mt-12">
         <div className="rounded-xl p-8" style={card}>
           <span className="text-xs font-bold tracking-widest uppercase" style={{ color: 'var(--accent)' }}>Novo</span>
-          <h1 className="text-2xl font-semibold mt-2 mb-3" style={{ color: 'var(--text-primary)' }}>CRM Cortex</h1>
+          <h1 className="text-2xl font-semibold mt-2 mb-3" style={{ color: 'var(--text-primary)' }}>CRM Cromalex</h1>
           <p className="text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>
             Um CRM simples, nativo da plataforma. O card é o <strong>cliente</strong> (identificado pelo
             telefone, sem duplicar) e cada compra vira uma <strong>venda própria</strong> — a recompra nunca
@@ -1001,7 +1001,7 @@ export default function CrmPage() {
               className="px-5 py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
               style={{ backgroundColor: 'var(--accent-fill)' }}
             >
-              {enabling ? 'Ativando...' : 'Ativar CRM Cortex'}
+              {enabling ? 'Ativando...' : 'Ativar CRM Cromalex'}
             </button>
           ) : (
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Peça a um administrador para ativar o CRM.</p>

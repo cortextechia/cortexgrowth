@@ -1,5 +1,7 @@
 'use client';
 
+import LogoCromalex from '@/components/LogoCromalex';
+
 // Casca visual compartilhada das telas de auth secundárias (verificar e-mail,
 // esqueci a senha, nova senha). As telas de login e registro têm layout próprio
 // com o painel de branding e não usam isto — não vale reescrevê-las agora.
@@ -18,12 +20,8 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
       }} />
       <div className="relative z-10 w-full" style={{ maxWidth: '400px' }}>
         <div className="flex items-center gap-2 mb-6 justify-center">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
-            <svg className="w-4 h-4 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+          <LogoCromalex size={28} />
+          <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
         </div>
         {children}
       </div>

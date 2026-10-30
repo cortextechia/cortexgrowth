@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import BetaBadge from '@/components/BetaBadge';
+import LogoCromalex from '@/components/LogoCromalex';
 
 function Spinner() {
   return (
@@ -77,12 +78,8 @@ export default function LoginPage() {
             factual do que ele É e um card de exemplo (marcado como exemplo). */}
         <div className="hidden lg:block">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
-              <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <span className="font-semibold text-xl" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+            <LogoCromalex size={36} />
+            <span className="font-semibold text-xl" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
             <BetaBadge />
           </div>
 
@@ -117,12 +114,8 @@ export default function LoginPage() {
 
         {/* Marca compacta só no mobile, onde o painel da esquerda não aparece */}
         <div className="flex items-center justify-center gap-2 lg:hidden">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: 'var(--accent-fill)' }}>
-            <svg className="w-5 h-5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cortex Growth</span>
+          <LogoCromalex size={32} />
+          <span className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
           <BetaBadge />
         </div>
 

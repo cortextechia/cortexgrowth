@@ -13,6 +13,7 @@ import { apiService } from '@/lib/api';
 import { TrafficManagerClient, UserRole } from '@/types';
 import { usePlano } from '@/hooks/useApi';
 import { IconeCadeado, RecursoBloqueado } from '@/components/RecursoBloqueado';
+import LogoCromalex from '@/components/LogoCromalex';
 
 // Telas do Growth: no plano CRM continuam no menu, com cadeado, e abrem a explicação em vez
 // da tela. A API barra as rotas delas do mesmo jeito (403 PLAN_FEATURE_LOCKED).
@@ -435,10 +436,10 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
     return () => { vivo = false; clearInterval(t); };
   }, [crmEnabled, pathname]);
 
-  // Título da aba: o vendedor costuma estar em outra aba. "(3) Cortex Growth"
+  // Título da aba: o vendedor costuma estar em outra aba. "(3) Cromalex Growth"
   // avisa sem ele precisar voltar ao sistema.
   useEffect(() => {
-    const base = 'Cortex Growth';
+    const base = 'Cromalex Growth';
     document.title = unreadCrm > 0 ? `(${unreadCrm}) ${base}` : base;
   }, [unreadCrm, pathname]);
 
@@ -648,13 +649,9 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
             style={{ borderBottom: '1px solid var(--border)' }}
           >
             <div className="flex items-center gap-2">
-              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-fill)' }}>
-                <svg className="h-3.5 w-3.5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                </svg>
-              </div>
+              <LogoCromalex size={24} />
               <div className="flex flex-col items-start gap-0.5 min-w-0">
-                <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+                <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
                 <BetaBadge />
               </div>
             </div>
@@ -699,14 +696,10 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
           >
             {sidebarOpen && (
               <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-fill)' }}>
-                  <svg className="h-3.5 w-3.5 text-[var(--on-accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-                  </svg>
-                </div>
+                <LogoCromalex size={24} />
                 {/* Coluna: com o chip ao lado, o nome da marca quebrava em duas linhas. */}
                 <div className="flex flex-col items-start gap-0.5 min-w-0">
-                  <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Córtex Growth</span>
+                  <span className="text-sm font-semibold whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
                   <BetaBadge />
                 </div>
               </div>

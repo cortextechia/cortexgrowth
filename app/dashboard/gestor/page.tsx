@@ -504,7 +504,7 @@ function TabConfiguracoes({
         <div>
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Código de Conexão</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Para clientes que já têm conta no Cortex Growth — sem comissão.
+            Para clientes que já têm conta no Cromalex Growth — sem comissão.
           </p>
         </div>
 

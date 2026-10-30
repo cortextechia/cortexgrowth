@@ -394,7 +394,7 @@ function MetaFormsCard({ showToast }: { showToast: (m: string, t?: 'success' | '
 
         {!crmEnabled ? (
           <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            Ative o CRM Cortex para receber os formulários.
+            Ative o CRM Cromalex para receber os formulários.
           </p>
         ) : !status?.connected ? (
           <button
@@ -596,7 +596,7 @@ function InstagramDirectCard({ showToast }: { showToast: (m: string, t?: 'succes
 
       {!crmEnabled ? (
         <p className="mt-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
-          Ative o CRM Cortex para receber o Direct.
+          Ative o CRM Cromalex para receber o Direct.
         </p>
       ) : !status?.connected ? (
         <>
