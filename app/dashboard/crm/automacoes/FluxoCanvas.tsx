@@ -365,14 +365,14 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
       if (direita > el.clientWidth - 32) x -= direita - (el.clientWidth - 32);
     }
     rf.setViewport({ x, y: el.clientHeight / 2 - (Y0 + H / 2) * zoom, zoom }, { duration });
-    // `n`: bloco novo num caminho que não alarga o fluxo também reenquadra
-  }, [colunas, temCond, n, rf]);
+  }, [colunas, temCond, rf]);
 
   useEffect(() => {
     // Reenquadra quando a quantidade de blocos muda (adicionar/remover)
     const t = setTimeout(() => enquadrar(200), 30);
     return () => clearTimeout(t);
-  }, [enquadrar]);
+    // `n`: bloco novo num caminho que não alarga o fluxo também reenquadra
+  }, [enquadrar, n]);
 
   // ── edição (sempre em partes e de volta para a lista com `juntar`) ──
   const aplicar = useCallback((p: Partes, selNovo: Sel) => {
