@@ -70,6 +70,7 @@ const EVENT_LABELS: Record<string, string> = {
   WA_SENT_ON_BEHALF: 'Mensagem enviada pelo WhatsApp de',
   AUTO_MESSAGE_QUEUED: 'Mensagem automática na fila',
   AUTO_MESSAGE_SKIPPED: 'Mensagem automática não enviada',
+  CONDITION_CHECKED: 'Condição da automação',
 };
 
 // Evento de tarefa carrega o nome que a pessoa deu (payload.title) — sem ele o
@@ -80,6 +81,9 @@ const eventTitle = (e: CrmEvent): string => {
     return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : ''}`;
   }
   if (e.type === 'AUTO_MESSAGE_SKIPPED' && typeof e.payload.reason === 'string') return `: ${e.payload.reason}`;
+  if (e.type === 'CONDITION_CHECKED' && typeof e.payload.text === 'string') {
+    return `: ${e.payload.text} → caminho ${e.payload.result === 'SIM' ? 'Sim' : 'Não'}`;
+  }
   if (e.type === 'SALE_CLOSED_DATE_CHANGED' && typeof e.payload.to === 'string') {
     const de = typeof e.payload.from === 'string' ? `${fmtDate(e.payload.from)} → ` : '';
     return `: ${de}${fmtDate(e.payload.to)}`;

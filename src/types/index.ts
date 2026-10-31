@@ -928,7 +928,11 @@ export type CrmAutomationTrigger =
 
 export type CrmAutomationStepType =
   | 'MOVE_STAGE' | 'ASSIGN' | 'ADD_TAG' | 'CREATE_TASK'
-  | 'SET_FOLLOWUP' | 'ADD_NOTE' | 'DISCARD' | 'WAIT' | 'SEND_MESSAGE';
+  | 'SET_FOLLOWUP' | 'ADD_NOTE' | 'DISCARD' | 'WAIT' | 'SEND_MESSAGE' | 'CONDITION';
+
+/** Expediente de um tipo de dia ("HH:MM"); null = fechado. Fuso de São Paulo. */
+export interface CrmFaixaHorario { start: string; end: string }
+export interface CrmBusinessHours { weekdays: CrmFaixaHorario | null; saturday: CrmFaixaHorario | null; sunday: CrmFaixaHorario | null }
 
 export interface CrmAutomationStep {
   type: CrmAutomationStepType;
@@ -944,6 +948,10 @@ export interface CrmAutomationStep {
   reason?: string;
   /** SEND_MESSAGE: aceita {nome} e {vendedor}. */
   message?: string;
+  /** CONDITION: os `yes` passos logo depois dela são o caminho "Sim"; o resto da lista, o "Não". */
+  check?: 'BUSINESS_HOURS';
+  yes?: number;
+  schedule?: CrmBusinessHours;
 }
 
 export interface CrmAutomation {

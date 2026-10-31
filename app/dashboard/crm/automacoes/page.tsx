@@ -14,7 +14,7 @@ import type {
   CrmAutomation, CrmAutomationActivity, CrmAutomationTrigger, CrmStage, CrmDiscardReasonOption,
 } from '@/types';
 import {
-  BLOCKS, Miniatura, RECEITAS, Switch, rotuloGatilho, statusLabel, statusStyle,
+  Miniatura, RECEITAS, Switch, resumoLista, rotuloGatilho, statusLabel, statusStyle,
   type Editor, type Receita,
 } from './blocos';
 import FluxoCanvas from './FluxoCanvas';
@@ -252,7 +252,7 @@ export default function AutomacoesPage() {
                       <span style={{ ...mono, color: 'var(--accent)' }}>{rotuloGatilho(a.triggerType, a.triggerConfig as Record<string, unknown>).toUpperCase()}</span>
                       <h2 className="ui-h2">{a.name}</h2>
                       <p className="flex-1 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                        {a.steps.map((st) => BLOCKS[st.type]?.label ?? st.type).join(' → ')}
+                        {resumoLista(a.steps)}
                       </p>
                       <p className="text-xs" style={{ color: nFalhas ? 'var(--badge-error-text)' : 'var(--text-secondary)' }}>
                         {nFalhas ? `✕ ${nFalhas} ${nFalhas === 1 ? 'falha' : 'falhas'} na semana · ` : ''}

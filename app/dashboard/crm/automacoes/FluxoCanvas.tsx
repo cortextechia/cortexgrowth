@@ -1,11 +1,12 @@
 'use client';
 
 // Editor de automação em canvas (estilo escolhido pelo Benny em 30/10, no
-// lugar da coluna de blocos). Tela de nós com fios, mas o MOTOR continua
-// linear: um gatilho e uma sequência de passos. O canvas é só a forma de
-// montar — a ordem dos passos é a ordem dos blocos da esquerda para a direita,
-// e arrastar um bloco para outra coluna reordena a sequência. Condição com
-// ramos (Sim/Não) não existe no motor, então não existe aqui.
+// lugar da coluna de blocos). Tela de nós com fios sobre o MOTOR de lista:
+// um gatilho e uma sequência de passos. A ordem é a posição da esquerda para a
+// direita, e arrastar um bloco para outra coluna reordena a sequência.
+// Desde 31/10 pode haver UMA condição (horário comercial): depois dela o fluxo
+// abre em dois caminhos — "Sim" na faixa de cima, "Não" na de baixo. Na lista
+// salva os dois ficam em sequência (ver `separar`/`juntar` em blocos.tsx).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -21,8 +22,9 @@ import type {
 } from '@/types';
 import {
   ACTION_IDS, BLOCKS, Icon, KIND_LABEL, ParamsGatilho, ParamsPasso, Switch, TRIGGER_IDS,
-  avisoStyle, cfgPadrao, checarFluxo, frasear, novoPasso, resumoGatilho, resumoPasso,
-  statusLabel, statusStyle, type Editor,
+  avisoStyle, cfgPadrao, checarFluxo, frasear, indiceDe, juntar, novoPasso, ondeFica,
+  resumoGatilho, resumoPasso, separar, statusLabel, statusStyle,
+  type Caminho, type Editor, type Partes,
 } from './blocos';
 
 // ── Geometria ──────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ const H = 112;          // altura do bloco
 const GAP = 64;         // fio entre blocos
 const X0 = 40;
 const Y0 = 120;
+const DY = 100;         // quanto os caminhos Sim/Não sobem e descem da linha principal
 const xDaColuna = (col: number) => X0 + col * (W + GAP);
 const DRAG_MIME = 'application/x-cromalex-bloco';
 // Tamanho fixo e conhecido: os nós são recriados a cada render (a posição é a
@@ -40,33 +43,61 @@ const MEDIDA = { width: W, height: H };
 // Abaixo de 0,8 o texto do bloco fica ilegível: fluxo longo rola para o lado.
 const ENQUADRAR = { maxZoom: 1, minZoom: 0.8 };
 
+const yDo = (c: Caminho | 'cond') => (c === 'sim' ? Y0 - DY : c === 'nao' ? Y0 + DY : Y0);
+function colunaDe(p: Partes, c: Caminho | 'cond', k: number) {
+  if (c === 'main') return k + 1;
+  if (c === 'cond') return p.main.length + 1;
+  return p.main.length + 2 + k;
+}
+const NOME_CAMINHO: Record<Caminho, string> = { main: 'antes da condição', sim: 'Sim', nao: 'Não' };
+
 // ── Execuções → selos em cima de cada bloco ────────────────────────────────
 
 type Tom = 'ok' | 'wait' | 'err' | 'muted';
 interface Selo { texto: string; tom: Tom }
+type Linha = CrmAutomationStepStats['rows'][number];
 
 /**
  * `stepIndex` da run é o PRÓXIMO passo a rodar. Uma run parada (PENDING,
  * STOPPED, CANCELED) com `stepIndex = k` está depois do passo k-1 — no motor
  * isso só acontece no começo (k = 0, gatilho) ou depois de um WAIT. Uma FAILED
- * quebrou no passo k. DONE passou por todos.
+ * quebrou no passo k. DONE passou por todos os do caminho dela.
+ * Com condição, a run que terminou o "Sim" para em `fimSim` (onde o "Não"
+ * começa) — por isso passar de um bloco do "Sim" é estar em (i, fimSim], sem
+ * ser a falha no 1º passo do "Não".
  */
 function selosPorBloco(stats: CrmAutomationStepStats, steps: CrmAutomationStep[]): Map<string, Selo[]> {
   const out = new Map<string, Selo[]>();
   const add = (id: string, s: Selo) => out.set(id, [...(out.get(id) ?? []), s]);
   const blocoAntes = (k: number) => (k <= 0 ? 't' : `s${Math.min(k, steps.length) - 1}`);
+  const p = separar(steps);
+  const c = p.cond ? p.main.length : -1;
+  const fimSim = c + 1 + p.sim.length;
 
   const total = stats.rows.reduce((t, r) => t + r.count, 0);
   if (total === 0) return out;
   add('t', { texto: `${total} ${total === 1 ? 'entrou' : 'entraram'}`, tom: 'ok' });
 
-  const soma = (f: (r: CrmAutomationStepStats['rows'][number]) => boolean) =>
-    stats.rows.filter(f).reduce((t, r) => t + r.count, 0);
+  const soma = (f: (r: Linha) => boolean) => stats.rows.filter(f).reduce((t, r) => t + r.count, 0);
+  const falhouNoNao = (r: Linha) => r.status === 'FAILED' && r.stepIndex === fimSim;
+  const noSim = (r: Linha) => c >= 0 && r.stepIndex > c && r.stepIndex <= fimSim && !falhouNoNao(r);
 
   steps.forEach((s, i) => {
-    // Passou do bloco i: run que já está além dele e não está parada nele.
-    const passou = soma((r) => r.stepIndex > i && !(r.stepIndex === i + 1 && r.status !== 'DONE' && r.status !== 'FAILED' && s.type === 'WAIT'));
-    if (passou > 0) add(`s${i}`, { texto: `✓ ${passou} ${s.type === 'WAIT' ? (passou === 1 ? 'seguiu' : 'seguiram') : (passou === 1 ? 'feito' : 'feitos')}`, tom: 'ok' });
+    const parado = (r: Linha) => r.stepIndex === i + 1 && r.status !== 'DONE' && r.status !== 'FAILED' && s.type === 'WAIT';
+    const lugar = ondeFica(p, i).caminho;
+    const passou = soma((r) => r.stepIndex > i && !parado(r) && (lugar !== 'sim' || noSim(r)));
+    if (s.type === 'CONDITION') {
+      // "Não" vazio: quem terminou pelo Sim e quem só passou pela condição param
+      // no mesmo número, então só dá para mostrar o total.
+      const sim = soma(noSim);
+      if (p.nao.length > 0 && passou > 0) {
+        add(`s${i}`, { texto: `Sim ${sim} · Não ${passou - sim}`, tom: 'ok' });
+      } else if (passou > 0) {
+        add(`s${i}`, { texto: `✓ ${passou} ${passou === 1 ? 'passou' : 'passaram'}`, tom: 'ok' });
+      }
+    } else if (passou > 0) {
+      add(`s${i}`, { texto: `✓ ${passou} ${s.type === 'WAIT' ? (passou === 1 ? 'seguiu' : 'seguiram') : (passou === 1 ? 'feito' : 'feitos')}`, tom: 'ok' });
+    }
     const falhas = soma((r) => r.status === 'FAILED' && r.stepIndex === i);
     if (falhas > 0) add(`s${i}`, { texto: `✕ ${falhas} ${falhas === 1 ? 'falhou' : 'falharam'}`, tom: 'err' });
   });
@@ -100,7 +131,7 @@ const SELO_STYLE: Record<Tom, React.CSSProperties> = {
 
 interface BlocoData extends Record<string, unknown> {
   tipo: string;
-  rotulo: string;      // QUANDO / AÇÃO / ESPERA
+  rotulo: string;      // QUANDO / AÇÃO / ESPERA / SE
   titulo: string;
   resumo: string;
   ehGatilho: boolean;
@@ -111,7 +142,8 @@ type BlocoNode = Node<BlocoData, 'bloco'>;
 
 function BlocoNo({ data, selected }: NodeProps<BlocoNode>) {
   const espera = data.tipo === 'WAIT';
-  const borda = selected ? '2px solid var(--accent)' : data.falhou ? '2px solid var(--badge-error-text)' : '1px solid var(--border-md)';
+  const condicao = data.tipo === 'CONDITION';
+  const borda = selected ? '2px solid var(--accent)' : data.falhou ? '2px solid var(--badge-error-text)' : condicao ? '1px solid var(--accent)' : '1px solid var(--border-md)';
   return (
     <div style={{
       width: W, height: H, boxSizing: 'border-box', padding: '12px 14px', borderRadius: 16, border: borda,
@@ -131,14 +163,14 @@ function BlocoNo({ data, selected }: NodeProps<BlocoNode>) {
         <span className="flex items-center justify-center" style={{
           width: 28, height: 28, borderRadius: 9,
           background: data.ehGatilho ? 'var(--accent-fill)' : espera ? 'var(--tint-bg)' : 'var(--bg-base)',
-          color: data.ehGatilho ? 'var(--on-accent)' : espera ? 'var(--tint-ink)' : 'var(--text-primary)',
-          border: data.ehGatilho || espera ? 'none' : '1px solid var(--border)',
+          color: data.ehGatilho ? 'var(--on-accent)' : espera ? 'var(--tint-ink)' : condicao ? 'var(--accent)' : 'var(--text-primary)',
+          border: data.ehGatilho || espera ? 'none' : condicao ? '1px solid var(--accent)' : '1px solid var(--border)',
         }}>
           <Icon name={BLOCKS[data.tipo]?.icon ?? 'bolt'} size={15} strokeWidth={2} />
         </span>
         <span style={{
           font: '500 10.5px/1.4 var(--font-mono-cx), ui-monospace, monospace', letterSpacing: '0.06em',
-          color: data.ehGatilho ? 'var(--accent)' : espera ? 'var(--tint-ink)' : 'var(--text-secondary)',
+          color: data.ehGatilho || condicao ? 'var(--accent)' : espera ? 'var(--tint-ink)' : 'var(--text-secondary)',
         }}>{data.rotulo}</span>
       </div>
       <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.25, color: 'var(--text-primary)' }}>{data.titulo}</div>
@@ -147,20 +179,31 @@ function BlocoNo({ data, selected }: NodeProps<BlocoNode>) {
   );
 }
 
-function VazioNo() {
+function VazioNo({ data, selected }: NodeProps<Node<{ texto: string }, 'vazio'>>) {
   return (
     <div style={{
-      width: W, height: H, boxSizing: 'border-box', borderRadius: 16, border: '2px dashed var(--border-control)',
+      width: W, height: H, boxSizing: 'border-box', borderRadius: 16,
+      border: `2px dashed ${selected ? 'var(--accent)' : 'var(--border-control)'}`,
       display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: 12,
       fontSize: 12.5, color: 'var(--text-secondary)', background: 'transparent',
     }}>
       <Handle type="target" position={Position.Left} isConnectable={false} />
-      Arraste uma ação para cá, ou clique nela na lista
+      {data.texto}
     </div>
   );
 }
 
 const NODE_TYPES = { bloco: BlocoNo, vazio: VazioNo };
+
+const FIO = { stroke: 'var(--border-control)', strokeWidth: 2 };
+const ROTULO_SIM = {
+  label: 'Sim', labelStyle: { fill: 'var(--on-accent)', fontWeight: 700, fontSize: 12 },
+  labelBgStyle: { fill: 'var(--accent-fill)' }, labelBgPadding: [8, 3] as [number, number], labelBgBorderRadius: 999,
+};
+const ROTULO_NAO = {
+  label: 'Não', labelStyle: { fill: 'var(--text-secondary)', fontWeight: 700, fontSize: 12 },
+  labelBgStyle: { fill: 'var(--bg-surface)', stroke: 'var(--border-control)' }, labelBgPadding: [8, 3] as [number, number], labelBgBorderRadius: 999,
+};
 
 // ── Editor ─────────────────────────────────────────────────────────────────
 
@@ -189,6 +232,8 @@ export default function FluxoCanvas(props: Props) {
 function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoInicial = 'editar', onSalvar, onVoltar }: Props) {
   const rf = useReactFlow();
   const [sel, setSel] = useState<Sel>('t');
+  // Para onde vai o bloco clicado na lista quando há condição
+  const [alvo, setAlvo] = useState<Caminho>('sim');
   const [modo, setModo] = useState<Modo>(editor.id ? modoInicial : 'editar');
   const [arrasto, setArrasto] = useState<{ id: string; x: number; y: number } | null>(null);
   const [stats, setStats] = useState<CrmAutomationStepStats | null>(null);
@@ -197,6 +242,8 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
 
   const set = useCallback((patch: Partial<Editor>) => setEditor({ ...editor, ...patch }), [editor, setEditor]);
   const n = editor.steps.length;
+  const partes = useMemo(() => separar(editor.steps), [editor.steps]);
+  const alvoEf: Caminho = partes.cond ? alvo : 'main';
 
   // Lido também no modo Editar: é o que diz se há card no meio do fluxo.
   useEffect(() => {
@@ -228,7 +275,7 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
     if (noMeio === 0 || !passosMudaram) return base;
     return [{
       nivel: 'warn' as const,
-      texto: `${noMeio} ${noMeio === 1 ? 'card está' : 'cards estão'} no meio deste fluxo. Ao salvar, ${noMeio === 1 ? 'ele continua' : 'eles continuam'} do mesmo número de passo na sequência nova — se você mudou a ordem, pode pular ou repetir passos.`,
+      texto: `${noMeio} ${noMeio === 1 ? 'card está' : 'cards estão'} no meio deste fluxo. Ao salvar, ${noMeio === 1 ? 'ele continua' : 'eles continuam'} do mesmo número de passo na sequência nova — se você mudou a ordem ou os caminhos, pode pular ou repetir passos.`,
     }, ...base.filter((a) => !a.texto.startsWith('Fluxo íntegro'))];
   }, [editor, stages, noMeio, passosMudaram]);
   const temErro = avisos.some((a) => a.nivel === 'err');
@@ -252,10 +299,12 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
     editor.steps.forEach((s, i) => {
       const id = `s${i}`;
       const kind = BLOCKS[s.type]?.kind ?? 'action';
+      const { caminho, k } = ondeFica(partes, i);
+      const ehCond = caminho === 'cond';
       out.push({
         id, type: 'bloco', measured: MEDIDA,
-        position: arrasto?.id === id ? { x: arrasto.x, y: arrasto.y } : { x: xDaColuna(i + 1), y: Y0 },
-        draggable: modo === 'editar', deletable: modo === 'editar', selected: sel === i,
+        position: arrasto?.id === id ? { x: arrasto.x, y: arrasto.y } : { x: xDaColuna(colunaDe(partes, caminho, k)), y: yDo(caminho) },
+        draggable: modo === 'editar' && !ehCond, deletable: modo === 'editar', selected: sel === i,
         data: {
           tipo: s.type, rotulo: KIND_LABEL[kind], titulo: BLOCKS[s.type]?.label ?? s.type,
           resumo: resumoPasso(s, stages), ehGatilho: false, selos: selos.get(id) ?? [],
@@ -263,28 +312,61 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
         } satisfies BlocoData,
       });
     });
-    if (n === 0) out.push({ id: 'vazio', type: 'vazio', position: { x: xDaColuna(1), y: Y0 }, measured: MEDIDA, draggable: false, selectable: false, deletable: false, data: {} });
+    const vazio = (id: string, caminho: Caminho | 'cond', col: number, texto: string): Node => ({
+      id, type: 'vazio', position: { x: xDaColuna(col), y: yDo(caminho) }, measured: MEDIDA,
+      draggable: false, selectable: modo === 'editar' && id !== 'vazio', deletable: false,
+      selected: id === 'vsim' ? alvoEf === 'sim' && sel === null : id === 'vnao' ? alvoEf === 'nao' && sel === null : false,
+      data: { texto },
+    });
+    if (n === 0) out.push(vazio('vazio', 'main', 1, 'Arraste uma ação para cá, ou clique nela na lista'));
+    if (partes.cond && partes.sim.length === 0) out.push(vazio('vsim', 'sim', colunaDe(partes, 'sim', 0), 'Caminho Sim vazio: arraste uma ação para cá'));
+    if (partes.cond && partes.nao.length === 0) out.push(vazio('vnao', 'nao', colunaDe(partes, 'nao', 0), 'Caminho Não vazio: arraste uma ação para cá'));
     return out;
-  }, [editor, stages, sel, arrasto, modo, selos, n]);
+  }, [editor, partes, stages, sel, alvoEf, arrasto, modo, selos, n]);
 
   const edges = useMemo<Edge[]>(() => {
-    const ids = ['t', ...editor.steps.map((_, i) => `s${i}`), ...(n === 0 ? ['vazio'] : [])];
-    return ids.slice(1).map((id, i) => ({
-      id: `e${i}`, source: ids[i]!, target: id, type: 'smoothstep',
-      style: { stroke: 'var(--border-control)', strokeWidth: 2, ...(id === 'vazio' ? { strokeDasharray: '6 6' } : {}) },
-    }));
-  }, [editor.steps, n]);
+    const out: Edge[] = [];
+    const fio = (de: string, para: string, extra: Partial<Edge> = {}) => out.push({
+      id: `e-${de}-${para}`, source: de, target: para, type: 'smoothstep',
+      style: { ...FIO, ...(para.startsWith('v') ? { strokeDasharray: '6 6' } : {}) }, ...extra,
+    });
+    const cadeia = (ids: string[], primeiro: Partial<Edge> = {}) => ids.slice(1).forEach((id, i) => fio(ids[i]!, id, i === 0 ? primeiro : {}));
+    const ids = (c: Caminho) => partes[c].map((_, k) => `s${indiceDe(partes, c, k)}`);
+    if (!partes.cond) {
+      cadeia(['t', ...ids('main'), ...(n === 0 ? ['vazio'] : [])]);
+      return out;
+    }
+    const cond = `s${partes.main.length}`;
+    cadeia(['t', ...ids('main'), cond]);
+    cadeia([cond, ...(partes.sim.length ? ids('sim') : ['vsim'])], ROTULO_SIM);
+    cadeia([cond, ...(partes.nao.length ? ids('nao') : ['vnao'])], ROTULO_NAO);
+    return out;
+  }, [partes, n]);
 
   // Enquadra alinhado à esquerda: o fluxo sempre começa pelo gatilho. O fitView
   // do React Flow centraliza, e com zoom mínimo o gatilho sumia pela esquerda.
   const telaRef = useRef<HTMLElement>(null);
+  const colunas = partes.cond
+    ? partes.main.length + 2 + Math.max(partes.sim.length, partes.nao.length, 1)
+    : Math.max(n, 1) + 1;
+  const temCond = !!partes.cond;
   const enquadrar = useCallback((duration = 0) => {
     const el = telaRef.current;
     if (!el) return;
-    const largura = xDaColuna(Math.max(n, 1) + 1) - GAP + X0;
-    const zoom = Math.max(ENQUADRAR.minZoom, Math.min(ENQUADRAR.maxZoom, el.clientWidth / largura));
-    rf.setViewport({ x: 32 - X0 * zoom, y: el.clientHeight / 2 - (Y0 + H / 2) * zoom, zoom }, { duration });
-  }, [n, rf]);
+    const largura = xDaColuna(colunas) - GAP + X0;
+    const altura = temCond ? 2 * DY + H + 80 : H + 80;
+    const zoom = Math.max(ENQUADRAR.minZoom, Math.min(ENQUADRAR.maxZoom, el.clientWidth / largura, el.clientHeight / altura));
+    // Fluxo maior que a tela: o bloco selecionado (o que acabou de entrar) não
+    // pode ficar escondido à direita com o painel aberto para ele.
+    let x = 32 - X0 * zoom;
+    const selecionado = rf.getNodes().find((nd) => nd.selected);
+    if (selecionado) {
+      const direita = (selecionado.position.x + W) * zoom + x;
+      if (direita > el.clientWidth - 32) x -= direita - (el.clientWidth - 32);
+    }
+    rf.setViewport({ x, y: el.clientHeight / 2 - (Y0 + H / 2) * zoom, zoom }, { duration });
+    // `n`: bloco novo num caminho que não alarga o fluxo também reenquadra
+  }, [colunas, temCond, n, rf]);
 
   useEffect(() => {
     // Reenquadra quando a quantidade de blocos muda (adicionar/remover)
@@ -292,58 +374,108 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
     return () => clearTimeout(t);
   }, [enquadrar]);
 
-  // ── edição ──
-  const moverPasso = useCallback((de: number, para: number) => {
-    if (para < 0 || para >= n || para === de) return;
-    const steps = [...editor.steps];
-    const [it] = steps.splice(de, 1);
-    if (it) steps.splice(para, 0, it);
-    set({ steps });
-    setSel(para);
-  }, [editor.steps, n, set]);
+  // ── edição (sempre em partes e de volta para a lista com `juntar`) ──
+  const aplicar = useCallback((p: Partes, selNovo: Sel) => {
+    set({ steps: juntar(p) });
+    setSel(selNovo);
+  }, [set]);
+
+  const copia = (p: Partes): Partes => ({ main: [...p.main], cond: p.cond, sim: [...p.sim], nao: [...p.nao] });
+
+  const moverPasso = useCallback((de: number, para: Caminho, pos: number) => {
+    const o = ondeFica(partes, de);
+    if (o.caminho === 'cond') return;
+    const p = copia(partes);
+    const [it] = p[o.caminho].splice(o.k, 1);
+    if (!it) return;
+    const destino: Caminho = p.cond ? para : 'main';
+    const k = Math.max(0, Math.min(pos, p[destino].length));
+    if (destino === o.caminho && k === o.k) return;
+    p[destino].splice(k, 0, it);
+    setAlvo(destino);
+    aplicar(p, indiceDe(p, destino, k));
+  }, [partes, aplicar]);
 
   const removerPasso = useCallback((i: number) => {
-    set({ steps: editor.steps.filter((_, j) => j !== i) });
-    setSel(null);
-  }, [editor.steps, set]);
+    const o = ondeFica(partes, i);
+    if (o.caminho === 'cond') {
+      // O "Sim" vira a continuação normal (é o fluxo de antes da condição); o "Não" sai junto.
+      if (partes.nao.length > 0 && !confirm(`Remover a condição? O caminho Sim continua como sequência normal e ${partes.nao.length === 1 ? 'o passo do caminho Não é apagado' : `os ${partes.nao.length} passos do caminho Não são apagados`}.`)) return;
+      aplicar({ main: [...partes.main, ...partes.sim], cond: null, sim: [], nao: [] }, null);
+      return;
+    }
+    const p = copia(partes);
+    p[o.caminho].splice(o.k, 1);
+    aplicar(p, null);
+  }, [partes, aplicar]);
 
-  const inserir = useCallback((tipo: string, pos?: number) => {
+  const inserir = useCallback((tipo: string, caminho?: Caminho, pos?: number) => {
     if (BLOCKS[tipo]?.kind === 'trigger') {
       set({ trigger: tipo as CrmAutomationTrigger, cfg: cfgPadrao(tipo as CrmAutomationTrigger, stages) });
       setSel('t');
       return;
     }
-    const steps = [...editor.steps];
-    const k = pos === undefined ? steps.length : Math.max(0, Math.min(pos, steps.length));
-    steps.splice(k, 0, novoPasso(tipo as CrmAutomationStepType, stages, motivos));
-    set({ steps });
-    setSel(k);
-  }, [editor.steps, stages, motivos, set]);
+    const novo = novoPasso(tipo as CrmAutomationStepType, stages, motivos);
+    if (tipo === 'CONDITION') {
+      if (partes.cond) return;
+      // Entra na linha principal; o que estava depois dela vira o caminho "Sim".
+      const k = caminho === 'main' && pos !== undefined ? Math.max(0, Math.min(pos, partes.main.length)) : partes.main.length;
+      setAlvo(k === partes.main.length ? 'sim' : 'nao');
+      aplicar({ main: partes.main.slice(0, k), cond: novo, sim: partes.main.slice(k), nao: [] }, k);
+      return;
+    }
+    const p = copia(partes);
+    const cam: Caminho = p.cond ? (caminho ?? alvoEf) : 'main';
+    const k = pos === undefined ? p[cam].length : Math.max(0, Math.min(pos, p[cam].length));
+    p[cam].splice(k, 0, novo);
+    aplicar(p, indiceDe(p, cam, k));
+  }, [partes, alvoEf, stages, motivos, set, aplicar]);
+
+  /** Caminho e posição de um ponto da tela (centro do bloco arrastado, ou onde soltou). */
+  const posicaoEm = useCallback((x: number, y: number, ignorar?: number): { caminho: Caminho; k: number } => {
+    let caminho: Caminho = 'main';
+    if (partes.cond && x > xDaColuna(colunaDe(partes, 'cond', 0)) + W) caminho = y < Y0 + H / 2 ? 'sim' : 'nao';
+    const k = partes[caminho]
+      .map((_, j) => j)
+      .filter((j) => indiceDe(partes, caminho, j) !== ignorar && xDaColuna(colunaDe(partes, caminho, j)) + W / 2 < x)
+      .length;
+    return { caminho, k };
+  }, [partes]);
 
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     for (const c of changes) {
       if (c.type === 'position' && c.position && c.dragging) setArrasto({ id: c.id, x: c.position.x, y: c.position.y });
-      if (c.type === 'select' && c.selected) setSel(c.id === 't' ? 't' : c.id.startsWith('s') ? Number(c.id.slice(1)) : null);
-      if (c.type === 'remove' && c.id.startsWith('s')) removerPasso(Number(c.id.slice(1)));
+      if (c.type === 'select' && c.selected) {
+        if (c.id === 't') setSel('t');
+        else if (c.id === 'vsim' || c.id === 'vnao') { setSel(null); setAlvo(c.id === 'vsim' ? 'sim' : 'nao'); }
+        else if (c.id.startsWith('s')) {
+          const i = Number(c.id.slice(1));
+          const o = ondeFica(partes, i).caminho;
+          setSel(i);
+          setAlvo(o === 'cond' ? 'sim' : o);
+        }
+      }
+      if (c.type === 'remove' && /^s\d+$/.test(c.id)) removerPasso(Number(c.id.slice(1)));
     }
-  }, [removerPasso]);
+  }, [removerPasso, partes]);
 
   const onNodeDragStop = useCallback((_: unknown, node: Node) => {
     setArrasto(null);
-    if (!node.id.startsWith('s')) return;
+    if (!/^s\d+$/.test(node.id)) return;
     const de = Number(node.id.slice(1));
-    const col = Math.round((node.position.x - X0) / (W + GAP));
-    moverPasso(de, Math.max(0, Math.min(n - 1, col - 1)));
-  }, [moverPasso, n]);
+    const { caminho, k } = posicaoEm(node.position.x + W / 2, node.position.y + H / 2, de);
+    moverPasso(de, caminho, k);
+  }, [moverPasso, posicaoEm]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const tipo = e.dataTransfer.getData(DRAG_MIME);
     if (!tipo || modo !== 'editar') return;
-    const p = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
-    // Entra depois de todo bloco cujo meio ficou à esquerda do ponto solto
-    inserir(tipo, editor.steps.filter((_, i) => xDaColuna(i + 1) + W / 2 < p.x).length);
-  }, [rf, inserir, modo, editor.steps]);
+    const pt = rf.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    const { caminho, k } = posicaoEm(pt.x, pt.y);
+    if (tipo === 'CONDITION' && caminho !== 'main') return;
+    inserir(tipo, caminho, k);
+  }, [rf, inserir, modo, posicaoEm]);
 
   const voltar = () => {
     if (JSON.stringify(editor) !== original && !confirm('Sair sem salvar? As mudanças deste fluxo serão perdidas.')) return;
@@ -351,6 +483,15 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
   };
 
   const passoSel = typeof sel === 'number' ? editor.steps[sel] : undefined;
+  const lugarSel = typeof sel === 'number' ? ondeFica(partes, sel) : null;
+  const rotuloPasso = (() => {
+    if (!passoSel || !lugarSel) return '';
+    if (lugarSel.caminho === 'cond') return 'CONDIÇÃO · SE';
+    const tipo = KIND_LABEL[BLOCKS[passoSel.type]?.kind ?? 'action'];
+    if (lugarSel.caminho === 'main') return `PASSO ${lugarSel.k + 1} · ${tipo}`;
+    return `CAMINHO ${lugarSel.caminho === 'sim' ? 'SIM' : 'NÃO'} · PASSO ${lugarSel.k + 1} · ${tipo}`;
+  })();
+  const tamanhoDoCaminho = lugarSel && lugarSel.caminho !== 'cond' ? partes[lugarSel.caminho].length : 0;
 
   return (
     <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 120px)' }}>
@@ -391,11 +532,13 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
         {modo === 'editar' && (
           <aside aria-label="Blocos" className="flex flex-col gap-1 p-3 lg:max-w-[250px]" style={{ flex: '1 1 220px', background: 'var(--bg-surface)', borderRight: '1px solid var(--border)' }}>
             <p className="px-1 pb-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-              Arraste para a tela ou clique para adicionar no fim. Gatilho troca o atual.
+              {partes.cond
+                ? <>Arraste para a tela, ou clique para adicionar no fim do caminho <strong style={{ color: 'var(--text-primary)' }}>{NOME_CAMINHO[alvoEf]}</strong>.</>
+                : 'Arraste para a tela ou clique para adicionar no fim. Gatilho troca o atual.'}
             </p>
             <Grupo titulo="GATILHO · QUANDO" ids={TRIGGER_IDS} atual={editor.trigger} onAdd={inserir} />
             <Grupo titulo="AÇÕES · FAÇA" ids={ACTION_IDS} onAdd={inserir} />
-            <Grupo titulo="CONTROLE" ids={['WAIT']} onAdd={inserir} />
+            <Grupo titulo="CONTROLE" ids={['WAIT', 'CONDITION']} desligados={partes.cond ? ['CONDITION'] : []} onAdd={inserir} />
           </aside>
         )}
 
@@ -457,20 +600,42 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
                 Parar a sequência se o lead responder
               </label>
             </>
-          ) : passoSel && typeof sel === 'number' ? (
+          ) : passoSel && lugarSel && typeof sel === 'number' ? (
             <>
-              <Cabeca rotulo={`PASSO ${sel + 1} · ${KIND_LABEL[BLOCKS[passoSel.type]?.kind ?? 'action']}`} titulo={BLOCKS[passoSel.type]?.label ?? passoSel.type} />
+              <Cabeca rotulo={rotuloPasso} titulo={BLOCKS[passoSel.type]?.label ?? passoSel.type} />
+              {lugarSel.caminho === 'cond' && (
+                <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  Na hora em que o card chega aqui, segue pelo caminho <strong style={{ color: 'var(--text-primary)' }}>Sim</strong> se
+                  a empresa estiver aberta, ou pelo <strong style={{ color: 'var(--text-primary)' }}>Não</strong> se estiver fechada.
+                  Quem acorda de uma espera dentro de um caminho continua nele.
+                </p>
+              )}
               <ParamsPasso passo={passoSel} stages={stages} motivos={motivos}
                 onChange={(patch) => {
                   const steps = [...editor.steps];
                   steps[sel] = { ...steps[sel]!, ...patch };
                   set({ steps });
                 }} />
-              <div className="flex flex-wrap gap-2">
-                <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={sel === 0} onClick={() => moverPasso(sel, sel - 1)}>Mover para antes</button>
-                <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={sel === n - 1} onClick={() => moverPasso(sel, sel + 1)}>Mover para depois</button>
-                <button type="button" className="ui-btn ui-btn-danger ui-btn-sm" onClick={() => removerPasso(sel)}>Remover bloco</button>
-              </div>
+              {lugarSel.caminho === 'cond' ? (
+                <>
+                  <div className="flex flex-col gap-1.5">
+                    <span style={{ font: '500 10.5px/1.4 var(--font-mono-cx), ui-monospace, monospace', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>CAMINHOS</span>
+                    <CaminhoTxt nome="Sim" passos={partes.sim} />
+                    <CaminhoTxt nome="Não" passos={partes.nao} />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className="ui-btn ui-btn-danger ui-btn-sm" onClick={() => removerPasso(sel)}>Remover condição</button>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={lugarSel.k === 0}
+                    onClick={() => moverPasso(sel, lugarSel.caminho as Caminho, lugarSel.k - 1)}>Mover para antes</button>
+                  <button type="button" className="ui-btn ui-btn-secondary ui-btn-sm" disabled={lugarSel.k === tamanhoDoCaminho - 1}
+                    onClick={() => moverPasso(sel, lugarSel.caminho as Caminho, lugarSel.k + 1)}>Mover para depois</button>
+                  <button type="button" className="ui-btn ui-btn-danger ui-btn-sm" onClick={() => removerPasso(sel)}>Remover bloco</button>
+                </div>
+              )}
             </>
           ) : (
             <div className="flex flex-col gap-2">
@@ -505,38 +670,57 @@ function Cabeca({ rotulo, titulo }: { rotulo: string; titulo: string }) {
   );
 }
 
-function Grupo({ titulo, ids, atual, onAdd }: { titulo: string; ids: readonly string[]; atual?: string; onAdd: (id: string) => void }) {
+function CaminhoTxt({ nome, passos }: { nome: string; passos: CrmAutomationStep[] }) {
+  return (
+    <div className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+      <strong style={{ color: 'var(--text-primary)' }}>{nome}</strong> · {passos.length ? passos.map((s) => BLOCKS[s.type]?.label ?? s.type).join(', ') : 'nada (o fluxo termina)'}
+    </div>
+  );
+}
+
+function Grupo({ titulo, ids, atual, desligados = [], onAdd }: {
+  titulo: string; ids: readonly string[]; atual?: string; desligados?: string[]; onAdd: (id: string) => void;
+}) {
   return (
     <div className="mb-2">
       <p className="px-1 pb-1.5 pt-2" style={{ font: '500 10.5px/1.4 var(--font-mono-cx), ui-monospace, monospace', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>{titulo}</p>
       <div className="flex flex-col gap-1">
-        {ids.map((id) => (
-          <button key={id} type="button" draggable
-            onDragStart={(e) => { e.dataTransfer.setData(DRAG_MIME, id); e.dataTransfer.effectAllowed = 'copy'; }}
-            onClick={() => onAdd(id)}
-            className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition-colors hover:bg-[var(--bg-elevated)]"
-            style={{
-              color: 'var(--text-primary)', cursor: 'grab',
-              border: `1px solid ${atual === id ? 'var(--accent)' : 'var(--border)'}`,
-              background: atual === id ? 'var(--accent-dim)' : 'transparent',
-            }}>
-            <span style={{ color: 'var(--text-secondary)' }}><Icon name={BLOCKS[id]?.icon ?? 'bolt'} size={15} /></span>
-            {BLOCKS[id]?.label}
-          </button>
-        ))}
+        {ids.map((id) => {
+          const off = desligados.includes(id);
+          return (
+            <button key={id} type="button" draggable={!off} disabled={off}
+              title={off ? 'Uma condição por fluxo' : undefined}
+              onDragStart={(e) => { e.dataTransfer.setData(DRAG_MIME, id); e.dataTransfer.effectAllowed = 'copy'; }}
+              onClick={() => onAdd(id)}
+              className="flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-[13px] font-medium transition-colors hover:bg-[var(--bg-elevated)] disabled:opacity-50"
+              style={{
+                color: 'var(--text-primary)', cursor: off ? 'not-allowed' : 'grab',
+                border: `1px solid ${atual === id ? 'var(--accent)' : 'var(--border)'}`,
+                background: atual === id ? 'var(--accent-dim)' : 'transparent',
+              }}>
+              <span style={{ color: 'var(--text-secondary)' }}><Icon name={BLOCKS[id]?.icon ?? 'bolt'} size={15} /></span>
+              {id === 'CONDITION' ? 'Condição: horário comercial' : BLOCKS[id]?.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 function PainelExecucoes({ runs, steps }: { runs: CrmAutomationRun[] | null; steps: CrmAutomationStep[] }) {
+  const p = separar(steps);
+  const fimSim = p.main.length + 1 + p.sim.length;
   const ondeParou = (r: CrmAutomationRun): string => {
     const nome = (k: number) => BLOCKS[steps[k]?.type ?? '']?.label ?? `passo ${k + 1}`;
     switch (r.status) {
       case 'FAILED':           return `Falhou no passo ${r.stepIndex + 1} (${nome(r.stepIndex)})`;
       case 'PENDING':          return r.stepIndex === 0 ? `Começa em ${new Date(r.dueAt).toLocaleString('pt-BR')}` : `Esperando · volta em ${new Date(r.dueAt).toLocaleString('pt-BR')}`;
       case 'RUNNING':          return 'Rodando agora';
-      case 'DONE':             return 'Passou por todos os passos';
+      case 'DONE':
+        // Só dá para saber o caminho quando o "Não" tem passos (ver selosPorBloco)
+        if (p.cond && p.nao.length > 0) return r.stepIndex === fimSim ? 'Terminou pelo caminho Sim' : 'Terminou pelo caminho Não';
+        return 'Passou por todos os passos';
       case 'STOPPED_BY_REPLY': return 'Parou: o lead respondeu';
       case 'CANCELED':         return 'Cancelada: a condição do gatilho deixou de valer';
       default:                 return r.status;

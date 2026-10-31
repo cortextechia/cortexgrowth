@@ -6,7 +6,7 @@
 // nada além do componente, e o editor em canvas (FluxoCanvas) usa as mesmas.
 
 import type {
-  CrmAutomationStep, CrmAutomationStepType, CrmAutomationTrigger, CrmStage,
+  CrmAutomationStep, CrmAutomationStepType, CrmAutomationTrigger, CrmBusinessHours, CrmFaixaHorario, CrmStage,
 } from '@/types';
 
 // ── Ícones (line icons, herdam currentColor) ───────────────────────────────
@@ -32,6 +32,7 @@ const ICON: Record<string, string> = {
   send:  'M21 3L10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z',
   quiet: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12zM9 12h.01M12 12h.01M15 12h.01',
   back:  'M15 6l-6 6 6 6',
+  split: 'M4 12h6l4-5.5h6M14 17.5h6M10 12l4 5.5M17.5 4l2.5 2.5L17.5 9M17.5 15l2.5 2.5-2.5 2.5',
 };
 const CIRCLED = new Set(['plus', 'clock', 'check', 'cross', 'ban']);
 
@@ -47,7 +48,7 @@ export function Icon({ name, size = 16, strokeWidth = 1.6 }: { name: string; siz
 
 // ── Catálogo de blocos ─────────────────────────────────────────────────────
 
-export type Kind = 'trigger' | 'action' | 'control';
+export type Kind = 'trigger' | 'action' | 'control' | 'condition';
 interface BlockDef { kind: Kind; icon: string; label: string }
 
 export const BLOCKS: Record<string, BlockDef> = {
@@ -69,8 +70,9 @@ export const BLOCKS: Record<string, BlockDef> = {
   SEND_MESSAGE:  { kind: 'action',  icon: 'send',  label: 'Enviar mensagem' },
 
   WAIT:          { kind: 'control', icon: 'hour',  label: 'Esperar' },
+  CONDITION:     { kind: 'condition', icon: 'split', label: 'Horário comercial?' },
 };
-export const KIND_LABEL: Record<Kind, string> = { trigger: 'QUANDO', action: 'AÇÃO', control: 'ESPERA' };
+export const KIND_LABEL: Record<Kind, string> = { trigger: 'QUANDO', action: 'AÇÃO', control: 'ESPERA', condition: 'SE' };
 
 export const TRIGGER_IDS: CrmAutomationTrigger[] = ['NEW_LEAD', 'STAGE_ENTERED', 'STAGE_IDLE', 'NO_REPLY', 'LEAD_SILENT', 'SALE_WON', 'SALE_LOST'];
 export const ACTION_IDS: CrmAutomationStepType[] = ['SEND_MESSAGE', 'MOVE_STAGE', 'ASSIGN', 'ADD_TAG', 'CREATE_TASK', 'SET_FOLLOWUP', 'ADD_NOTE', 'DISCARD'];
@@ -79,6 +81,43 @@ export const ACTION_IDS: CrmAutomationStepType[] = ['SEND_MESSAGE', 'MOVE_STAGE'
 export const MESSAGE_TRIGGERS: CrmAutomationTrigger[] = ['NEW_LEAD', 'LEAD_SILENT'];
 
 // ── Editor (o que está sendo montado) ──────────────────────────────────────
+
+// ── Caminhos da condição ───────────────────────────────────────────────────
+// O backend guarda uma lista só: [antes…, CONDIÇÃO{yes:n}, n passos do Sim, resto = Não].
+// Para editar é mais fácil em partes; `juntar` recalcula o `yes`.
+
+export type Caminho = 'main' | 'sim' | 'nao';
+export interface Partes { main: CrmAutomationStep[]; cond: CrmAutomationStep | null; sim: CrmAutomationStep[]; nao: CrmAutomationStep[] }
+
+export function separar(steps: CrmAutomationStep[]): Partes {
+  const c = steps.findIndex((s) => s.type === 'CONDITION');
+  if (c < 0) return { main: steps, cond: null, sim: [], nao: [] };
+  const fimSim = c + 1 + (steps[c]!.yes ?? 0);
+  return { main: steps.slice(0, c), cond: steps[c]!, sim: steps.slice(c + 1, fimSim), nao: steps.slice(fimSim) };
+}
+
+export function juntar(p: Partes): CrmAutomationStep[] {
+  return p.cond ? [...p.main, { ...p.cond, yes: p.sim.length }, ...p.sim, ...p.nao] : p.main;
+}
+
+/** Índice na lista salva do k-ésimo bloco de um caminho. */
+export function indiceDe(p: Partes, caminho: Caminho, k: number): number {
+  if (caminho === 'main') return k;
+  return p.main.length + 1 + (caminho === 'sim' ? k : p.sim.length + k);
+}
+
+/** Em que caminho fica o passo `i` da lista salva, e em que posição dentro dele. */
+export function ondeFica(p: Partes, i: number): { caminho: Caminho | 'cond'; k: number } {
+  const m = p.main.length;
+  if (!p.cond || i < m) return { caminho: 'main', k: i };
+  if (i === m) return { caminho: 'cond', k: 0 };
+  if (i <= m + p.sim.length) return { caminho: 'sim', k: i - m - 1 };
+  return { caminho: 'nao', k: i - m - 1 - p.sim.length };
+}
+
+export const EXPEDIENTE_PADRAO: CrmBusinessHours = {
+  weekdays: { start: '08:00', end: '18:00' }, saturday: { start: '08:00', end: '12:00' }, sunday: null,
+};
 
 export interface Editor {
   id: string | null;
@@ -167,13 +206,18 @@ export const RECEITAS: Receita[] = [
   },
   {
     nome: 'SLA de primeira resposta',
-    descricao: 'Lead esperando há 4 horas vira problema visível, não um card parado no board.',
+    descricao: 'Lead esperando há 4 horas vira problema visível. Fora do expediente, vira tarefa para a abertura.',
     trigger: 'NO_REPLY',
     cfg: () => ({ hours: 4 }),
+    // Fora do expediente ninguém é cobrado por não responder: o card só ganha
+    // tarefa para o dia seguinte.
     steps: () => [
+      { type: 'CONDITION', check: 'BUSINESS_HOURS', yes: 3, schedule: EXPEDIENTE_PADRAO },
       { type: 'ADD_NOTE', text: 'SLA estourado — sem resposta há 4h' },
       { type: 'ADD_TAG', tag: 'Urgente' },
       { type: 'CREATE_TASK', title: 'Responder agora', dueInDays: 0, taskType: 'WHATSAPP' },
+      { type: 'CREATE_TASK', title: 'Responder na abertura', dueInDays: 1, taskType: 'WHATSAPP' },
+      { type: 'ADD_NOTE', text: 'Chegou fora do expediente' },
     ],
   },
   {
@@ -190,27 +234,44 @@ export const RECEITAS: Receita[] = [
 
 // ── Miniatura do fluxo (cards da tela inicial e das receitas) ──────────────
 
-export function Miniatura({ trigger, steps }: { trigger: CrmAutomationTrigger; steps: CrmAutomationStep[] }) {
-  const blocos: { key: string; bg: string; borda: string }[] = [
-    { key: trigger, bg: 'var(--accent-fill)', borda: 'var(--accent-fill)' },
-    ...steps.map((s) => (
-      s.type === 'WAIT' ? { key: s.type, bg: 'var(--tint-bg)', borda: 'var(--tint-ink)' }
-      : s.type === 'DISCARD' ? { key: s.type, bg: 'var(--bg-elevated)', borda: 'var(--badge-error-text)' }
-      : { key: s.type, bg: 'var(--bg-elevated)', borda: 'var(--border-control)' }
-    )),
-  ];
+const corMini = (s: CrmAutomationStep) => (
+  s.type === 'WAIT' ? { bg: 'var(--tint-bg)', borda: 'var(--tint-ink)' }
+  : s.type === 'DISCARD' ? { bg: 'var(--bg-elevated)', borda: 'var(--badge-error-text)' }
+  : s.type === 'CONDITION' ? { bg: 'var(--bg-elevated)', borda: 'var(--accent)' }
+  : { bg: 'var(--bg-elevated)', borda: 'var(--border-control)' }
+);
+
+function FilaMini({ blocos, primeiroFio = false }: { blocos: { bg: string; borda: string }[]; primeiroFio?: boolean }) {
   return (
-    <div aria-hidden="true" className="flex items-center justify-center px-3"
+    <span className="flex items-center">
+      {blocos.map((b, i) => (
+        <span key={i} className="flex items-center">
+          {(i > 0 || primeiroFio) && <span style={{ width: 12, height: 2, background: 'var(--border-control)' }} />}
+          <span style={{ width: 34, height: 18, borderRadius: 6, background: b.bg, border: `1px solid ${b.borda}`, boxSizing: 'border-box' }} />
+        </span>
+      ))}
+    </span>
+  );
+}
+
+// O gatilho é sempre o primeiro bloco (limão); o tipo dele não muda o desenho.
+export function Miniatura({ steps }: { trigger: CrmAutomationTrigger; steps: CrmAutomationStep[] }) {
+  const p = separar(steps);
+  const antes = [{ bg: 'var(--accent-fill)', borda: 'var(--accent-fill)' }, ...p.main.map(corMini), ...(p.cond ? [corMini(p.cond)] : [])];
+  const vazio = { bg: 'transparent', borda: 'var(--border-control)' };
+  return (
+    <div aria-hidden="true" className="flex items-center justify-center overflow-hidden px-3"
       style={{
         height: 96, borderBottom: '1px solid var(--border)', backgroundColor: 'var(--bg-base)',
         backgroundImage: 'radial-gradient(var(--border-md) 1px, transparent 1px)', backgroundSize: '14px 14px',
       }}>
-      {blocos.map((b, i) => (
-        <span key={i} className="flex items-center">
-          {i > 0 && <span style={{ width: 12, height: 2, background: 'var(--border-control)' }} />}
-          <span style={{ width: 34, height: 18, borderRadius: 6, background: b.bg, border: `1px solid ${b.borda}`, boxSizing: 'border-box' }} />
+      <FilaMini blocos={antes} />
+      {p.cond && (
+        <span className="flex flex-col gap-2">
+          <FilaMini blocos={p.sim.length ? p.sim.map(corMini) : [vazio]} primeiroFio />
+          <FilaMini blocos={p.nao.length ? p.nao.map(corMini) : [vazio]} primeiroFio />
         </span>
-      ))}
+      )}
     </div>
   );
 }
@@ -367,9 +428,51 @@ export function ParamsPasso({ passo, stages, motivos, onChange }: {
           </select>
         </Campo>
       );
+    case 'CONDITION':
+      return <CamposExpediente valor={passo.schedule ?? EXPEDIENTE_PADRAO} onChange={(schedule) => onChange({ schedule })} />;
     default:
       return null;
   }
+}
+
+const DIAS: { key: keyof CrmBusinessHours; rotulo: string }[] = [
+  { key: 'weekdays', rotulo: 'Seg a sex' }, { key: 'saturday', rotulo: 'Sábado' }, { key: 'sunday', rotulo: 'Domingo' },
+];
+
+function CamposExpediente({ valor, onChange }: { valor: CrmBusinessHours; onChange: (v: CrmBusinessHours) => void }) {
+  const set = (k: keyof CrmBusinessHours, f: CrmFaixaHorario | null) => onChange({ ...valor, [k]: f });
+  return (
+    <div className="flex flex-col gap-2">
+      <span style={{ font: '500 10.5px/1.4 var(--font-mono-cx), ui-monospace, monospace', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
+        EXPEDIENTE DA EMPRESA
+      </span>
+      {DIAS.map(({ key, rotulo }) => {
+        const f = valor[key];
+        return (
+          <div key={key} className="flex flex-col gap-1.5 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+            <div className="flex items-center gap-2">
+              <Switch on={!!f} onClick={() => set(key, f ? null : { start: '08:00', end: key === 'weekdays' ? '18:00' : '12:00' })}
+                label={`${rotulo}: aberto`} />
+              <span style={{ color: 'var(--text-primary)' }}>{rotulo}</span>
+              {!f && <span>· Fechado</span>}
+            </div>
+            {f && (
+              <div className="flex items-center gap-2">
+                <input type="time" aria-label={`${rotulo}: abre às`} value={f.start} onChange={(e) => set(key, { ...f, start: e.target.value })}
+                  style={{ ...inputStyle, width: 112, padding: '6px 8px' }} />
+                às
+                <input type="time" aria-label={`${rotulo}: fecha às`} value={f.end} onChange={(e) => set(key, { ...f, end: e.target.value })}
+                  style={{ ...inputStyle, width: 112, padding: '6px 8px' }} />
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+        Horário de Brasília, na hora em que o card chega neste bloco. Feriado não conta como fechado.
+      </p>
+    </div>
+  );
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -385,6 +488,7 @@ export function novoPasso(tipo: CrmAutomationStepType, stages: CrmStage[], motiv
     case 'DISCARD':      return { type: tipo, reason: motivos[0] ?? '' };
     case 'WAIT':         return { type: tipo, days: 3 };
     case 'SEND_MESSAGE': return { type: tipo, message: 'Oi {nome}, aqui é {vendedor}! ' };
+    case 'CONDITION':    return { type: tipo, check: 'BUSINESS_HOURS', yes: 0, schedule: EXPEDIENTE_PADRAO };
   }
 }
 
@@ -445,7 +549,23 @@ export function resumoPasso(s: CrmAutomationStep, stages: CrmStage[]): string {
     case 'DISCARD':      return s.reason || 'escolha o motivo';
     case 'WAIT':         return `${s.days ?? 0} dia(s)`;
     case 'SEND_MESSAGE': return s.message?.trim() || 'escreva a mensagem';
+    case 'CONDITION':    return resumoExpediente(s.schedule ?? EXPEDIENTE_PADRAO);
   }
+}
+
+const faixaTxt = (f: CrmFaixaHorario) => `${f.start.replace(':00', 'h')}–${f.end.replace(':00', 'h')}`;
+export function resumoExpediente(h: CrmBusinessHours): string {
+  const partes = DIAS.filter((d) => h[d.key]).map((d) => `${d.key === 'weekdays' ? 'Seg–sex' : d.rotulo.slice(0, 3)} ${faixaTxt(h[d.key]!)}`);
+  return partes.join(' · ') || 'Sem dia aberto';
+}
+
+/** Linha dos cards da tela inicial: "A → Horário comercial? (Sim: B → C · Não: D)". */
+export function resumoLista(steps: CrmAutomationStep[]): string {
+  const p = separar(steps);
+  const nomes = (l: CrmAutomationStep[]) => l.map((s) => BLOCKS[s.type]?.label ?? s.type).join(' → ') || 'nada';
+  const base = p.main.map((s) => BLOCKS[s.type]?.label ?? s.type);
+  if (!p.cond) return base.join(' → ');
+  return [...base, `${BLOCKS.CONDITION!.label} (Sim: ${nomes(p.sim)} · Não: ${nomes(p.nao)})`].join(' → ');
 }
 
 function frasePasso(s: CrmAutomationStep, stages: CrmStage[]): string {
@@ -459,11 +579,17 @@ function frasePasso(s: CrmAutomationStep, stages: CrmStage[]): string {
     case 'DISCARD':      return `descartar o lead com o motivo ${s.reason || '…'}`;
     case 'WAIT':         return `esperar ${s.days} dias`;
     case 'SEND_MESSAGE': return `enviar pelo WhatsApp "${(s.message ?? '').trim() || '…'}"`;
+    case 'CONDITION':    return 'ver se é horário comercial';
   }
 }
 
 export function frasear(e: Editor, stages: CrmStage[]): string {
-  const acoes = e.steps.map((s) => frasePasso(s, stages));
+  const p = separar(e.steps);
+  const lista = (l: CrmAutomationStep[]) => l.map((s) => frasePasso(s, stages)).join('; ');
+  const acoes = [
+    ...(p.main.length ? [lista(p.main)] : []),
+    ...(p.cond ? [`se for horário comercial (${resumoExpediente(p.cond.schedule ?? EXPEDIENTE_PADRAO)}), ${lista(p.sim) || 'não fazer nada'}; se não, ${lista(p.nao) || 'não fazer nada'}`] : []),
+  ];
   const base = `Quando ${fraseGatilho(e.trigger, e.cfg, stages)}, ${acoes.length ? acoes.join('; ') + '.' : 'não fazer nada.'}`;
   return e.stopOnReply ? `${base} A sequência para se o lead responder.` : base;
 }
@@ -531,11 +657,31 @@ export function checarFluxo(editor: Editor, stages: CrmStage[]): Aviso[] {
     nivel: 'err',
     texto: 'Enviar mensagem só vale nos gatilhos "Lead novo chegou" e "Lead não respondeu". Nos outros, o robô falaria no meio de uma conversa que um vendedor está tocando.',
   });
-  if (msgs.length > 1) out.push({
+  const p = separar(editor.steps);
+  const nMsg = (l: CrmAutomationStep[]) => l.filter((s) => s.type === 'SEND_MESSAGE').length;
+  const umaPorCaminho = p.cond
+    ? nMsg(p.main) + nMsg(p.sim) <= 1 && nMsg(p.main) + nMsg(p.nao) <= 1
+    : msgs.length <= 1;
+  if (!umaPorCaminho) out.push({
     nivel: 'err',
-    texto: 'Uma mensagem por automação. Para outra mensagem, crie outra automação (ex.: "Lead não respondeu em 24h").',
+    texto: p.cond
+      ? 'Uma mensagem por caminho: o lead passa pelo "Sim" ou pelo "Não", e em cada um só cabe uma.'
+      : 'Uma mensagem por automação. Para outra mensagem, crie outra automação (ex.: "Lead não respondeu em 24h").',
   });
+  if (editor.steps.filter((s) => s.type === 'CONDITION').length > 1) out.push({ nivel: 'err', texto: 'Uma condição por automação.' });
+  if (p.cond) {
+    if (p.sim.length === 0 && p.nao.length === 0) out.push({ nivel: 'err', texto: 'A condição precisa de pelo menos um passo em "Sim" ou em "Não".' });
+    if (p.sim.at(-1)?.type === 'WAIT') out.push({
+      nivel: 'err',
+      texto: 'Uma espera no fim do caminho "Sim" não tem o que esperar. Remova ou coloque um passo depois dela.',
+    });
+    const h = p.cond.schedule ?? EXPEDIENTE_PADRAO;
+    const faixas = DIAS.map((d) => h[d.key]).filter((f): f is CrmFaixaHorario => !!f);
+    if (faixas.length === 0) out.push({ nivel: 'err', texto: 'Marque pelo menos um dia de expediente na condição.' });
+    if (faixas.some((f) => !f.start || !f.end || f.start >= f.end)) out.push({ nivel: 'err', texto: 'No expediente, o fechamento precisa ser depois da abertura.' });
+  }
   if (msgs.some((s) => !s.message?.trim())) out.push({ nivel: 'err', texto: 'Escreva o texto da mensagem.' });
+  if (editor.steps.some((s) => s.type === 'ADD_NOTE' && !s.text?.trim())) out.push({ nivel: 'err', texto: 'Escreva o texto da nota.' });
   if (msgs.length > 0 && editor.trigger === 'NEW_LEAD') out.push({
     nivel: 'info',
     texto: 'Não sai se alguém responder o contato antes, nem para card criado à mão (o contato nunca escreveu). O motivo fica no histórico do card.',
