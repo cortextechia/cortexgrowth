@@ -1,204 +1,33 @@
 'use client';
 
-// Automações do CRM — construtor em blocos arrastáveis.
-//
-// Formato: sequência LINEAR, não canvas de nós com fios. O público é gestor de
-// tráfego e dono de loja, não engenheiro — "quando isto, faça aquilo" numa
-// coluna só é o que eles leem sem treinamento.
+// Automações do CRM — tela inicial (fluxos da org + modelos prontos) e o editor
+// em canvas (FluxoCanvas). Visual escolhido pelo Benny em 30/10 ("estilo D").
 //
 // As ações mexem no estado do card (mover, atribuir, tag, tarefa, follow-up,
 // descartar). A exceção é "Enviar mensagem": ela põe a mensagem na mesma fila
 // dos Disparos (freio anti-ban) e só vale em "Lead novo" e "Lead não respondeu".
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type {
-  CrmAutomation, CrmAutomationRun, CrmAutomationStep, CrmAutomationStepType,
-  CrmAutomationTrigger, CrmStage, CrmDiscardReasonOption,
+  CrmAutomation, CrmAutomationActivity, CrmAutomationTrigger, CrmStage, CrmDiscardReasonOption,
 } from '@/types';
+import {
+  BLOCKS, Miniatura, RECEITAS, Switch, rotuloGatilho, statusLabel, statusStyle,
+  type Editor, type Receita,
+} from './blocos';
+import FluxoCanvas from './FluxoCanvas';
 
-// ── Ícones (line icons, herdam currentColor) ───────────────────────────────
-
-const ICON: Record<string, string> = {
-  plus:  'M12 8.5v7M8.5 12h7',
-  arrow: 'M4 12h15M13.5 6.5L20 12l-6.5 5.5',
-  clock: 'M12 7.5V12l3 1.8',
-  mute:  'M20 14.5a2 2 0 0 1-2 2H8l-4 3.5V5.5a2 2 0 0 1 2-2h6M15.5 3.5l6 6M21.5 3.5l-6 6',
-  check: 'M8.2 12.2l2.6 2.6 5-5.4',
-  cross: 'M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6',
-  cols:  'M3.5 6.5h6v11h-6zM14.5 6.5h6v11h-6zM10.2 12h3.6',
-  user:  'M19.5 20v-1.5a4 4 0 0 0-4-4h-7a4 4 0 0 0-4 4V20M15.5 7.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0z',
-  tag:   'M20.2 13.2l-7.4 7.4a1.8 1.8 0 0 1-2.6 0l-6.4-6.4V4.4H13l7.2 7.2a1.8 1.8 0 0 1 0 1.6zM9 8.2a1 1 0 1 1-2 0 1 1 0 0 1 2 0z',
-  task:  'M20.5 12.5V19a1.8 1.8 0 0 1-1.8 1.8H5.3A1.8 1.8 0 0 1 3.5 19V5.3a1.8 1.8 0 0 1 1.8-1.8h10M8.5 11.5l3 3 8-8.4',
-  cal:   'M3.5 7a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM16 3.2v3.6M8 3.2v3.6M3.5 10.2h17',
-  note:  'M13.5 3.5H6.8A1.8 1.8 0 0 0 5 5.3v13.4a1.8 1.8 0 0 0 1.8 1.8h10.4a1.8 1.8 0 0 0 1.8-1.8V8.5zM13.5 3.5v5h5M8.5 13h7M8.5 16.5h4.5',
-  ban:   'M5.6 5.6l12.8 12.8',
-  hour:  'M8 3.5h8M8 20.5h8M8.5 3.5v3.2c0 2 3.5 3.4 3.5 5.3s-3.5 3.3-3.5 5.3v3M15.5 3.5v3.2c0 2-3.5 3.4-3.5 5.3s3.5 3.3 3.5 5.3v3',
-  pause: 'M9.5 4.5v15M14.5 4.5v15',
-  grip:  'M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01',
-  x:     'M6 6l12 12M18 6L6 18',
-  bolt:  'M13 3L5 14h6l-1 7 8-11h-6z',
-  send:  'M21 3L10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5z',
-  quiet: 'M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12zM9 12h.01M12 12h.01M15 12h.01',
-};
-const CIRCLED = new Set(['plus', 'clock', 'check', 'cross', 'ban']);
-
-function Icon({ name, size = 16, strokeWidth = 1.6 }: { name: string; size?: number; strokeWidth?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flex: 'none' }}>
-      {CIRCLED.has(name) && <circle cx="12" cy="12" r="9" />}
-      <path d={ICON[name] ?? ''} />
-    </svg>
-  );
-}
-
-// ── Catálogo de blocos ─────────────────────────────────────────────────────
-
-type Kind = 'trigger' | 'action' | 'control';
-interface BlockDef { kind: Kind; icon: string; label: string; color: string }
-
-// Cor por bloco: o pedido foi "mais colorido e intuitivo". Cada família tem
-// matiz própria e cada bloco varia dentro dela, então o olho acha o bloco pela
-// cor antes de ler o texto. Hex é proibido no JSX — tudo sai de CSS var.
-const BLOCKS: Record<string, BlockDef> = {
-  NEW_LEAD:      { kind: 'trigger', icon: 'plus',  label: 'Lead novo chegou',     color: 'var(--auto-cyan)' },
-  STAGE_ENTERED: { kind: 'trigger', icon: 'arrow', label: 'Entrou numa etapa',    color: 'var(--auto-blue)' },
-  STAGE_IDLE:    { kind: 'trigger', icon: 'clock', label: 'Parado numa etapa',    color: 'var(--auto-amber)' },
-  NO_REPLY:      { kind: 'trigger', icon: 'mute',  label: 'Sem resposta',         color: 'var(--auto-rose)' },
-  LEAD_SILENT:   { kind: 'trigger', icon: 'quiet', label: 'Lead não respondeu',   color: 'var(--auto-amber)' },
-  SALE_WON:      { kind: 'trigger', icon: 'check', label: 'Venda ganha',          color: 'var(--auto-green)' },
-  SALE_LOST:     { kind: 'trigger', icon: 'cross', label: 'Venda perdida',        color: 'var(--auto-red)' },
-
-  MOVE_STAGE:    { kind: 'action',  icon: 'cols',  label: 'Mover para etapa',     color: 'var(--auto-blue)' },
-  ASSIGN:        { kind: 'action',  icon: 'user',  label: 'Atribuir responsável', color: 'var(--auto-indigo)' },
-  ADD_TAG:       { kind: 'action',  icon: 'tag',   label: 'Adicionar tag',        color: 'var(--auto-teal)' },
-  CREATE_TASK:   { kind: 'action',  icon: 'task',  label: 'Criar tarefa',         color: 'var(--auto-green)' },
-  SET_FOLLOWUP:  { kind: 'action',  icon: 'cal',   label: 'Marcar follow-up',     color: 'var(--auto-cyan)' },
-  ADD_NOTE:      { kind: 'action',  icon: 'note',  label: 'Registrar nota',       color: 'var(--auto-slate)' },
-  DISCARD:       { kind: 'action',  icon: 'ban',   label: 'Descartar lead',       color: 'var(--auto-red)' },
-  SEND_MESSAGE:  { kind: 'action',  icon: 'send',  label: 'Enviar mensagem',      color: 'var(--auto-green)' },
-
-  WAIT:          { kind: 'control', icon: 'hour',  label: 'Esperar',              color: 'var(--auto-purple)' },
-};
-const KIND_LABEL: Record<Kind, string> = { trigger: 'QUANDO', action: 'FAÇA', control: 'CONTROLE' };
-
-const TRIGGER_IDS: CrmAutomationTrigger[] = ['NEW_LEAD', 'STAGE_ENTERED', 'STAGE_IDLE', 'NO_REPLY', 'LEAD_SILENT', 'SALE_WON', 'SALE_LOST'];
-const ACTION_IDS: CrmAutomationStepType[] = ['SEND_MESSAGE', 'MOVE_STAGE', 'ASSIGN', 'ADD_TAG', 'CREATE_TASK', 'SET_FOLLOWUP', 'ADD_NOTE', 'DISCARD'];
-// Mesma regra do backend: nos outros gatilhos o robô falaria no meio de uma
-// conversa que um vendedor está tocando.
-const MESSAGE_TRIGGERS: CrmAutomationTrigger[] = ['NEW_LEAD', 'LEAD_SILENT'];
-
-// ── Receitas prontas ───────────────────────────────────────────────────────
-
-interface Receita {
-  nome: string;
-  descricao: string;
-  trigger: CrmAutomationTrigger;
-  cfg: (stages: CrmStage[]) => Record<string, unknown>;
-  steps: (stages: CrmStage[]) => CrmAutomationStep[];
-}
-
-const RECEITAS: Receita[] = [
-  {
-    nome: 'Boas-vindas no WhatsApp',
-    descricao: 'Quem chega (ou volta a falar) recebe resposta na hora, com o nome do vendedor que vai atender.',
-    trigger: 'NEW_LEAD',
-    cfg: () => ({ includeReturning: true }),
-    steps: () => [
-      { type: 'ASSIGN', mode: 'ROUND_ROBIN' },
-      { type: 'SEND_MESSAGE', message: 'Oi {nome}, aqui é {vendedor}! Recebi sua mensagem e já te respondo.' },
-      { type: 'CREATE_TASK', title: 'Atender lead', dueInDays: 0, taskType: 'WHATSAPP' },
-    ],
-  },
-  {
-    nome: 'Cobrança de lead que sumiu',
-    descricao: 'Lead não respondeu em 24h: uma mensagem de retomada, uma vez só até ele voltar a falar.',
-    trigger: 'LEAD_SILENT',
-    cfg: () => ({ hours: 24 }),
-    steps: () => [
-      { type: 'SEND_MESSAGE', message: 'Oi {nome}, conseguiu ver minha mensagem? Fico à disposição.' },
-    ],
-  },
-  {
-    nome: 'Esfriamento automático',
-    descricao: 'Card parado no meio do funil sai da frente do vendedor e vira tarefa de resgate.',
-    trigger: 'STAGE_IDLE',
-    cfg: (s) => ({ stageId: s[Math.min(2, s.length - 1)]?.id, days: 7 }),
-    steps: (s) => [
-      { type: 'MOVE_STAGE', stageId: s[0]?.id },
-      { type: 'CREATE_TASK', title: 'Ligar — proposta parada', dueInDays: 1, taskType: 'LIGAR' },
-      { type: 'SET_FOLLOWUP', days: 3 },
-    ],
-  },
-  {
-    nome: 'Chegada de lead novo',
-    descricao: 'Distribui o lead, marca de onde veio e cobra o primeiro contato no mesmo dia.',
-    trigger: 'NEW_LEAD',
-    cfg: () => ({}),
-    steps: () => [
-      { type: 'ASSIGN', mode: 'ROUND_ROBIN' },
-      { type: 'ADD_TAG', tag: 'Novo' },
-      { type: 'CREATE_TASK', title: 'Primeiro contato', dueInDays: 0, taskType: 'WHATSAPP' },
-    ],
-  },
-  {
-    nome: 'Resgate de lead perdido',
-    descricao: 'Quem sumiu volta para a fila 30 dias depois, sem ocupar o funil enquanto isso.',
-    trigger: 'SALE_LOST',
-    cfg: () => ({}),
-    steps: (s) => [
-      { type: 'WAIT', days: 30 },
-      { type: 'ADD_TAG', tag: 'Resgate' },
-      { type: 'MOVE_STAGE', stageId: s[0]?.id },
-      { type: 'CREATE_TASK', title: 'Retomar contato', dueInDays: 2, taskType: 'LIGAR' },
-    ],
-  },
-  {
-    nome: 'Pós-venda e indicação',
-    descricao: 'Uma semana depois da venda ganha, cobra o follow-up que ninguém lembra de fazer.',
-    trigger: 'SALE_WON',
-    cfg: () => ({}),
-    steps: () => [
-      { type: 'WAIT', days: 7 },
-      { type: 'ADD_TAG', tag: 'Cliente' },
-      { type: 'CREATE_TASK', title: 'Pedir indicação', dueInDays: 1, taskType: 'LIGAR' },
-    ],
-  },
-  {
-    nome: 'SLA de primeira resposta',
-    descricao: 'Lead esperando há 4 horas vira problema visível, não um card parado no board.',
-    trigger: 'NO_REPLY',
-    cfg: () => ({ hours: 4 }),
-    steps: () => [
-      { type: 'ADD_NOTE', text: 'SLA estourado — sem resposta há 4h' },
-      { type: 'ADD_TAG', tag: 'Urgente' },
-      { type: 'CREATE_TASK', title: 'Responder agora', dueInDays: 0, taskType: 'WHATSAPP' },
-    ],
-  },
-  {
-    nome: 'Limpeza de não qualificado',
-    descricao: 'Lead parado na triagem há 15 dias sai do funil com motivo, sem virar venda fantasma.',
-    trigger: 'STAGE_IDLE',
-    cfg: (s) => ({ stageId: s[0]?.id, days: 15 }),
-    steps: () => [
-      { type: 'ADD_NOTE', text: 'Sem qualificação em 15 dias' },
-      { type: 'DISCARD', reason: '' },
-    ],
-  },
+type Grupo = 'todos' | 'novo' | 'etapa' | 'silencio' | 'venda';
+const GRUPOS: { id: Grupo; label: string; triggers: CrmAutomationTrigger[] }[] = [
+  { id: 'todos',    label: 'Todos',        triggers: [] },
+  { id: 'novo',     label: 'Lead novo',    triggers: ['NEW_LEAD'] },
+  { id: 'etapa',    label: 'Etapa',        triggers: ['STAGE_ENTERED', 'STAGE_IDLE'] },
+  { id: 'silencio', label: 'Sem resposta', triggers: ['NO_REPLY', 'LEAD_SILENT'] },
+  { id: 'venda',    label: 'Venda',        triggers: ['SALE_WON', 'SALE_LOST'] },
 ];
-
-// ── Página ─────────────────────────────────────────────────────────────────
-
-interface Editor {
-  id: string | null;
-  name: string;
-  trigger: CrmAutomationTrigger;
-  cfg: Record<string, unknown>;
-  steps: CrmAutomationStep[];
-  stopOnReply: boolean;
-}
+type Estado = 'todas' | 'ligadas' | 'desligadas';
 
 export default function AutomacoesPage() {
   const { user } = useAuth();
@@ -207,12 +36,14 @@ export default function AutomacoesPage() {
   const [stages, setStages] = useState<CrmStage[]>([]);
   const [motivos, setMotivos] = useState<string[]>([]);
   const [lista, setLista] = useState<CrmAutomation[]>([]);
+  const [atividade, setAtividade] = useState<CrmAutomationActivity | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [modoInicial, setModoInicial] = useState<'editar' | 'execucoes'>('editar');
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState<{ texto: string; erro: boolean } | null>(null);
-  const [runsDe, setRunsDe] = useState<string | null>(null);
-  const [runs, setRuns] = useState<CrmAutomationRun[]>([]);
+  const [grupo, setGrupo] = useState<Grupo>('todos');
+  const [estado, setEstado] = useState<Estado>('todas');
 
   const aviso = useCallback((texto: string, erro = false) => {
     setToast({ texto, erro });
@@ -220,8 +51,12 @@ export default function AutomacoesPage() {
   }, []);
 
   const recarregar = useCallback(async () => {
-    const r = await apiService.getCrmAutomations().catch(() => null);
+    const [r, a] = await Promise.all([
+      apiService.getCrmAutomations().catch(() => null),
+      apiService.getCrmAutomationActivity(12).catch(() => null),
+    ]);
     if (r?.data) setLista(r.data);
+    if (a?.data) setAtividade(a.data);
   }, []);
 
   useEffect(() => {
@@ -230,27 +65,33 @@ export default function AutomacoesPage() {
       apiService.getCrmStages().catch(() => ({ data: [] as CrmStage[] })),
       apiService.getCrmDiscardReasons().catch(() => ({ data: [] as CrmDiscardReasonOption[] })),
       apiService.getCrmAutomations().catch(() => ({ data: [] as CrmAutomation[] })),
-    ]).then(([s, m, a]) => {
+      apiService.getCrmAutomationActivity(12).catch(() => null),
+    ]).then(([s, m, a, at]) => {
       setStages(s.data ?? []);
       setMotivos((m.data ?? []).map((x) => x.label));
       setLista(a.data ?? []);
+      setAtividade(at?.data ?? null);
     }).finally(() => setCarregando(false));
   }, [podeConfigurar]);
 
-  const abrirReceita = (r: Receita) => setEditor({
-    id: null, name: r.nome, trigger: r.trigger,
-    cfg: r.cfg(stages), steps: r.steps(stages), stopOnReply: true,
-  });
+  const abrirReceita = (r: Receita) => {
+    setModoInicial('editar');
+    setEditor({ id: null, name: r.nome, trigger: r.trigger, cfg: r.cfg(stages), steps: r.steps(stages), stopOnReply: true });
+  };
 
-  const abrirExistente = (a: CrmAutomation) => setEditor({
-    id: a.id, name: a.name, trigger: a.triggerType,
-    cfg: (a.triggerConfig ?? {}) as Record<string, unknown>,
-    steps: a.steps ?? [], stopOnReply: a.stopOnReply,
-  });
+  const abrirExistente = (a: CrmAutomation, modo: 'editar' | 'execucoes' = 'editar') => {
+    setModoInicial(modo);
+    setEditor({
+      id: a.id, name: a.name, trigger: a.triggerType,
+      cfg: (a.triggerConfig ?? {}) as Record<string, unknown>,
+      steps: a.steps ?? [], stopOnReply: a.stopOnReply,
+    });
+  };
 
-  const abrirVazio = () => setEditor({
-    id: null, name: 'Nova automação', trigger: 'NEW_LEAD', cfg: {}, steps: [], stopOnReply: true,
-  });
+  const abrirVazio = () => {
+    setModoInicial('editar');
+    setEditor({ id: null, name: 'Novo fluxo', trigger: 'NEW_LEAD', cfg: {}, steps: [], stopOnReply: true });
+  };
 
   const salvar = async () => {
     if (!editor) return;
@@ -264,7 +105,7 @@ export default function AutomacoesPage() {
       else await apiService.createCrmAutomation(body);
       await recarregar();
       setEditor(null);
-      aviso(editor.id ? 'Automação atualizada.' : 'Automação criada.');
+      aviso(editor.id ? 'Automação atualizada.' : 'Automação criada e já ligada.');
     } catch (err: unknown) {
       // A mensagem do backend é a que explica o laço / a trava — mostrar ela crua.
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -290,19 +131,26 @@ export default function AutomacoesPage() {
     } catch { aviso('Não foi possível remover.', true); }
   };
 
-  const verRuns = async (a: CrmAutomation) => {
-    if (runsDe === a.id) { setRunsDe(null); return; }
-    setRunsDe(a.id);
-    const r = await apiService.getCrmAutomationRuns(a.id, 20).catch(() => null);
-    setRuns(r?.data ?? []);
-  };
+  const visiveis = useMemo(() => {
+    const g = GRUPOS.find((x) => x.id === grupo)!;
+    return lista.filter((a) =>
+      (grupo === 'todos' || g.triggers.includes(a.triggerType)) &&
+      (estado === 'todas' || (estado === 'ligadas') === a.enabled));
+  }, [lista, grupo, estado]);
+
+  const falhas = useMemo(() => {
+    const porId = new Map(lista.map((a) => [a.id, a]));
+    return (atividade?.failed ?? [])
+      .map((f) => ({ auto: porId.get(f.automationId), count: f.count }))
+      .filter((f): f is { auto: CrmAutomation; count: number } => !!f.auto);
+  }, [atividade, lista]);
 
   if (!podeConfigurar) {
     return (
       <div className="p-6">
-        <div className="rounded-xl p-5" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+        <div className="ui-card">
           <p style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Acesso restrito</p>
-          <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>
+          <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Automações são configuradas pelo administrador — elas agem sobre os cards de toda a operação.
             Quando uma delas mexer num card seu, o histórico dele mostra qual foi.
           </p>
@@ -311,672 +159,168 @@ export default function AutomacoesPage() {
     );
   }
 
-  return (
-    <div className="p-4 sm:p-6" style={{ maxWidth: 1180, margin: '0 auto' }}>
-      <style>{VARS}</style>
+  const toastEl = toast && (
+    <div role="status" className="mb-4 rounded-lg px-4 py-3 text-sm" style={{
+      backgroundColor: toast.erro ? 'var(--badge-error-bg)' : 'var(--badge-success-bg)',
+      color: toast.erro ? 'var(--badge-error-text)' : 'var(--badge-success-text)',
+    }}>{toast.texto}</div>
+  );
 
-      <header className="mb-5">
-        <h1 className="ui-h1">Automações do CRM</h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)', maxWidth: '78ch' }}>
-          O CRM faz sozinho o que hoje depende de alguém lembrar: mover card parado, distribuir lead novo,
-          cobrar follow-up. Mensagem automática só existe em duas situações —{' '}
-          <b style={{ color: 'var(--text-primary)' }}>boas-vindas</b> e <b style={{ color: 'var(--text-primary)' }}>lead que não respondeu</b> —
-          e sai pela mesma fila dos Disparos, com o mesmo controle de envio.
-        </p>
+  if (editor) {
+    return (
+      <div className="p-3 sm:p-4">
+        {toastEl}
+        <FluxoCanvas
+          editor={editor} setEditor={setEditor} stages={stages} motivos={motivos}
+          salvando={salvando} modoInicial={modoInicial} onSalvar={salvar} onVoltar={() => setEditor(null)}
+        />
+      </div>
+    );
+  }
+
+  const mono: React.CSSProperties = { font: '500 11px/1.4 var(--font-mono-cx), ui-monospace, monospace', letterSpacing: '0.06em' };
+
+  return (
+    <div className="p-4 sm:p-6" style={{ maxWidth: 1240, margin: '0 auto' }}>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-2" style={{ maxWidth: 640 }}>
+          <span style={{ ...mono, fontSize: 12.5, color: 'var(--accent)' }}>CRM · AUTOMAÇÕES</span>
+          <h1 className="ui-h1">Seus fluxos</h1>
+          <p className="ui-sub">
+            Cada fluxo é um desenho: o gatilho primeiro, as ações em seguida. O CRM faz sozinho o que hoje depende de
+            alguém lembrar. Mensagem automática só existe em boas-vindas e lead que não respondeu, e sai pela fila dos Disparos.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <a href="#modelos" className="ui-btn ui-btn-secondary">Ver modelos prontos</a>
+          <button type="button" onClick={abrirVazio} className="ui-btn ui-btn-primary">Novo fluxo</button>
+        </div>
       </header>
 
-      {toast && (
-        <div className="mb-4 rounded-lg px-4 py-3 text-sm" style={{
-          backgroundColor: toast.erro ? 'var(--badge-error-bg)' : 'var(--badge-success-bg)',
-          color: toast.erro ? 'var(--badge-error-text)' : 'var(--badge-success-text)',
-        }}>{toast.texto}</div>
+      {toastEl}
+
+      {falhas.map((f) => (
+        <div key={f.auto.id} className="mb-3 flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3"
+          style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+          <span aria-hidden="true" style={{ color: 'var(--badge-error-text)', fontWeight: 800 }}>✕</span>
+          <span className="text-sm" style={{ flex: '1 1 280px', color: 'var(--text-secondary)' }}>
+            <b style={{ color: 'var(--text-primary)' }}>{f.auto.name}</b> falhou em {f.count} {f.count === 1 ? 'card' : 'cards'} nos
+            últimos {atividade?.failedWindowDays ?? 7} dias.
+          </span>
+          <button type="button" onClick={() => abrirExistente(f.auto, 'execucoes')} className="ui-btn ui-btn-secondary ui-btn-sm">Ver execuções</button>
+        </div>
+      ))}
+
+      {lista.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div role="group" aria-label="Filtrar por gatilho" className="flex flex-wrap gap-2">
+            {GRUPOS.map((g) => (
+              <button key={g.id} type="button" aria-pressed={grupo === g.id} onClick={() => setGrupo(g.id)}
+                className="ui-filtro" data-ativo={grupo === g.id}>{g.label}</button>
+            ))}
+          </div>
+          <div className="ui-seg" role="group" aria-label="Filtrar por estado">
+            {(['todas', 'ligadas', 'desligadas'] as Estado[]).map((e) => (
+              <button key={e} type="button" aria-pressed={estado === e} onClick={() => setEstado(e)}>
+                {e === 'todas' ? 'Todas' : e === 'ligadas' ? 'Ligadas' : 'Desligadas'}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
-      {editor ? (
-        <Construtor
-          editor={editor} setEditor={setEditor} stages={stages} motivos={motivos}
-          salvando={salvando} onSalvar={salvar} onCancelar={() => setEditor(null)}
-        />
-      ) : (
-        <>
-          {/* Automações da org */}
-          <section className="mb-8">
-            <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-              <h2 className="ui-h2">
-                Suas automações {lista.length > 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({lista.length})</span>}
-              </h2>
-              <button onClick={abrirVazio} className="ui-btn ui-btn-primary ui-btn-sm">+ Criar do zero</button>
+      <div className="mb-10 flex flex-wrap items-start gap-6">
+        <div style={{ flex: '999 1 560px', minWidth: 0 }}>
+          {carregando ? (
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando…</p>
+          ) : lista.length === 0 ? (
+            <div className="rounded-2xl px-5 py-10 text-center text-sm" style={{ border: '1px dashed var(--border-md)', color: 'var(--text-secondary)' }}>
+              Nenhum fluxo ainda. Comece por um dos modelos prontos abaixo ou monte do zero.
             </div>
-
-            {carregando ? (
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando…</p>
-            ) : lista.length === 0 ? (
-              <div className="rounded-xl px-5 py-8 text-center text-sm"
-                style={{ border: '1px dashed var(--border-md)', color: 'var(--text-muted)' }}>
-                Nenhuma automação ainda. Escolha uma receita abaixo para começar.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {lista.map((a) => (
-                  <div key={a.id} className="ui-card !p-0">
-                    <div className="flex items-center gap-4 px-5 py-4 flex-wrap">
-                      <Switch on={a.enabled} onClick={() => alternar(a)} />
-                      <div className="min-w-0 flex-1 space-y-1.5" style={{ flexBasis: 320 }}>
-                        <p className="truncate text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{a.name}</p>
-                        <p className="flex items-baseline gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          <span className="ui-chip shrink-0">QUANDO</span>
-                          <span className="min-w-0">{fraseGatilho(a.triggerType, a.triggerConfig as Record<string, unknown>, stages)}</span>
-                        </p>
-                        <p className="flex items-baseline gap-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          <span className="ui-chip shrink-0">ENTÃO</span>
-                          <span className="min-w-0">{a.steps.map((st) => BLOCKS[st.type]?.label ?? st.type).join(' → ')}</span>
-                        </p>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                          {a.runCount === 0 ? 'Ainda não rodou' : `Rodou ${a.runCount} ${a.runCount === 1 ? 'vez' : 'vezes'}`}
-                        </span>
+          ) : visiveis.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum fluxo com esse filtro.</p>
+          ) : (
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))' }}>
+              {visiveis.map((a) => {
+                const nFalhas = falhas.find((f) => f.auto.id === a.id)?.count ?? 0;
+                return (
+                  <article key={a.id} className="ui-card flex flex-col !p-0 overflow-hidden">
+                    <button type="button" onClick={() => abrirExistente(a)} aria-label={`Abrir ${a.name}`} className="block w-full cursor-pointer text-left">
+                      <Miniatura trigger={a.triggerType} steps={a.steps} />
+                    </button>
+                    <div className="flex flex-1 flex-col gap-2 px-4 pb-4 pt-3.5">
+                      <span style={{ ...mono, color: 'var(--accent)' }}>{rotuloGatilho(a.triggerType, a.triggerConfig as Record<string, unknown>).toUpperCase()}</span>
+                      <h2 className="ui-h2">{a.name}</h2>
+                      <p className="flex-1 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                        {a.steps.map((st) => BLOCKS[st.type]?.label ?? st.type).join(' → ')}
+                      </p>
+                      <p className="text-xs" style={{ color: nFalhas ? 'var(--badge-error-text)' : 'var(--text-secondary)' }}>
+                        {nFalhas ? `✕ ${nFalhas} ${nFalhas === 1 ? 'falha' : 'falhas'} na semana · ` : ''}
+                        {a.runCount === 0 ? 'Ainda não concluiu em nenhum card' : `Concluiu em ${a.runCount} ${a.runCount === 1 ? 'card' : 'cards'}`}
+                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                        <label className="flex items-center gap-2 text-[13px] font-medium" style={{ color: a.enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                          <Switch on={a.enabled} onClick={() => alternar(a)} label={`${a.enabled ? 'Desligar' : 'Ligar'} ${a.name}`} />
+                          {a.enabled ? 'Ligada' : 'Desligada'}
+                        </label>
                         <div className="flex gap-2">
-                          <button onClick={() => verRuns(a)} className="ui-btn ui-btn-secondary ui-btn-sm">
-                            {runsDe === a.id ? 'Fechar' : 'Histórico'}
-                          </button>
-                          <button onClick={() => abrirExistente(a)} className="ui-btn ui-btn-secondary ui-btn-sm">Editar</button>
-                          <button onClick={() => remover(a)} className="ui-btn ui-btn-danger ui-btn-sm">Remover</button>
+                          <button type="button" onClick={() => remover(a)} className="ui-btn ui-btn-danger ui-btn-sm">Remover</button>
+                          <button type="button" onClick={() => abrirExistente(a)} className="ui-btn ui-btn-secondary ui-btn-sm">Abrir</button>
                         </div>
                       </div>
                     </div>
-
-                    {runsDe === a.id && (
-                      <div className="px-5 pb-3" style={{ borderTop: '1px solid var(--border)' }}>
-                        {runs.length === 0 ? (
-                          <p className="pt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Ainda não rodou em nenhum card.</p>
-                        ) : runs.map((r) => (
-                          <div key={r.id} className="flex items-start gap-3 py-2 text-xs" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <span className="rounded px-1.5 py-0.5 font-bold" style={statusStyle(r.status)}>{statusLabel(r.status)}</span>
-                            <span className="min-w-0 flex-1">
-                              <span style={{ color: 'var(--text-primary)' }}>{r.client?.name ?? '—'}</span>
-                              {r.error && (
-                                <span className="mt-0.5 block" style={{ color: 'var(--badge-error-text)' }}>{r.error}</span>
-                              )}
-                              {r.status === 'PENDING' && (
-                                <span className="mt-0.5 block" style={{ color: 'var(--text-muted)' }}>
-                                  próximo passo em {new Date(r.dueAt).toLocaleString('pt-BR')}
-                                </span>
-                              )}
-                            </span>
-                            <span className="tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                              {new Date(r.startedAt).toLocaleDateString('pt-BR')}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Receitas */}
-          <section className="ui-card ui-card-hl">
-            <h2 className="ui-h2 mb-1">Receitas prontas</h2>
-            <p className="mb-3 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Escolha uma, ajuste os prazos e ligue. Dá para mudar tudo depois.
-            </p>
-            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-              {RECEITAS.map((r) => (
-                <button key={r.nome} onClick={() => abrirReceita(r)}
-                  className="ui-card !p-4 text-left transition-transform hover:-translate-y-0.5 hover:border-[var(--border-md)]">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span style={{ color: BLOCKS[r.trigger].color }}><Icon name={BLOCKS[r.trigger].icon} size={17} /></span>
-                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.nome}</span>
-                  </div>
-                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)', minHeight: 34 }}>{r.descricao}</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-1.5 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-                    {r.steps(stages).map((s, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                        {i > 0 && <span style={{ opacity: 0.5 }}>→</span>}
-                        <span style={{ color: BLOCKS[s.type]?.color }}><Icon name={BLOCKS[s.type]?.icon ?? 'bolt'} size={12} /></span>
-                        {BLOCKS[s.type]?.label}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              ))}
+                  </article>
+                );
+              })}
             </div>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-// ── Construtor ─────────────────────────────────────────────────────────────
-
-function Construtor({ editor, setEditor, stages, motivos, salvando, onSalvar, onCancelar }: {
-  editor: Editor;
-  setEditor: (e: Editor) => void;
-  stages: CrmStage[];
-  motivos: string[];
-  salvando: boolean;
-  onSalvar: () => void;
-  onCancelar: () => void;
-}) {
-  const [dropPos, setDropPos] = useState<number | null>(null);
-  const arrastando = useRef<{ tipo: 'novo' | 'move'; valor: string | number } | null>(null);
-  const seqRef = useRef<HTMLDivElement>(null);
-
-  const set = (patch: Partial<Editor>) => setEditor({ ...editor, ...patch });
-
-  const posPeloY = (y: number) => {
-    const cards = Array.from(seqRef.current?.querySelectorAll('[data-step]') ?? []);
-    for (let i = 0; i < cards.length; i++) {
-      const r = cards[i]!.getBoundingClientRect();
-      if (y < r.top + r.height / 2) return i;
-    }
-    return cards.length;
-  };
-
-  const soltar = (e: React.DragEvent) => {
-    e.preventDefault();
-    const info = arrastando.current;
-    const pos = dropPos ?? editor.steps.length;
-    setDropPos(null); arrastando.current = null;
-    if (!info) return;
-
-    const steps = [...editor.steps];
-    if (info.tipo === 'novo') {
-      steps.splice(pos, 0, novoPasso(info.valor as CrmAutomationStepType, stages, motivos));
-    } else {
-      const de = info.valor as number;
-      let para = pos; if (para > de) para--;
-      if (para === de) return;
-      const [it] = steps.splice(de, 1);
-      if (it) steps.splice(para, 0, it);
-    }
-    set({ steps });
-  };
-
-  const addFim = (tipo: CrmAutomationStepType) =>
-    set({ steps: [...editor.steps, novoPasso(tipo, stages, motivos)] });
-
-  const alterarPasso = (i: number, patch: Partial<CrmAutomationStep>) => {
-    const steps = [...editor.steps];
-    steps[i] = { ...steps[i]!, ...patch };
-    set({ steps });
-  };
-
-  const removerPasso = (i: number) => set({ steps: editor.steps.filter((_, j) => j !== i) });
-
-  // Avisos ao vivo: o laço e a trava do funil o backend também recusa/registra,
-  // mas descobrir na tela é muito mais barato que descobrir numa run FAILED.
-  const avisos = useMemo(() => {
-    const out: { nivel: 'err' | 'warn' | 'info'; texto: string }[] = [];
-    const etapaGatilho = editor.cfg.stageId as string | undefined;
-    const moves = editor.steps.filter((s) => s.type === 'MOVE_STAGE');
-
-    if (editor.steps.length === 0) out.push({ nivel: 'err', texto: 'A automação precisa de pelo menos um passo.' });
-
-    if ((editor.trigger === 'STAGE_ENTERED' || editor.trigger === 'STAGE_IDLE') && etapaGatilho) {
-      if (moves.some((m) => m.stageId === etapaGatilho)) {
-        const nome = stages.find((s) => s.id === etapaGatilho)?.name ?? 'a etapa';
-        out.push({
-          nivel: 'err',
-          texto: editor.trigger === 'STAGE_ENTERED'
-            ? `Laço: o gatilho é "entrou em ${nome}" e um passo move o card para ${nome} — a automação dispararia a si mesma.`
-            : `Laço: mover para ${nome}, a mesma etapa que o gatilho vigia, reiniciaria a contagem para sempre.`,
-        });
-      }
-    }
-    if (moves.length > 1) out.push({
-      nivel: 'warn',
-      texto: 'Dois movimentos na mesma receita. Cada um grava um evento de mudança de etapa e conta no relatório de conversão.',
-    });
-    moves.forEach((m) => {
-      const st = stages.find((s) => s.id === m.stageId);
-      if (st?.requiresValue) out.push({
-        nivel: 'warn',
-        texto: `A etapa "${st.name}" exige venda aberta com valor. Card sem isso faz o passo falhar e a sequência parar — a falha aparece no Histórico com o motivo.`,
-      });
-    });
-    if (editor.steps.some((s) => s.type === 'DISCARD')) out.push({
-      nivel: 'warn',
-      texto: 'Descarte automático tira o lead do funil e conta no histórico de descartes dele. Sem revisão humana.',
-    });
-    if ((editor.steps.some((s) => s.type === 'WAIT') || editor.trigger === 'STAGE_IDLE') && !editor.stopOnReply) {
-      out.push({ nivel: 'info', texto: 'A sequência vai continuar mesmo se o cliente já tiver voltado a falar. Ligue "parar se o lead responder".' });
-    }
-    const msgs = editor.steps.filter((s) => s.type === 'SEND_MESSAGE');
-    if (msgs.length > 0 && !MESSAGE_TRIGGERS.includes(editor.trigger)) out.push({
-      nivel: 'err',
-      texto: 'Enviar mensagem só vale nos gatilhos "Lead novo chegou" e "Lead não respondeu". Nos outros, o robô falaria no meio de uma conversa que um vendedor está tocando.',
-    });
-    if (msgs.length > 1) out.push({
-      nivel: 'err',
-      texto: 'Uma mensagem por automação. Para outra mensagem, crie outra automação (ex.: "Lead não respondeu em 24h").',
-    });
-    if (msgs.some((s) => !s.message?.trim())) out.push({ nivel: 'err', texto: 'Escreva o texto da mensagem.' });
-    if (msgs.length > 0 && editor.trigger === 'NEW_LEAD') out.push({
-      nivel: 'info',
-      texto: 'Não sai se alguém responder o contato antes, nem para card criado à mão (o contato nunca escreveu). O motivo fica no histórico do card.',
-    });
-    if (msgs.length > 0 && editor.trigger === 'LEAD_SILENT') out.push({
-      nivel: 'info',
-      texto: 'Uma cobrança por vez: depois de enviada, só volta a cobrar quando o lead falar de novo. Promoção de Disparos não conta como conversa.',
-    });
-    if (editor.steps.some((s) => s.type === 'DISCARD' && !s.reason)) {
-      out.push({ nivel: 'err', texto: 'O descarte exige um motivo — escolha na lista da sua organização.' });
-    }
-    if (out.length === 0) out.push({ nivel: 'info', texto: 'Receita íntegra: sem laço e sem passo que a trava do funil recusaria.' });
-    return out;
-  }, [editor, stages]);
-
-  const temErro = avisos.some((a) => a.nivel === 'err');
-
-  return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'var(--builder-cols)' }}>
-        {/* Paleta */}
-        <div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', position: 'sticky', top: 12 }}>
-            <PaletaGrupo titulo="QUANDO" ids={TRIGGER_IDS as unknown as string[]}
-              onClick={(id) => set({ trigger: id as CrmAutomationTrigger, cfg: cfgPadrao(id as CrmAutomationTrigger, stages) })}
-              arrastavel={false} />
-            <PaletaGrupo titulo="FAÇA" ids={ACTION_IDS as unknown as string[]}
-              onClick={(id) => addFim(id as CrmAutomationStepType)}
-              onDragStart={(id) => { arrastando.current = { tipo: 'novo', valor: id }; }} />
-            <PaletaGrupo titulo="CONTROLE" ids={['WAIT']}
-              onClick={() => addFim('WAIT')}
-              onDragStart={(id) => { arrastando.current = { tipo: 'novo', valor: id }; }} />
-            <p className="mt-3 pt-3 text-[11px] leading-relaxed" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-              Arraste para a receita, ou clique para adicionar no fim. Clique num gatilho para trocá-lo.
-            </p>
-          </div>
+          )}
         </div>
 
-        {/* Sequência */}
-        <div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-            <div className="mb-4 flex items-center justify-between gap-3 flex-wrap pb-3" style={{ borderBottom: '1px solid var(--border)' }}>
-              <input value={editor.name} onChange={(e) => set({ name: e.target.value })} maxLength={80}
-                className="min-w-[200px] flex-1 bg-transparent text-base font-bold outline-none"
-                style={{ color: 'var(--text-primary)', borderBottom: '1px dashed var(--border-md)' }} />
-              <label className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
-                <Switch on={editor.stopOnReply} onClick={() => set({ stopOnReply: !editor.stopOnReply })} />
-                Parar se o lead responder
-              </label>
+        {lista.length > 0 && (
+          <aside aria-label="Atividade recente" className="ui-card" style={{ flex: '1 1 280px', maxWidth: 360 }}>
+            <div className="flex items-baseline justify-between gap-2 pb-2">
+              <span style={{ ...mono, color: 'var(--text-secondary)' }}>ATIVIDADE RECENTE</span>
+              <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                {lista.filter((a) => a.enabled).length} {lista.filter((a) => a.enabled).length === 1 ? 'ligada' : 'ligadas'} de {lista.length}
+              </span>
             </div>
-
-            <div ref={seqRef}
-              onDragOver={(e) => { e.preventDefault(); setDropPos(posPeloY(e.clientY)); }}
-              onDragLeave={(e) => { if (!seqRef.current?.contains(e.relatedTarget as Node)) setDropPos(null); }}
-              onDrop={soltar}>
-
-              {/* Gatilho — fixo no topo, não arrasta */}
-              <PassoCard cor={BLOCKS[editor.trigger].color} icone={BLOCKS[editor.trigger].icon}
-                titulo={BLOCKS[editor.trigger].label} kind="QUANDO" destaque>
-                <ParamsGatilho trigger={editor.trigger} cfg={editor.cfg} stages={stages}
-                  onChange={(cfg) => set({ cfg })} />
-              </PassoCard>
-
-              {editor.steps.map((s, i) => (
-                <div key={i}>
-                  <Conector />
-                  <DropLine ativo={dropPos === i} />
-                  <div data-step draggable
-                    onDragStart={() => { arrastando.current = { tipo: 'move', valor: i }; }}
-                    onDragEnd={() => { arrastando.current = null; setDropPos(null); }}>
-                    <PassoCard cor={BLOCKS[s.type]?.color ?? 'var(--accent)'} icone={BLOCKS[s.type]?.icon ?? 'bolt'}
-                      titulo={BLOCKS[s.type]?.label ?? s.type} kind={KIND_LABEL[BLOCKS[s.type]?.kind ?? 'action']}
-                      onRemover={() => removerPasso(i)} arrastavel>
-                      <ParamsPasso passo={s} stages={stages} motivos={motivos}
-                        onChange={(patch) => alterarPasso(i, patch)} />
-                    </PassoCard>
-                  </div>
-                </div>
-              ))}
-              <DropLine ativo={dropPos === editor.steps.length} />
-
-              {editor.steps.length === 0 && (
-                <div className="mt-3 rounded-xl px-4 py-8 text-center text-xs"
-                  style={{ border: '1px dashed var(--border-md)', color: 'var(--text-muted)' }}>
-                  Arraste uma ação da paleta, ou clique nela para adicionar.
-                </div>
-              )}
-            </div>
-
-            {/* Resumo em português */}
-            <div className="mt-4 pt-4 text-sm leading-relaxed" style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
-              <span className="mb-1.5 block text-[10px] font-bold tracking-widest" style={{ color: 'var(--text-muted)' }}>EM PORTUGUÊS</span>
-              {frasear(editor, stages)}
-            </div>
-          </div>
-
-          {avisos.map((a, i) => (
-            <div key={i} className="mt-2 rounded-lg px-3 py-2.5 text-xs leading-relaxed" style={avisoStyle(a.nivel)}>{a.texto}</div>
-          ))}
-
-          <div className="mt-4 flex items-center gap-2">
-            <button onClick={onSalvar} disabled={salvando || temErro}
-              className="rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"
-              style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
-              {salvando ? 'Salvando…' : editor.id ? 'Salvar alterações' : 'Criar automação'}
-            </button>
-            <button onClick={onCancelar} className="rounded-lg px-4 py-2 text-sm font-semibold"
-              style={{ border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}>Cancelar</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Peças ──────────────────────────────────────────────────────────────────
-
-function PaletaGrupo({ titulo, ids, onClick, onDragStart, arrastavel = true }: {
-  titulo: string; ids: string[];
-  onClick: (id: string) => void;
-  onDragStart?: (id: string) => void;
-  arrastavel?: boolean;
-}) {
-  return (
-    <div className="mb-3 last:mb-0">
-      <p className="mb-2 text-[10px] font-bold tracking-widest" style={{ color: 'var(--text-muted)' }}>{titulo}</p>
-      {ids.map((id) => {
-        const b = BLOCKS[id]!;
-        return (
-          <div key={id} draggable={arrastavel}
-            onDragStart={() => onDragStart?.(id)}
-            onClick={() => onClick(id)}
-            className="mb-1 flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-2 text-xs font-medium transition-colors"
-            style={{ color: 'var(--text-secondary)' }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--bg-elevated)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
-            <span style={{ color: b.color }}><Icon name={b.icon} /></span>
-            {b.label}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function PassoCard({ cor, icone, titulo, kind, children, onRemover, arrastavel, destaque }: {
-  cor: string; icone: string; titulo: string; kind: string;
-  children?: React.ReactNode; onRemover?: () => void; arrastavel?: boolean; destaque?: boolean;
-}) {
-  return (
-    <div className="rounded-lg px-3 py-2.5" style={{
-      backgroundColor: 'var(--bg-elevated)',
-      border: '1px solid var(--border)',
-      borderLeft: `3px solid ${cor}`,
-      cursor: arrastavel ? 'grab' : 'default',
-      boxShadow: destaque ? `0 0 0 1px ${cor} inset` : undefined,
-    }}>
-      <div className="flex items-center gap-2.5">
-        {arrastavel && <span style={{ color: 'var(--text-muted)', opacity: 0.55 }}><Icon name="grip" size={14} strokeWidth={2.4} /></span>}
-        <span style={{ color: cor }}><Icon name={icone} size={17} /></span>
-        <span className="flex-1 truncate text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {titulo}
-          <span className="ml-2 text-[9.5px] font-bold tracking-widest" style={{ color: cor, opacity: 0.85 }}>{kind}</span>
-        </span>
-        {onRemover && (
-          <button onClick={onRemover} className="rounded p-1" style={{ color: 'var(--text-muted)' }} title="remover">
-            <Icon name="x" size={14} />
-          </button>
+            {!atividade || atividade.runs.length === 0 ? (
+              <p className="pt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum fluxo rodou ainda.</p>
+            ) : atividade.runs.map((r) => (
+              <a key={r.id} href={`/dashboard/crm?client=${r.client?.id ?? ''}`} className="flex flex-col gap-1 py-2.5 hover:opacity-80"
+                style={{ borderTop: '1px solid var(--border)', textDecoration: 'none' }}>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{r.client?.name ?? '—'}</span>
+                  <span className="ui-badge" style={statusStyle(r.status)}>{statusLabel(r.status)}</span>
+                </span>
+                <span className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  {r.automation.name} · {new Date(r.startedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </a>
+            ))}
+          </aside>
         )}
       </div>
-      {children && <div className="ml-[26px] mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">{children}</div>}
+
+      <section id="modelos" className="ui-card ui-card-hl">
+        <h2 className="ui-h2 mb-1">Modelos prontos</h2>
+        <p className="mb-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Abra um, ajuste os prazos e salve. Ele começa a rodar assim que for criado — dá para desligar no card.
+        </p>
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))' }}>
+          {RECEITAS.map((r) => (
+            <button key={r.nome} type="button" onClick={() => abrirReceita(r)}
+              className="ui-card flex flex-col !p-0 overflow-hidden text-left transition-transform hover:-translate-y-0.5">
+              <Miniatura trigger={r.trigger} steps={r.steps(stages)} />
+              <span className="flex flex-col gap-1.5 px-4 pb-4 pt-3">
+                <span style={{ ...mono, color: 'var(--accent)' }}>{rotuloGatilho(r.trigger, r.cfg(stages)).toUpperCase()}</span>
+                <span className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{r.nome}</span>
+                <span className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{r.descricao}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
-
-const Conector = () => <div style={{ height: 14, marginLeft: 20, borderLeft: '1px solid var(--border-md)' }} />;
-const DropLine = ({ ativo }: { ativo: boolean }) => (
-  <div style={{ height: 2, margin: '2px 0', borderRadius: 1, backgroundColor: ativo ? 'var(--accent)' : 'transparent' }} />
-);
-
-function Switch({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return <button type="button" role="switch" aria-checked={on} onClick={onClick} className="ui-switch" />;
-}
-
-function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
-  return (
-    <label className="inline-flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-      {rotulo}{children}
-    </label>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  backgroundColor: 'transparent', border: 'none', borderBottom: '1px solid var(--border-md)',
-  color: 'var(--text-primary)', fontSize: 12, fontWeight: 600, padding: '2px 2px', outline: 'none',
-};
-
-function ParamsGatilho({ trigger, cfg, stages, onChange }: {
-  trigger: CrmAutomationTrigger; cfg: Record<string, unknown>; stages: CrmStage[];
-  onChange: (cfg: Record<string, unknown>) => void;
-}) {
-  const set = (patch: Record<string, unknown>) => onChange({ ...cfg, ...patch });
-  return (
-    <>
-      {(trigger === 'STAGE_ENTERED' || trigger === 'STAGE_IDLE') && (
-        <Campo rotulo="etapa">
-          <select value={(cfg.stageId as string) ?? ''} onChange={(e) => set({ stageId: e.target.value })} style={inputStyle}>
-            <option value="">selecione…</option>
-            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </Campo>
-      )}
-      {trigger === 'STAGE_IDLE' && (
-        <Campo rotulo="dias parado">
-          <input type="number" min={1} max={365} value={Number(cfg.days ?? 7)}
-            onChange={(e) => set({ days: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
-        </Campo>
-      )}
-      {trigger === 'NO_REPLY' && (
-        <Campo rotulo="horas sem resposta">
-          <input type="number" min={1} max={720} value={Number(cfg.hours ?? 4)}
-            onChange={(e) => set({ hours: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
-        </Campo>
-      )}
-      {trigger === 'LEAD_SILENT' && (
-        <Campo rotulo="horas sem o lead responder">
-          <input type="number" min={1} max={720} value={Number(cfg.hours ?? 24)}
-            onChange={(e) => set({ hours: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
-        </Campo>
-      )}
-      {trigger === 'NEW_LEAD' && (
-        <label className="inline-flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          <Switch on={cfg.includeReturning === true} onClick={() => set({ includeReturning: cfg.includeReturning !== true })} />
-          também quem volta a falar (fora do funil, 7+ dias calado)
-        </label>
-      )}
-      {trigger === 'SALE_LOST' && (
-        <Campo rotulo="motivo (vazio = qualquer)">
-          <input type="text" value={(cfg.reason as string) ?? ''} maxLength={60}
-            onChange={(e) => set({ reason: e.target.value })} style={{ ...inputStyle, width: 180 }} />
-        </Campo>
-      )}
-    </>
-  );
-}
-
-function ParamsPasso({ passo, stages, motivos, onChange }: {
-  passo: CrmAutomationStep; stages: CrmStage[]; motivos: string[];
-  onChange: (patch: Partial<CrmAutomationStep>) => void;
-}) {
-  switch (passo.type) {
-    case 'MOVE_STAGE':
-      return (
-        <Campo rotulo="etapa">
-          <select value={passo.stageId ?? ''} onChange={(e) => onChange({ stageId: e.target.value })} style={inputStyle}>
-            <option value="">selecione…</option>
-            {stages.map((s) => <option key={s.id} value={s.id}>{s.name}{s.requiresValue ? ' (exige valor)' : ''}</option>)}
-          </select>
-        </Campo>
-      );
-    case 'ASSIGN':
-      return (
-        <Campo rotulo="quem">
-          <select value={passo.mode ?? 'ROUND_ROBIN'} onChange={(e) => onChange({ mode: e.target.value as 'ROUND_ROBIN' })} style={inputStyle}>
-            <option value="ROUND_ROBIN">Próximo da fila (quem tem menos cards)</option>
-          </select>
-        </Campo>
-      );
-    case 'ADD_TAG':
-      return (
-        <Campo rotulo="tag">
-          <input value={passo.tag ?? ''} maxLength={30} onChange={(e) => onChange({ tag: e.target.value })}
-            style={{ ...inputStyle, width: 150 }} />
-        </Campo>
-      );
-    case 'CREATE_TASK':
-      return (
-        <>
-          <Campo rotulo="título">
-            <input value={passo.title ?? ''} maxLength={200} onChange={(e) => onChange({ title: e.target.value })}
-              style={{ ...inputStyle, width: 220 }} />
-          </Campo>
-          <Campo rotulo="tipo">
-            <select value={passo.taskType ?? 'OUTRO'} onChange={(e) => onChange({ taskType: e.target.value })} style={inputStyle}>
-              {['LIGAR', 'WHATSAPP', 'REUNIAO', 'EMAIL', 'OUTRO'].map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </Campo>
-          <Campo rotulo="vence em (dias)">
-            <input type="number" min={0} max={365} value={passo.dueInDays ?? 1}
-              onChange={(e) => onChange({ dueInDays: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
-          </Campo>
-        </>
-      );
-    case 'SET_FOLLOWUP':
-    case 'WAIT':
-      return (
-        <Campo rotulo="dias">
-          <input type="number" min={passo.type === 'WAIT' ? 1 : 0} max={passo.type === 'WAIT' ? 180 : 365}
-            value={passo.days ?? (passo.type === 'WAIT' ? 3 : 0)}
-            onChange={(e) => onChange({ days: Number(e.target.value) })} style={{ ...inputStyle, width: 54 }} />
-        </Campo>
-      );
-    case 'ADD_NOTE':
-      return (
-        <Campo rotulo="texto">
-          <input value={passo.text ?? ''} maxLength={2000} onChange={(e) => onChange({ text: e.target.value })}
-            style={{ ...inputStyle, width: 320 }} />
-        </Campo>
-      );
-    case 'SEND_MESSAGE':
-      return (
-        <div className="w-full">
-          <textarea value={passo.message ?? ''} maxLength={4000} rows={3}
-            onChange={(e) => onChange({ message: e.target.value })}
-            className="w-full resize-y rounded-md px-2 py-1.5 text-xs"
-            style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', color: 'var(--text-primary)', outline: 'none' }} />
-          <p className="mt-1 text-[11px]" style={{ color: 'var(--text-secondary)' }}>
-            {'{nome}'} = primeiro nome do contato · {'{vendedor}'} = responsável pelo card (sem responsável: &quot;nossa equipe&quot;)
-            <span className="float-right tabular-nums">{(passo.message ?? '').length}/4000</span>
-          </p>
-        </div>
-      );
-    case 'DISCARD':
-      return (
-        <Campo rotulo="motivo">
-          <select value={passo.reason ?? ''} onChange={(e) => onChange({ reason: e.target.value })} style={inputStyle}>
-            <option value="">selecione…</option>
-            {motivos.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        </Campo>
-      );
-    default:
-      return null;
-  }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function novoPasso(tipo: CrmAutomationStepType, stages: CrmStage[], motivos: string[]): CrmAutomationStep {
-  switch (tipo) {
-    case 'MOVE_STAGE':   return { type: tipo, stageId: stages[0]?.id ?? '' };
-    case 'ASSIGN':       return { type: tipo, mode: 'ROUND_ROBIN' };
-    case 'ADD_TAG':      return { type: tipo, tag: 'Novo' };
-    case 'CREATE_TASK':  return { type: tipo, title: 'Ligar para o cliente', dueInDays: 1, taskType: 'LIGAR' };
-    case 'SET_FOLLOWUP': return { type: tipo, days: 3 };
-    case 'ADD_NOTE':     return { type: tipo, text: '' };
-    case 'DISCARD':      return { type: tipo, reason: motivos[0] ?? '' };
-    case 'WAIT':         return { type: tipo, days: 3 };
-    case 'SEND_MESSAGE': return { type: tipo, message: 'Oi {nome}, aqui é {vendedor}! ' };
-  }
-}
-
-function cfgPadrao(t: CrmAutomationTrigger, stages: CrmStage[]): Record<string, unknown> {
-  if (t === 'STAGE_ENTERED') return { stageId: stages[0]?.id };
-  if (t === 'STAGE_IDLE') return { stageId: stages[0]?.id, days: 7 };
-  if (t === 'NO_REPLY') return { hours: 4 };
-  if (t === 'LEAD_SILENT') return { hours: 24 };
-  return {};
-}
-
-const nomeEtapa = (id: string | undefined, stages: CrmStage[]) => stages.find((s) => s.id === id)?.name ?? '…';
-
-function fraseGatilho(t: CrmAutomationTrigger, cfg: Record<string, unknown>, stages: CrmStage[]): string {
-  switch (t) {
-    case 'NEW_LEAD':      return cfg.includeReturning ? 'um lead novo chegar (ou um contato voltar a falar)' : 'um lead novo chegar';
-    case 'STAGE_ENTERED': return `um card entrar em ${nomeEtapa(cfg.stageId as string, stages)}`;
-    case 'STAGE_IDLE':    return `um card ficar ${Number(cfg.days ?? 7)} dia(s) parado em ${nomeEtapa(cfg.stageId as string, stages)}`;
-    case 'NO_REPLY':      return `um lead ficar ${Number(cfg.hours ?? 4)}h sem resposta`;
-    case 'LEAD_SILENT':   return `o lead ficar ${Number(cfg.hours ?? 24)}h sem responder a nossa mensagem`;
-    case 'SALE_WON':      return 'uma venda for ganha';
-    case 'SALE_LOST':     return cfg.reason ? `uma venda for perdida por ${cfg.reason}` : 'uma venda for perdida';
-  }
-}
-
-function frasePasso(s: CrmAutomationStep, stages: CrmStage[]): string {
-  switch (s.type) {
-    case 'MOVE_STAGE':   return `mover o card para ${nomeEtapa(s.stageId, stages)}`;
-    case 'ASSIGN':       return 'atribuir ao próximo vendedor da fila';
-    case 'ADD_TAG':      return `adicionar a tag ${s.tag}`;
-    case 'CREATE_TASK':  return `criar a tarefa "${s.title}" vencendo em ${s.dueInDays} dia(s)`;
-    case 'SET_FOLLOWUP': return `marcar follow-up para +${s.days} dias`;
-    case 'ADD_NOTE':     return `registrar a nota "${s.text}"`;
-    case 'DISCARD':      return `descartar o lead com o motivo ${s.reason || '…'}`;
-    case 'WAIT':         return `esperar ${s.days} dias`;
-    case 'SEND_MESSAGE': return `enviar pelo WhatsApp "${(s.message ?? '').trim() || '…'}"`;
-  }
-}
-
-function frasear(e: Editor, stages: CrmStage[]): string {
-  const acoes = e.steps.map((s) => frasePasso(s, stages));
-  const base = `Quando ${fraseGatilho(e.trigger, e.cfg, stages)}, ${acoes.length ? acoes.join('; ') + '.' : 'não fazer nada.'}`;
-  return e.stopOnReply ? `${base} A sequência para se o lead responder.` : base;
-}
-
-const statusLabel = (s: string) => ({
-  PENDING: 'AGUARDANDO', RUNNING: 'RODANDO', DONE: 'CONCLUÍDA',
-  FAILED: 'FALHOU', CANCELED: 'CANCELADA', STOPPED_BY_REPLY: 'PAROU (RESPONDEU)',
-}[s] ?? s);
-
-function statusStyle(s: string): React.CSSProperties {
-  if (s === 'FAILED') return { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' };
-  if (s === 'DONE') return { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' };
-  if (s === 'PENDING' || s === 'RUNNING') return { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' };
-  return { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-muted)' };
-}
-
-function avisoStyle(n: 'err' | 'warn' | 'info'): React.CSSProperties {
-  if (n === 'err') return { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' };
-  if (n === 'warn') return { backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' };
-  return { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' };
-}
-
-// Cores dos blocos e layout do construtor. Ficam aqui (e não no globals.css)
-// porque só esta tela usa. No visual Cromalex não há arco-íris: a marca (--accent)
-// nos blocos comuns e cor de estado só onde ela diz algo (ganhou, perdeu, parado).
-const VARS = `
-  :root {
-    --auto-cyan: var(--accent); --auto-blue: var(--accent); --auto-indigo: var(--accent); --auto-teal: var(--accent);
-    --auto-green: var(--badge-success-text); --auto-red: var(--badge-error-text); --auto-rose: var(--badge-error-text);
-    --auto-amber: var(--badge-warn-text); --auto-slate: var(--text-secondary); --auto-purple: var(--graphite);
-  }
-  :root { --builder-cols: 232px minmax(0, 1fr); }
-  @media (max-width: 900px) { :root { --builder-cols: minmax(0, 1fr); } }
-`;

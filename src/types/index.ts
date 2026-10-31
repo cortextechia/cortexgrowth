@@ -971,6 +971,18 @@ export interface CrmAutomationRun {
   client: { id: string; name: string };
 }
 
+/** Execuções agrupadas por passo. `stepIndex` = próximo passo a rodar. */
+export interface CrmAutomationStepStats {
+  windowDays: number;
+  rows: { stepIndex: number; status: CrmAutomationRun['status']; count: number }[];
+}
+
+export interface CrmAutomationActivity {
+  runs: (CrmAutomationRun & { automation: { id: string; name: string } })[];
+  failedWindowDays: number;
+  failed: { automationId: string; count: number }[];
+}
+
 export interface CrmSaleSegment {
   id: string;
   name: string;

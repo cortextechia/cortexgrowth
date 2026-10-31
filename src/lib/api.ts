@@ -1023,6 +1023,16 @@ class ApiService {
     return response.data;
   }
 
+  async getCrmAutomationStepStats(id: string): Promise<{ success: boolean; data: import('@/types').CrmAutomationStepStats }> {
+    const response = await this.client.get(`/crm/automations/${id}/step-stats`);
+    return response.data;
+  }
+
+  async getCrmAutomationActivity(take = 12): Promise<{ success: boolean; data: import('@/types').CrmAutomationActivity }> {
+    const response = await this.client.get('/crm/automations/activity', { params: { take } });
+    return response.data;
+  }
+
   async createCrmAutomation(body: {
     name: string;
     triggerType: string;
