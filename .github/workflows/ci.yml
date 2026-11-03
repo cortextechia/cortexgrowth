@@ -1,0 +1,26 @@
+# CI do frontend (auditoria 03/11/2026): typecheck e build de produção em todo push e PR.
+# A publicação continua manual (npx vercel --prod); isto só avisa quando o código não compila.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Build
+        run: npx next build
+        env:
+          NEXT_PUBLIC_API_URL: https://cortexgrowth.onrender.com/api

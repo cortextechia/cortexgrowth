@@ -4585,8 +4585,9 @@ function IgMediaBubble({ clientId, messageId, att }: {
   }, [autoLoad, load]);
 
   // Post/reel compartilhado é público: abre no Instagram.
+  // Só vira link se for https: a URL vem do payload da Meta, e um `javascript:` num href executaria.
   if (!known) {
-    return att.url ? (
+    return att.url?.startsWith('https://') ? (
       <a href={att.url} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline" style={{ color: 'var(--accent)' }}>
         Publicação compartilhada
       </a>
