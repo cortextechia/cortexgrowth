@@ -323,7 +323,7 @@ export function ReportPdfDocument({ report }: Props) {
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Córtex Growth — cortexgrowth.com.br</Text>
+          <Text style={styles.footerText}>Cromalex Growth — cortexgrowth.com.br</Text>
           <Text style={styles.footerText}>Gerado automaticamente por IA · {generatedAt}</Text>
         </View>
 
