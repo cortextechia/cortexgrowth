@@ -1,35 +1,60 @@
 'use client';
 
-// CRM · Disparos — envio em massa (promoção) segmentado por tag e/ou tipo de
-// cliente. As mensagens saem do WhatsApp do vendedor RESPONSÁVEL de cada cliente
-// (instância crm-{userId}); quem não tiver WhatsApp conectado é pulado. Agenda
-// para uma data/hora ou dispara na hora. Só ADMIN/gestor.
+// CRM · Disparos — envio em massa (promoção) segmentado por etapa do funil, tag
+// e/ou tipo de cliente. As mensagens saem do WhatsApp do vendedor RESPONSÁVEL de
+// cada cliente (instância crm-{userId}); quem não tiver WhatsApp conectado é
+// pulado. Agenda para uma data/hora ou dispara na hora, no ritmo padrão ou em
+// lotes com pausa (anti-bloqueio). Só ADMIN/gestor.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
-import type { CrmStatus, CrmTagOption, CrmClientTypeOption, CrmBroadcast, CrmBroadcastPreview } from '@/types';
+import type { CrmStatus, CrmTagOption, CrmClientTypeOption, CrmStage, CrmBroadcast, CrmBroadcastPreview } from '@/types';
 
 const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB (base64 ~+33% cabe no limite de 12mb do body)
 
-const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
-const input = { backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' } as const;
+// Espelham os limites do backend (crmBroadcastService.ts)
+const BATCH_SIZE_MAX = 500;
+const BATCH_PAUSE_MAX = 240;
+// O dispatcher manda no máximo ~10 por minuto (lote de 10 por tick, 4–9s entre envios).
+const SENDS_PER_MIN = 10;
+
+const input = {
+  backgroundColor: 'var(--bg-elevated)',
+  border: '1px solid var(--border-md)',
+  color: 'var(--text-primary)',
+} as const;
+const fieldCls = 'mt-1 w-full rounded-lg px-3 py-2 text-sm';
+const labelCls = 'block text-xs font-medium';
+
+const STAGE_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#ef4444', '#64748b'];
+const stageColor = (s: { color: string | null; order: number }) => s.color ?? STAGE_COLORS[s.order % STAGE_COLORS.length]!;
 
 function fmtDateTime(iso: string | null): string {
   if (!iso) return '';
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function statusBadge(s: CrmBroadcast['status']): { label: string; color: string; bg: string; pulse?: boolean } {
-  switch (s) {
-    case 'SCHEDULED': return { label: 'Agendado', color: 'var(--badge-warn-text)', bg: 'var(--badge-warn-bg)' };
-    case 'QUEUED':    return { label: 'Na fila', color: 'var(--accent)', bg: 'var(--accent-dim)' };
-    case 'SENDING':   return { label: 'Enviando', color: 'var(--accent)', bg: 'var(--accent-dim)', pulse: true };
-    case 'DONE':      return { label: 'Concluído', color: 'var(--badge-success-text)', bg: 'var(--badge-success-bg)' };
-    case 'CANCELED':  return { label: 'Cancelado', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' };
-  }
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
+
+function fmtDuration(min: number): string {
+  if (min < 1) return 'menos de 1 min';
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  if (h === 0) return `${m} min`;
+  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, '0')}`;
+}
+
+const statusBadge: Record<CrmBroadcast['status'], { label: string; style: React.CSSProperties; cls?: string }> = {
+  SCHEDULED: { label: 'Agendado', style: { background: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' } },
+  QUEUED: { label: 'Na fila', style: {}, cls: 'ui-badge-tint' },
+  SENDING: { label: 'Enviando', style: {}, cls: 'ui-badge-lime' },
+  DONE: { label: 'Concluído', style: { background: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' } },
+  CANCELED: { label: 'Cancelado', style: { background: 'var(--bg-elevated)', color: 'var(--text-secondary)' } },
+};
 
 // Lê o arquivo como base64 (sem o prefixo data:...;base64,) para enviar à Evolution
 function readImage(file: File): Promise<{ base64: string; type: string; fileName: string }> {
@@ -51,6 +76,47 @@ function nowLocalInput(): string {
   return d.toISOString().slice(0, 16);
 }
 
+function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3 pt-5 first:pt-0" style={{ borderTop: n > 1 ? '1px solid var(--border)' : undefined }}>
+      <h2 className="ui-h2 flex items-center gap-2">
+        <span className="ui-badge ui-badge-tint tabular-nums">{n}</span>
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function ChipGroup({ label, empty, options, selected, onToggle }: {
+  label: string;
+  empty: string;
+  options: { key: string; label: string; color?: string }[];
+  selected: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div>
+      <p className={labelCls} style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      {options.length === 0 ? (
+        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{empty}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {options.map((o) => {
+            const on = selected.includes(o.key);
+            return (
+              <button key={o.key} type="button" className="ui-filtro" data-ativo={on} aria-pressed={on} onClick={() => onToggle(o.key)}>
+                {o.color && <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: o.color }} />}
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CrmDisparosPage() {
   const { user } = useAuth();
   const isAdmin = !!user && ADMIN_ROLES.includes(user.role);
@@ -58,12 +124,14 @@ export default function CrmDisparosPage() {
   const [status, setStatus] = useState<CrmStatus | null>(null);
   const [tags, setTags] = useState<CrmTagOption[]>([]);
   const [types, setTypes] = useState<CrmClientTypeOption[]>([]);
+  const [stages, setStages] = useState<CrmStage[]>([]);
   const [list, setList] = useState<CrmBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Composer
+  // Compositor
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
+  const [selStages, setSelStages] = useState<string[]>([]);
   const [selTags, setSelTags] = useState<string[]>([]);
   const [selTypes, setSelTypes] = useState<string[]>([]);
   const [combine, setCombine] = useState<'AND' | 'OR'>('OR');
@@ -71,6 +139,9 @@ export default function CrmDisparosPage() {
   const [imageErr, setImageErr] = useState('');
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
   const [when, setWhen] = useState('');
+  const [useBatches, setUseBatches] = useState(false);
+  const [batchSize, setBatchSize] = useState('50');
+  const [batchPause, setBatchPause] = useState('2');
   const [preview, setPreview] = useState<CrmBroadcastPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -91,14 +162,16 @@ export default function CrmDisparosPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [st, tg, ty] = await Promise.all([
+        const [st, tg, ty, sg] = await Promise.all([
           apiService.getCrmStatus(),
           apiService.getCrmTags().catch(() => ({ data: [] as CrmTagOption[] })),
           apiService.getCrmClientTypes().catch(() => ({ data: [] as CrmClientTypeOption[] })),
+          apiService.getCrmStages().catch(() => ({ data: [] as CrmStage[] })),
         ]);
         setStatus(st.data);
         setTags(tg.data);
         setTypes(ty.data);
+        setStages([...sg.data].sort((a, b) => a.order - b.order));
         if (st.data.enabled) await loadList();
       } finally {
         setLoading(false);
@@ -113,14 +186,16 @@ export default function CrmDisparosPage() {
     return () => clearInterval(t);
   }, [status?.enabled, loadList]);
 
+  const groupsActive = [selStages, selTags, selTypes].filter((g) => g.length > 0).length;
+  const hasFilter = groupsActive > 0;
+
   // Prévia da audiência (debounce) sempre que os filtros mudam
-  const combineActive = selTags.length > 0 && selTypes.length > 0;
   useEffect(() => {
-    if (selTags.length === 0 && selTypes.length === 0) { setPreview(null); return; }
+    if (!hasFilter) { setPreview(null); return; }
     setPreviewing(true);
     const t = setTimeout(async () => {
       try {
-        const res = await apiService.previewCrmBroadcast({ tags: selTags, types: selTypes, combine });
+        const res = await apiService.previewCrmBroadcast({ tags: selTags, types: selTypes, stages: selStages, combine });
         setPreview(res.data);
       } catch {
         setPreview(null);
@@ -129,7 +204,7 @@ export default function CrmDisparosPage() {
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [selTags, selTypes, combine]);
+  }, [hasFilter, selTags, selTypes, selStages, combine]);
 
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
@@ -146,8 +221,24 @@ export default function CrmDisparosPage() {
     }
   };
 
+  const sizeN = Number(batchSize);
+  const pauseN = Number(batchPause);
+  const rhythmErr = !useBatches ? ''
+    : !Number.isInteger(sizeN) || sizeN < 1 || sizeN > BATCH_SIZE_MAX ? `O lote precisa ter entre 1 e ${BATCH_SIZE_MAX} contatos.`
+    : !Number.isInteger(pauseN) || pauseN < 1 || pauseN > BATCH_PAUSE_MAX ? `A pausa precisa ficar entre 1 e ${BATCH_PAUSE_MAX} minutos.`
+    : '';
+
+  // Estimativa de duração: o ritmo do dispatcher (~10/min) vale dentro do lote.
+  const estimate = useMemo(() => {
+    const n = preview?.sendable ?? 0;
+    if (n === 0) return null;
+    if (!useBatches || rhythmErr) return { batches: 1, minutes: n / SENDS_PER_MIN };
+    const batches = Math.ceil(n / sizeN);
+    return { batches, minutes: n / SENDS_PER_MIN + (batches - 1) * pauseN };
+  }, [preview?.sendable, useBatches, rhythmErr, sizeN, pauseN]);
+
   const canSubmit =
-    isAdmin && message.trim().length > 0 && !!preview && preview.total > 0 &&
+    isAdmin && message.trim().length > 0 && !!preview && preview.total > 0 && !rhythmErr &&
     (mode === 'now' || (mode === 'schedule' && !!when)) && !submitting;
 
   const submit = async () => {
@@ -159,13 +250,14 @@ export default function CrmDisparosPage() {
         message: message.trim(),
         tags: selTags,
         types: selTypes,
+        stages: selStages,
         combine,
         scheduledAt: mode === 'schedule' ? new Date(when).toISOString() : null,
         media: image,
+        rhythm: useBatches ? { size: sizeN, pauseMin: pauseN } : null,
       });
       showToast('success', res.message);
-      // limpa o compositor
-      setTitle(''); setMessage(''); setSelTags([]); setSelTypes([]); setImage(null);
+      setTitle(''); setMessage(''); setSelStages([]); setSelTags([]); setSelTypes([]); setImage(null);
       setMode('now'); setWhen(''); setPreview(null);
       await loadList();
     } catch (err) {
@@ -186,233 +278,263 @@ export default function CrmDisparosPage() {
     }
   };
 
+  const stageName = useMemo(() => new Map(stages.map((s) => [s.id, s.name])), [stages]);
+
   if (loading) {
-    return <div className="flex items-center justify-center py-24"><span className="text-sm" style={{ color: 'var(--text-muted)' }}>Carregando...</span></div>;
+    return <p className="py-24 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando…</p>;
   }
-  if (status && !status.enabled) {
+  if ((status && !status.enabled) || !isAdmin) {
     return (
-      <div className="max-w-lg mx-auto mt-16 rounded-xl p-8 text-center" style={card}>
-        <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Disparos do CRM</h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          {status.kommoConnected ? 'Esta organização usa o Kommo como CRM.' : 'Ative o CRM Cortex na página do funil para usar os disparos.'}
+      <div className="ui-card max-w-lg mx-auto mt-16 text-center space-y-2">
+        <h1 className="ui-h2">Disparos</h1>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          {status && !status.enabled
+            ? status.kommoConnected ? 'Esta organização usa o Kommo como CRM.' : 'Ative o CRM Cortex na página do funil para usar os disparos.'
+            : 'Apenas administradores podem criar disparos em massa.'}
         </p>
       </div>
     );
   }
-  if (!isAdmin) {
-    return (
-      <div className="max-w-lg mx-auto mt-16 rounded-xl p-8 text-center" style={card}>
-        <h1 className="text-lg font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>Disparos</h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Apenas administradores podem criar disparos em massa.</p>
-      </div>
-    );
-  }
-
-  const inputCls = 'w-full rounded-lg px-3 py-2 text-sm';
 
   return (
-    <div>
-      <div className="mb-5">
-        <div className="flex items-center gap-3">
-          <a href="/dashboard/crm" className="px-3 py-2 rounded-lg text-sm font-medium shrink-0" style={{ ...card, color: 'var(--text-secondary)' }}>← Funil</a>
-          <div>
-            <h1 className="ui-h1">Disparos</h1>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Promoção para a carteira, segmentada por tag/tipo. Sai do WhatsApp do vendedor de cada cliente.
-            </p>
-          </div>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="ui-h1">Disparos</h1>
+          <p className="ui-sub">Promoção para a carteira, segmentada por etapa, tag ou tipo. Sai do WhatsApp do vendedor de cada cliente.</p>
         </div>
+        <a href="/dashboard/crm" className="ui-btn ui-btn-secondary ui-btn-sm">← Funil</a>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-5 items-start">
         {/* Compositor */}
-        <div className="rounded-xl p-5 space-y-4" style={card}>
-          <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Novo disparo</h2>
+        <div className="ui-card space-y-5">
+          <Section n={1} title="Mensagem">
+            <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>
+              Nome do disparo <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>(só para você identificar)</span>
+              <input className={fieldCls} style={input} value={title} maxLength={120} placeholder="Ex: Promoção de portões — novembro" onChange={(e) => setTitle(e.target.value)} />
+            </label>
 
-          <div>
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Nome (só pra você identificar)</label>
-            <input className={inputCls} style={input} value={title} maxLength={120} placeholder="Ex: Promoção de portões — julho" onChange={(e) => setTitle(e.target.value)} />
-          </div>
+            <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>
+              Texto
+              <textarea
+                className={`${fieldCls} min-h-[120px] resize-y`}
+                style={input}
+                value={message}
+                maxLength={4000}
+                placeholder="Escreva a mensagem. Use {nome} para o primeiro nome do cliente."
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </label>
+            <div className="flex items-center justify-between gap-2">
+              <button type="button" onClick={() => setMessage((m) => m + '{nome}')} className="ui-btn ui-btn-tint ui-btn-sm">+ {'{nome}'}</button>
+              <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{message.length}/4000</span>
+            </div>
 
-          <div>
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Mensagem</label>
-            <textarea
-              className={`${inputCls} min-h-[110px] resize-y`}
-              style={input}
-              value={message}
-              maxLength={4000}
-              placeholder="Escreva a mensagem. Use {nome} para o primeiro nome do cliente."
-              onChange={(e) => setMessage(e.target.value)}
+            <div>
+              <p className={labelCls} style={{ color: 'var(--text-secondary)' }}>Imagem <span style={{ fontWeight: 400 }}>(opcional, até 5MB)</span></p>
+              <div className="flex items-center gap-3 mt-1.5">
+                <label className="ui-btn ui-btn-secondary ui-btn-sm">
+                  {image ? 'Trocar imagem' : 'Escolher imagem'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
+                </label>
+                {image && (
+                  <div className="flex items-center gap-2 min-w-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`data:${image.type};base64,${image.base64}`} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
+                    <span className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>{image.fileName}</span>
+                    <button type="button" onClick={() => setImage(null)} className="ui-btn ui-btn-danger ui-btn-sm">Remover</button>
+                  </div>
+                )}
+              </div>
+              {imageErr && <p className="text-xs mt-1" style={{ color: 'var(--badge-error-text)' }}>{imageErr}</p>}
+            </div>
+          </Section>
+
+          <Section n={2} title="Quem recebe">
+            <ChipGroup
+              label="Etapa do funil"
+              empty="Nenhuma etapa configurada."
+              options={stages.map((s) => ({ key: s.id, label: s.name, color: stageColor(s) }))}
+              selected={selStages}
+              onToggle={(k) => toggle(selStages, setSelStages, k)}
             />
-            <div className="flex items-center justify-between mt-1">
-              <button type="button" onClick={() => setMessage((m) => m + '{nome}')} className="text-xs" style={{ color: 'var(--accent)' }}>+ inserir {'{nome}'}</button>
-              <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{message.length}/4000</span>
-            </div>
-          </div>
+            <ChipGroup
+              label="Tags"
+              empty="Nenhuma tag configurada."
+              options={tags.map((t) => ({ key: t.label, label: t.label }))}
+              selected={selTags}
+              onToggle={(k) => toggle(selTags, setSelTags, k)}
+            />
+            <ChipGroup
+              label="Tipo de cliente"
+              empty="Nenhum tipo configurado."
+              options={types.map((t) => ({ key: t.label, label: t.label }))}
+              selected={selTypes}
+              onToggle={(k) => toggle(selTypes, setSelTypes, k)}
+            />
 
-          <div>
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Imagem (opcional)</label>
-            <div className="flex items-center gap-3 mt-1">
-              <label className="px-3 py-2 rounded-lg text-sm cursor-pointer" style={{ ...input }}>
-                {image ? 'Trocar imagem' : 'Escolher imagem'}
-                <input type="file" accept="image/*" className="hidden" onChange={(e) => onPickImage(e.target.files?.[0] ?? null)} />
-              </label>
-              {image && (
-                <div className="flex items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`data:${image.type};base64,${image.base64}`} alt="" className="w-10 h-10 rounded object-cover" />
-                  <button onClick={() => setImage(null)} className="text-xs" style={{ color: 'var(--badge-error-text)' }}>remover</button>
-                </div>
-              )}
-            </div>
-            {imageErr && <p className="text-xs mt-1" style={{ color: 'var(--badge-error-text)' }}>{imageErr}</p>}
-          </div>
-
-          {/* Segmentação */}
-          <div>
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Enviar para clientes com…</label>
-            <div className="mt-1.5">
-              <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Tags</p>
-              {tags.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhuma tag configurada.</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((t) => {
-                    const on = selTags.includes(t.label);
-                    return (
-                      <button key={t.id} onClick={() => toggle(selTags, setSelTags, t.label)}
-                        className="text-xs px-2.5 py-1 rounded-full"
-                        style={on ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)' } : { ...input }}>
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            <div className="mt-2.5">
-              <p className="text-[11px] mb-1" style={{ color: 'var(--text-muted)' }}>Tipo de cliente</p>
-              {types.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Nenhum tipo configurado.</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {types.map((t) => {
-                    const on = selTypes.includes(t.label);
-                    return (
-                      <button key={t.id} onClick={() => toggle(selTypes, setSelTypes, t.label)}
-                        className="text-xs px-2.5 py-1 rounded-full"
-                        style={on ? { backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent)' } : { ...input }}>
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-            {combineActive && (
-              <div className="flex items-center gap-2 mt-3">
-                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Combinar tag e tipo:</span>
-                <div className="inline-flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-md)' }}>
-                  {(['AND', 'OR'] as const).map((c) => (
-                    <button key={c} onClick={() => setCombine(c)} className="text-xs px-3 py-1.5"
-                      style={combine === c ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' } : { color: 'var(--text-muted)' }}>
-                      {c === 'AND' ? 'E (os dois)' : 'OU (qualquer)'}
-                    </button>
-                  ))}
+            {groupsActive > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Combinar os filtros:</span>
+                <div className="ui-seg">
+                  <button type="button" aria-pressed={combine === 'AND'} onClick={() => setCombine('AND')}>Todos (E)</button>
+                  <button type="button" aria-pressed={combine === 'OR'} onClick={() => setCombine('OR')}>Qualquer um (OU)</button>
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Prévia da audiência */}
-          <div className="rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--bg-elevated)' }}>
-            {selTags.length === 0 && selTypes.length === 0 ? (
-              <span style={{ color: 'var(--text-muted)' }}>Escolha ao menos uma tag ou tipo para ver o alcance.</span>
-            ) : previewing ? (
-              <span style={{ color: 'var(--text-muted)' }}>Calculando alcance…</span>
-            ) : preview ? (
-              <span style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>{preview.total}</strong> cliente(s) ·{' '}
-                <strong style={{ color: 'var(--badge-success-text)' }}>{preview.sendable}</strong> vão receber
-                {preview.skipped > 0 && <> · <strong style={{ color: 'var(--badge-warn-text)' }}>{preview.skipped}</strong> pulado(s) (vendedor sem WhatsApp)</>}
-              </span>
-            ) : null}
-          </div>
+            <div className="ui-inset p-4">
+              {!hasFilter ? (
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Escolha ao menos uma etapa, tag ou tipo para ver o alcance.</p>
+              ) : previewing && !preview ? (
+                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Calculando alcance…</p>
+              ) : preview ? (
+                <div className="grid grid-cols-3 gap-3" style={{ opacity: previewing ? 0.6 : 1 }}>
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Clientes no filtro</p>
+                    <p className="ui-big">{preview.total}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Vão receber</p>
+                    <p className="ui-big">{preview.sendable}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Pulados</p>
+                    <p className="ui-big" style={preview.skipped > 0 ? { color: 'var(--badge-warn-text)' } : undefined}>{preview.skipped}</p>
+                  </div>
+                  {preview.skipped > 0 && (
+                    <p className="col-span-3 text-xs" style={{ color: 'var(--text-secondary)' }}>Pulados = o vendedor responsável não tem WhatsApp conectado.</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Não foi possível calcular o alcance.</p>
+              )}
+            </div>
+          </Section>
 
-          {/* Agendamento */}
-          <div>
-            <label className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Quando</label>
-            <div className="flex items-center gap-4 mt-1.5">
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
-                <input type="radio" checked={mode === 'now'} onChange={() => setMode('now')} /> Enviar agora
-              </label>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
-                <input type="radio" checked={mode === 'schedule'} onChange={() => setMode('schedule')} /> Agendar
-              </label>
+          <Section n={3} title="Ritmo de envio">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Enviar em lotes com pausa</p>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                  Ajuda a evitar bloqueio do WhatsApp em listas grandes. Desligado, segue o ritmo padrão (~{SENDS_PER_MIN} por minuto).
+                </p>
+              </div>
+              <button type="button" className="ui-switch" role="switch" aria-checked={useBatches} aria-label="Enviar em lotes com pausa" onClick={() => setUseBatches((v) => !v)} />
+            </div>
+
+            {useBatches && (
+              <div className="grid grid-cols-2 gap-3">
+                <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>
+                  Contatos por lote
+                  <input className={`${fieldCls} tabular-nums`} style={input} type="number" inputMode="numeric" min={1} max={BATCH_SIZE_MAX}
+                    value={batchSize} onChange={(e) => setBatchSize(e.target.value)} />
+                </label>
+                <label className={labelCls} style={{ color: 'var(--text-secondary)' }}>
+                  Pausa entre lotes (min)
+                  <input className={`${fieldCls} tabular-nums`} style={input} type="number" inputMode="numeric" min={1} max={BATCH_PAUSE_MAX}
+                    value={batchPause} onChange={(e) => setBatchPause(e.target.value)} />
+                </label>
+                <p className="col-span-2 text-xs" style={{ color: rhythmErr ? 'var(--badge-error-text)' : 'var(--text-secondary)' }}>
+                  {rhythmErr || `Manda ${sizeN} contato${sizeN === 1 ? '' : 's'}, espera ${pauseN} min e continua. Dentro do lote as mensagens saem com 4 a 9 segundos de intervalo.`}
+                </p>
+              </div>
+            )}
+
+            {estimate && (
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Estimativa: <strong style={{ color: 'var(--text-primary)' }}>~{fmtDuration(estimate.minutes)}</strong>
+                {estimate.batches > 1 && <> em {estimate.batches} lotes</>} para {preview?.sendable} contato{preview?.sendable === 1 ? '' : 's'}.
+              </p>
+            )}
+          </Section>
+
+          <Section n={4} title="Quando">
+            <div className="ui-seg self-start">
+              <button type="button" aria-pressed={mode === 'now'} onClick={() => setMode('now')}>Enviar agora</button>
+              <button type="button" aria-pressed={mode === 'schedule'} onClick={() => setMode('schedule')}>Agendar</button>
             </div>
             {mode === 'schedule' && (
-              <input type="datetime-local" className={`${inputCls} mt-2`} style={input} value={when} min={nowLocalInput()} onChange={(e) => setWhen(e.target.value)} />
+              <input type="datetime-local" className={`${fieldCls} max-w-xs`} style={input} value={when} min={nowLocalInput()} onChange={(e) => setWhen(e.target.value)} aria-label="Data e hora do disparo" />
             )}
-          </div>
+          </Section>
 
-          <button
-            onClick={submit}
-            disabled={!canSubmit}
-            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-50"
-            style={{ backgroundColor: 'var(--accent-fill)' }}
-          >
-            {submitting ? 'Enviando…' : mode === 'schedule' ? 'Agendar disparo' : `Disparar agora${preview ? ` (${preview.sendable})` : ''}`}
+          <button type="button" onClick={submit} disabled={!canSubmit} className="ui-btn ui-btn-primary w-full">
+            {submitting ? 'Criando…' : mode === 'schedule' ? 'Agendar disparo' : `Disparar agora${preview ? ` para ${preview.sendable}` : ''}`}
           </button>
         </div>
 
         {/* Histórico */}
-        <div className="rounded-xl p-5" style={card}>
-          <h2 className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Disparos</h2>
+        <div className="ui-card !p-0 overflow-hidden">
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <h2 className="ui-h2">Histórico</h2>
+          </div>
           {list.length === 0 ? (
-            <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>Nenhum disparo ainda.</p>
+            <p className="px-5 py-10 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum disparo ainda.</p>
           ) : (
-            <div className="space-y-2.5">
-              {list.map((b) => {
-                const badge = statusBadge(b.status);
+            <ul>
+              {list.map((b, i) => {
+                const badge = statusBadge[b.status];
                 const canCancel = ['SCHEDULED', 'QUEUED', 'SENDING'].includes(b.status);
+                const done = b.sentCount + b.failedCount + b.skippedCount;
+                const pct = b.totalRecipients > 0 ? Math.round((done / b.totalRecipients) * 100) : 0;
+                const paused = b.status === 'SENDING' && b.nextBatchAt && new Date(b.nextBatchAt).getTime() > Date.now();
+                const filtros = [
+                  ...b.filterStages.map((id) => stageName.get(id) ?? 'Etapa removida'),
+                  ...b.filterTags,
+                  ...b.filterTypes,
+                ];
                 return (
-                  <div key={b.id} className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                    <div className="flex items-start justify-between gap-2">
+                  <li key={b.id} className="px-5 py-4 space-y-2.5" style={i > 0 ? { borderTop: '1px solid var(--border)' } : undefined}>
+                    <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{b.title || b.message}</p>
-                        <p className="text-xs truncate" style={{ color: 'var(--text-muted)' }}>
-                          {b.mediaType ? '🖼️ ' : ''}{b.message}
+                        <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{b.title || b.message}</p>
+                        <p className="text-xs truncate mt-0.5" style={{ color: 'var(--text-secondary)' }}>
+                          {b.mediaType ? 'Com imagem · ' : ''}{b.message}
                         </p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${badge.pulse ? 'animate-pulse' : ''}`} style={{ backgroundColor: badge.bg, color: badge.color }}>
-                        {badge.label}
+                      <span className={`ui-badge shrink-0 ${badge.cls ?? ''}`} style={badge.style}>
+                        {paused ? 'Em pausa' : badge.label}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-                      <span>Total {b.totalRecipients}</span>
-                      <span style={{ color: 'var(--badge-success-text)' }}>✓ {b.sentCount}</span>
-                      {b.failedCount > 0 && <span style={{ color: 'var(--badge-error-text)' }}>✗ {b.failedCount}</span>}
-                      {b.skippedCount > 0 && <span style={{ color: 'var(--badge-warn-text)' }}>pulados {b.skippedCount}</span>}
-                      {b.scheduledAt && b.status === 'SCHEDULED' && <span>📅 {fmtDateTime(b.scheduledAt)}</span>}
-                      {b.finishedAt && <span>fim {fmtDateTime(b.finishedAt)}</span>}
-                      {[...b.filterTags, ...b.filterTypes].length > 0 && (
-                        <span className="truncate">🎯 {[...b.filterTags, ...b.filterTypes].join(', ')}</span>
+
+                    {(b.status === 'SENDING' || b.status === 'DONE') && b.totalRecipients > 0 && (
+                      <div className="ui-bar" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progresso do envio">
+                        <span style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>
+                      <span><strong style={{ color: 'var(--text-primary)' }}>{b.sentCount}</strong>/{b.totalRecipients} enviados</span>
+                      {b.failedCount > 0 && <span style={{ color: 'var(--badge-error-text)' }}>{b.failedCount} com falha</span>}
+                      {b.skippedCount > 0 && <span style={{ color: 'var(--badge-warn-text)' }}>{b.skippedCount} pulados</span>}
+                      {b.status === 'SCHEDULED' && b.scheduledAt && <span>Agendado para {fmtDateTime(b.scheduledAt)}</span>}
+                      {paused && <span>Próximo lote às {fmtTime(b.nextBatchAt!)}</span>}
+                      {b.finishedAt && <span>Fim {fmtDateTime(b.finishedAt)}</span>}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {filtros.slice(0, 6).map((f, j) => <span key={j} className="ui-chip">{f}</span>)}
+                      {filtros.length > 6 && <span className="ui-chip">+{filtros.length - 6}</span>}
+                      {b.batchSize && b.batchPauseMin && (
+                        <span className="ui-chip">lotes de {b.batchSize} · pausa {b.batchPauseMin} min</span>
                       )}
                       {canCancel && (
-                        <button onClick={() => cancel(b.id)} className="ml-auto" style={{ color: 'var(--badge-error-text)' }}>Cancelar</button>
+                        <button type="button" onClick={() => cancel(b.id)} className="ui-btn ui-btn-danger ui-btn-sm ml-auto">Cancelar</button>
                       )}
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
       </div>
 
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 rounded-lg px-4 py-3 text-sm shadow-lg"
-          style={{ backgroundColor: 'var(--bg-surface)', border: `1px solid ${toast.type === 'success' ? 'var(--badge-success-text)' : 'var(--badge-error-text)'}`, color: 'var(--text-primary)' }}>
+        <div role="status" className="ui-card fixed bottom-5 right-5 z-50 !py-3 !px-4 text-sm shadow-lg flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: toast.type === 'success' ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }} />
           {toast.msg}
         </div>
       )}

@@ -1108,8 +1108,12 @@ export interface CrmBroadcast {
   combine: 'AND' | 'OR';
   filterTags: string[];
   filterTypes: string[];
+  filterStages: string[];        // ids de CrmStage
   mediaType: string | null;
   totalRecipients: number;
+  batchSize: number | null;      // ritmo em lotes; null = ritmo padrão
+  batchPauseMin: number | null;
+  nextBatchAt: string | null;    // em pausa entre lotes até esta hora
   sentCount: number;
   failedCount: number;
   skippedCount: number;          // sem telefone / vendedor sem WhatsApp conectado

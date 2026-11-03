@@ -1143,7 +1143,7 @@ class ApiService {
   }
 
   // ── Disparos em massa ──
-  async previewCrmBroadcast(body: { tags: string[]; types: string[]; combine: 'AND' | 'OR' }): Promise<{ success: boolean; data: import('@/types').CrmBroadcastPreview }> {
+  async previewCrmBroadcast(body: { tags: string[]; types: string[]; stages: string[]; combine: 'AND' | 'OR' }): Promise<{ success: boolean; data: import('@/types').CrmBroadcastPreview }> {
     const response = await this.client.post('/crm/broadcasts/preview', body);
     return response.data;
   }
@@ -1153,8 +1153,10 @@ class ApiService {
     message: string;
     tags: string[];
     types: string[];
+    stages: string[];
     combine: 'AND' | 'OR';
     scheduledAt?: string | null;
+    rhythm?: { size: number; pauseMin: number } | null;
     media?: { base64: string; type: string; fileName?: string } | null;
   }): Promise<{ success: boolean; message: string; data: import('@/types').CrmBroadcast }> {
     const response = await this.client.post('/crm/broadcasts', body);
