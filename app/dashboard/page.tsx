@@ -414,12 +414,19 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
 
 // ─── Meta de faturamento do mês ────────────────────────────────────────────────
 
-function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPrev, onNext, onAtual, atCurrent }: {
   progress: import('@/types').RevenueGoalProgress;
   canEdit: boolean;
   onSaved: () => void;
   chartData?: import('@/types').RevenueGoalProgress[];
   wonLeads?: import('@/types').WonLead[];
+  /** null = não há mês anterior carregado. */
+  onPrev: (() => void) | null;
+  onNext: () => void;
+  onAtual: () => void;
+  atCurrent: boolean;
 }) {
   const [editing, setEditing]       = useState(false);
   const [value, setValue]           = useState('');
@@ -463,12 +470,22 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
 
   return (
     <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center flex-wrap justify-between gap-2">
         <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Meta do mês · {progress.label}
-          <InfoTip text="Soma das vendas marcadas como ganhas no CRM em junho, pela data de fechamento do negócio — independente de quando o lead entrou. Pode ser maior que a Receita Fechada do funil, que conta só leads criados no período selecionado." />
+          Meta do mês
+          <InfoTip text={`Soma das vendas marcadas como ganhas no CRM em ${MESES_EXTENSO[progress.month - 1]} de ${progress.year}, pela data de fechamento do negócio — independente de quando o lead entrou. Use ◀ ▶ para ver os meses anteriores; o Ranking de vendedores acompanha o mesmo mês.`} />
         </span>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <button type="button" aria-label="Mês anterior" onClick={() => onPrev?.()} disabled={!onPrev} className="text-sm leading-none px-1" style={{ color: onPrev ? 'var(--text-muted)' : 'var(--border)', cursor: onPrev ? 'pointer' : 'default' }}>◀</button>
+            <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{progress.label}</span>
+            <button type="button" aria-label="Próximo mês" onClick={() => !atCurrent && onNext()} disabled={atCurrent} className="text-sm leading-none px-1" style={{ color: atCurrent ? 'var(--border)' : 'var(--text-muted)', cursor: atCurrent ? 'default' : 'pointer' }}>▶</button>
+          </div>
+          {!atCurrent && (
+            <button type="button" onClick={onAtual} className="ui-btn ui-btn-tint text-xs px-2 py-0.5">
+              Mês atual
+            </button>
+          )}
           {showChart && (
             <button
               onClick={() => setChartOpen((o) => !o)}
@@ -516,7 +533,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
         <div className="flex flex-col gap-1">
           <p className="ui-big tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(realized)}</p>
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {canEdit ? 'Nenhuma meta definida para o mês.' : 'Faturamento realizado · meta não definida.'}
+            {canEdit ? `Nenhuma meta definida para ${progress.label}.` : 'Faturamento realizado · meta não definida.'}
           </p>
         </div>
       ) : (
@@ -534,7 +551,9 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads }: {
           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
             {reached
               ? `Meta atingida · ${fmtMoney(realized - target)} acima`
-              : `Faltam ${fmtMoney(target - realized)} para a meta`}
+              : atCurrent
+                ? `Faltam ${fmtMoney(target - realized)} para a meta`
+                : `Fechou ${fmtMoney(target - realized)} abaixo da meta`}
           </p>
         </>
       )}
@@ -1160,7 +1179,9 @@ function DashboardConteudo() {
   const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
   const [sellersRanking, setSellersRanking] = useState<import('@/types').SellersRanking | null>(null);
-  const [rankingMonth, setRankingMonth] = useState<{ year: number; month: number } | null>(null);
+  // Mês da Meta do mês E do Ranking de vendedores: os dois andam juntos (pedido do Benny, 04/11/2026).
+  const [mesSel, setMesSel] = useState<{ year: number; month: number } | null>(null);
+  const mesPedido = useRef('');
   const [negotiatingOpen, setNegotiatingOpen] = useState(false);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
@@ -1294,32 +1315,46 @@ function DashboardConteudo() {
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const canEditGoal = isAdmin || user?.role === 'TRAFFIC_MANAGER';
-  const currentGoal = goalProgress && goalProgress.length > 0 ? goalProgress[goalProgress.length - 1] : null;
+  const idxMesSel = goalProgress && mesSel
+    ? goalProgress.findIndex((g) => g.year === mesSel.year && g.month === mesSel.month)
+    : -1;
+  const currentGoal = goalProgress && idxMesSel >= 0 ? goalProgress[idxMesSel] : null;
+  const hojeRef = new Date();
+  const mesSelAtual = !!mesSel && mesSel.year === hojeRef.getFullYear() && mesSel.month === hojeRef.getMonth() + 1;
 
-  const loadSellersRanking = (year: number, month: number) => {
-    setRankingMonth({ year, month });
+  // Carrega vendas do mês + ranking. Clique rápido nas setas: só a resposta do último mês pedido vale.
+  const selecionarMes = (year: number, month: number) => {
+    const chave = `${year}-${month}`;
+    mesPedido.current = chave;
+    setMesSel({ year, month });
+    setWonLeads(null);
+    apiService.getWonLeads(year, month)
+      .then((wr) => { if (wr.success && mesPedido.current === chave) setWonLeads(wr.data.leads); })
+      .catch(() => {});
     apiService.getSellersRanking(year, month)
-      .then((sr) => { if (sr.success) setSellersRanking(sr.data); })
+      .then((sr) => { if (sr.success && mesPedido.current === chave) setSellersRanking(sr.data); })
       .catch(() => {});
   };
 
-  const navRankingMonth = (delta: number) => {
-    if (!rankingMonth) return;
-    const d = new Date(rankingMonth.year, rankingMonth.month - 1 + delta, 1);
-    loadSellersRanking(d.getFullYear(), d.getMonth() + 1);
+  const navMes = (delta: number) => {
+    if (!mesSel) return;
+    const d = new Date(mesSel.year, mesSel.month - 1 + delta, 1);
+    selecionarMes(d.getFullYear(), d.getMonth() + 1);
   };
 
+  const irMesAtual = () => {
+    const d = new Date();
+    selecionarMes(d.getFullYear(), d.getMonth() + 1);
+  };
+
+  // 24 meses = máximo do endpoint; é até onde as setas voltam. Depois de salvar a meta, recarrega
+  // sem tirar o usuário do mês que ele estava vendo.
   const loadGoalProgress = () => {
-    apiService.getRevenueGoalProgress(6).then((r) => {
+    apiService.getRevenueGoalProgress(24).then((r) => {
       if (r.success) {
         setGoalProgress(r.data);
         const current = r.data[r.data.length - 1];
-        if (current) {
-          apiService.getWonLeads(current.year, current.month)
-            .then((wr) => { if (wr.success) setWonLeads(wr.data.leads); })
-            .catch(() => {});
-          loadSellersRanking(current.year, current.month);
-        }
+        if (current && !mesPedido.current) selecionarMes(current.year, current.month);
       }
     }).catch(() => {});
   };
@@ -1606,8 +1641,8 @@ function DashboardConteudo() {
   // ── Revenue filtered by marketing platform tab ─────────────────────────────
   // Vendas fechadas no período (closed_at), filtradas pela aba de plataforma.
   // Aba Meta = anúncio + link da bio (decisão de 09/10/2026, pedido do Ruan): os dois são
-  // Instagram para quem olha o negócio. ROAS e CPL NÃO entram nisso — link da bio não custa
-  // anúncio, e somá-lo ali faria o Meta parecer mais barato do que é.
+  // Instagram para quem olha o negócio. Desde 04/11/2026 a receita da bio também entra no ROAS
+  // da Meta (campanha que leva ao perfil). CPL continua sem a bio: o lead dela não é de anúncio.
   const { mktClosedValue, mktWonCount, mktBioWon } = useMemo(() => {
     const leads = mktTab === 'meta'   ? kommoWonCur.filter(l => l.utmSource === 'meta' || l.utmSource === 'link_bio')
                 : mktTab === 'google' ? kommoWonCur.filter(l => l.utmSource === 'google')
@@ -1685,7 +1720,8 @@ function DashboardConteudo() {
         won:   metaWon.length,
         rev:   metaRev,
         ticket: ticket(metaWon),
-        roas:  metaSpend > 0 ? metaRev / metaSpend : null,
+        // Mesma regra do ROAS atribuído: receita da bio soma na Meta.
+        roas:  metaSpend > 0 ? (metaRev + bioRev) / metaSpend : null,
         spend: metaSpend,
       },
       google: {
@@ -2151,6 +2187,9 @@ function DashboardConteudo() {
   // ── Derived mkt-tab values for bottom KPIs ───────────────────────────────
   const mktRoas       = mktTab === 'meta' ? attributionSummary?.roasMeta    : mktTab === 'google' ? attributionSummary?.roasGoogle    : attributionSummary?.roas    ?? null;
   const mktRevenue    = mktTab === 'meta' ? (attributionSummary?.revenueMeta ?? 0) : mktTab === 'google' ? (attributionSummary?.revenueGoogle ?? 0) : (attributionSummary?.revenue ?? 0);
+  // Parte da receita acima que veio do link da bio. No Total a receita da Meta só entra com gasto.
+  const mktBioRevenue = mktTab === 'meta' || (mktTab === 'total' && (attributionSummary?.spendMeta ?? 0) > 0)
+    ? (attributionSummary?.revenueLinkBio ?? 0) : 0;
   const mktSpend      = mktTab === 'meta' ? (attributionSummary?.spendMeta   ?? 0) : mktTab === 'google' ? (attributionSummary?.spendGoogle   ?? 0) : (attributionSummary?.spend   ?? 0);
   const mktCac        = mktTab === 'meta'   ? (canalComparativo.meta.leads   > 0 ? canalComparativo.meta.spend   / canalComparativo.meta.leads   : null)
                       : mktTab === 'google' ? (canalComparativo.google.leads > 0 ? canalComparativo.google.spend / canalComparativo.google.leads : null)
@@ -2265,7 +2304,8 @@ function DashboardConteudo() {
   };
   const compMeta   = compCanal('meta');
   const compGoogle = compCanal('google');
-  // Link da bio: canal sem gasto, então sem CPL e sem ROAS. A coluna só aparece com dado.
+  // Link da bio: canal sem gasto, então sem CPL e sem ROAS próprio (a receita dele entra no
+  // ROAS da Meta). A coluna só aparece com dado.
   const compBio    = { ...canalComparativo.bio, leads: leadsBio, conv: taxa(canalComparativo.bio.won, leadsBio) * 100 };
   const temBio     = compBio.leads > 0 || compBio.won > 0;
   // Com a terceira coluna o valor em reais encostava no vizinho: coluna e fonte encolhem só nesse caso.
@@ -2707,10 +2747,10 @@ function DashboardConteudo() {
                 badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
                 badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
                 sub={mktRevenue > 0
-                  ? `${fmtMoney(mktRevenue)} receita / ${fmtMoney(mktSpend)} gasto${utmCovPct != null ? ` · cobre ${fmtPct1(utmCovPct)} dos leads` : ''}`
+                  ? `${fmtMoney(mktRevenue)} receita${mktBioRevenue > 0 ? ` (${fmtMoney(mktBioRevenue)} do link da bio)` : ''} / ${fmtMoney(mktSpend)} gasto${utmCovPct != null ? ` · cobre ${fmtPct1(utmCovPct)} dos leads` : ''}`
                   : 'Sem receitas fechadas'}
                 accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
-                info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro."
+                info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas do link da bio contam como Meta, porque há campanhas que levam ao perfil. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro."
               />
             )}
             {kpisFundo.includes('cac') && (
@@ -2735,7 +2775,7 @@ function DashboardConteudo() {
                     ? `${mktWonCount} vendas · inclui leads sem UTM`
                     : `${mktWonCount} vendas · ticket médio ${fmtBRL(mktClosedValue / mktWonCount)}${mktTab === 'meta' && mktBioWon > 0 ? ` · ${mktBioWon} do link da bio` : ''}`
                   : 'Nenhuma venda fechada'}
-                info="Vendas fechadas dentro do período selecionado, pela data de fechamento — mesma base da Meta do Mês. Inclui vendas de leads criados antes do período. Na aba Meta entram as vendas de anúncio e as do link da bio; o ROAS ao lado continua só com anúncio."
+                info="Vendas fechadas dentro do período selecionado, pela data de fechamento — mesma base da Meta do Mês. Inclui vendas de leads criados antes do período. Na aba Meta entram as vendas de anúncio e as do link da bio, igual ao ROAS ao lado."
               />
             )}
             {visibleBottomKpis.includes('vendas') && (
@@ -2811,8 +2851,12 @@ function DashboardConteudo() {
             progress={currentGoal}
             canEdit={canEditGoal}
             onSaved={loadGoalProgress}
-            chartData={goalProgress ?? undefined}
+            chartData={goalProgress ? goalProgress.slice(Math.max(0, idxMesSel - 5), idxMesSel + 1) : undefined}
             wonLeads={wonLeads ?? undefined}
+            onPrev={idxMesSel > 0 ? () => navMes(-1) : null}
+            onNext={() => navMes(1)}
+            onAtual={irMesAtual}
+            atCurrent={mesSelAtual}
           />
         </div>
       )}
@@ -3156,21 +3200,20 @@ function DashboardConteudo() {
       )}
 
       {/* ── 5.1.5 RANKING DE VENDEDORES ───────────────────────────────────────── */}
-      {hasCrmSource && kommoCur.length > 0 && rankingMonth && sellersRanking && (() => {
+      {hasCrmSource && kommoCur.length > 0 && mesSel && sellersRanking && (() => {
         const MES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-        const label = `${MES[rankingMonth.month - 1]}/${String(rankingMonth.year).slice(2)}`;
-        const now = new Date();
-        const atCurrent = rankingMonth.year === now.getFullYear() && rankingMonth.month === now.getMonth() + 1;
+        const label = `${MES[mesSel.month - 1]}/${String(mesSel.year).slice(2)}`;
+        const atCurrent = mesSelAtual;
         const rows = sellersRanking.ranking;
         return (
           <div>
             <div className="flex items-center gap-1.5 mb-3">
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>ranking de vendedores</p>
-              <InfoTip text={`Vendas ganhas no ${crmLabel} por vendedor responsável, pela data de fechamento (closed_at) do mês. Conversão = ganhos ÷ (ganhos + perdidos) decididos no mês. 'Pipeline' é o valor em negociação atual do vendedor — do orçamento enviado em diante, mesma base da seção Pipeline em Negociação (independe do mês). 'Fecha em' = tempo médio entre criação e fechamento. A seta compara a receita com o mês anterior. Use ◀ ▶ para navegar entre os meses.`} />
+              <InfoTip text={`Vendas ganhas no ${crmLabel} por vendedor responsável, pela data de fechamento (closed_at) do mês. Conversão = ganhos ÷ (ganhos + perdidos) decididos no mês. 'Pipeline' é o valor em negociação atual do vendedor — do orçamento enviado em diante, mesma base da seção Pipeline em Negociação (independe do mês). 'Fecha em' = tempo médio entre criação e fechamento. A seta compara a receita com o mês anterior. Use ◀ ▶ para navegar entre os meses — a Meta do mês acompanha o mesmo mês.`} />
               <div className="flex items-center gap-2 ml-auto">
-                <button type="button" onClick={() => navRankingMonth(-1)} className="text-sm leading-none px-1" style={{ color: 'var(--text-muted)', cursor: 'pointer' }}>◀</button>
+                <button type="button" onClick={() => idxMesSel > 0 && navMes(-1)} disabled={idxMesSel <= 0} className="text-sm leading-none px-1" style={{ color: idxMesSel > 0 ? 'var(--text-muted)' : 'var(--border)', cursor: idxMesSel > 0 ? 'pointer' : 'default' }}>◀</button>
                 <span className="text-xs tabular-nums" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                <button type="button" onClick={() => !atCurrent && navRankingMonth(1)} disabled={atCurrent} className="text-sm leading-none px-1" style={{ color: atCurrent ? 'var(--border)' : 'var(--text-muted)', cursor: atCurrent ? 'default' : 'pointer' }}>▶</button>
+                <button type="button" onClick={() => !atCurrent && navMes(1)} disabled={atCurrent} className="text-sm leading-none px-1" style={{ color: atCurrent ? 'var(--border)' : 'var(--text-muted)', cursor: atCurrent ? 'default' : 'pointer' }}>▶</button>
               </div>
             </div>
             <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>

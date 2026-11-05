@@ -193,6 +193,8 @@ export interface AttributionSummary {
   revenue: number;
   revenueMeta: number;
   revenueGoogle: number;
+  /** Parte de `revenueMeta` vinda do link da bio. */
+  revenueLinkBio?: number;
   pipelineValue: number;
   spend: number;
   spendMeta: number;
