@@ -48,8 +48,11 @@ const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: strin
 };
 
 const fmtMoney = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-// Mesmo teto do backend (MAX_PARCELAS em billingService.ts).
-const MAX_PARCELAS = 12;
+// Mesmo teto do backend (MAX_PARCELAS_POR_CICLO em billingService.ts): uma parcela
+// por mês do período. Mensal não parcela.
+const MAX_PARCELAS: Partial<Record<BillingCycle, number>> = { SEMIANNUAL: 6, ANNUAL: 12 };
+// "o ano" / "o semestre" nos textos do parcelado.
+const PERIODO: Record<BillingCycle, string> = { MONTHLY: 'mês', SEMIANNUAL: 'semestre', ANNUAL: 'ano' };
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
@@ -156,7 +159,7 @@ export default function PlanoCheckout({
   const cicloInicial = status.pendingCharge?.billingCycle ?? status.billingCycle;
   const [plano, setPlano] = useState<string>(planoInicial);
   const [ciclo, setCiclo] = useState<BillingCycle>(cicloInicial);
-  // Anual: à vista (null) ou parcelado no cartão em N vezes, sem juros.
+  // Semestral/anual: à vista (null) ou parcelado no cartão em N vezes, sem juros.
   const parcelasIniciais = status.pendingCharge?.installmentCount ?? null;
   const [parcelas, setParcelas] = useState<number | null>(parcelasIniciais);
   const [doc, setDoc] = useState('');
@@ -174,8 +177,11 @@ export default function PlanoCheckout({
   const cicloSelecionado = opcaoSelecionada?.cycles.find((c) => c.cycle === ciclo) ?? opcaoSelecionada?.cycles[0];
   const cicloEfetivo = cicloSelecionado?.cycle ?? ciclo;
   const precoSelecionado = cicloSelecionado?.total ?? null;
-  // Parcelar só existe no anual: trocar de ciclo leva a escolha junto para "à vista".
-  const parcelasEfetivas = cicloEfetivo === 'ANNUAL' ? parcelas : null;
+  // Parcelar existe no semestral (até 6x) e no anual (até 12x). Trocar para o mensal
+  // leva a escolha para "à vista"; do anual em 12x para o semestral, o teto vira 6x.
+  const tetoParcelas = MAX_PARCELAS[cicloEfetivo] ?? null;
+  const parcelasEfetivas = tetoParcelas && parcelas !== null ? Math.min(parcelas, tetoParcelas) : null;
+  const periodo = PERIODO[cicloEfetivo];
   // Compara com o que a tela ABRIU marcado, não com o plano da org: quem escolheu
   // ENTERPRISE no cadastro não está "trocando de plano" ao pagar o que escolheu.
   const trocandoPlano = plano !== planoInicial || cicloEfetivo !== cicloInicial || parcelasEfetivas !== parcelasIniciais;
@@ -246,8 +252,8 @@ export default function PlanoCheckout({
             {status.hasActiveSubscription
               ? 'A próxima cobrança é emitida automaticamente e chega no seu e-mail. Você não precisa fazer nada.'
               : parcelado
-                ? `Seu plano anual foi pago em ${parcelado.installmentCount}x no cartão e vale até ${fmtDate(status.subscriptionEnds)}. ${podeRenovar
-                  ? 'Ele não renova sozinho: escolha abaixo como quer pagar o próximo ano.'
+                ? `Seu plano ${CICLO[status.billingCycle].toLowerCase()} foi pago em ${parcelado.installmentCount}x no cartão e vale até ${fmtDate(status.subscriptionEnds)}. ${podeRenovar
+                  ? `Ele não renova sozinho: escolha abaixo como quer pagar o próximo ${PERIODO[status.billingCycle]}.`
                   : 'Ele não renova sozinho: no último mês, a renovação abre aqui.'}`
               : 'O pagamento é por PIX, boleto ou cartão — você escolhe na fatura.'}
           </p>
@@ -277,31 +283,31 @@ export default function PlanoCheckout({
         ))}
       </div>
 
-      {/* Parcelar existe só no anual: é o único ciclo cujo valor pede isso. Sem juros
-          (decisão do Benny, 05/11) — a taxa do parcelamento fica com a Cromalex. */}
-      {cicloEfetivo === 'ANNUAL' && precoSelecionado !== null && (!semNadaAPagar || trocandoPlano) && (
+      {/* Parcelar existe no semestral e no anual. Sem juros (decisão do Benny, 05/11) —
+          a taxa do parcelamento fica com a Cromalex. */}
+      {tetoParcelas && precoSelecionado !== null && (!semNadaAPagar || trocandoPlano) && (
         <div className="mt-4">
-          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Como você quer pagar o ano</p>
+          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Como você quer pagar o {periodo}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-3">
-            <div className="ui-seg" role="group" aria-label="Forma de pagamento do plano anual">
+            <div className="ui-seg" role="group" aria-label={`Forma de pagamento do plano ${CICLO[cicloEfetivo].toLowerCase()}`}>
               <button type="button" aria-pressed={parcelas === null} onClick={() => setParcelas(null)}>À vista</button>
-              <button type="button" aria-pressed={parcelas !== null} onClick={() => setParcelas(parcelas ?? MAX_PARCELAS)}>Parcelado no cartão</button>
+              <button type="button" aria-pressed={parcelasEfetivas !== null} onClick={() => setParcelas(parcelasEfetivas ?? tetoParcelas)}>Parcelado no cartão</button>
             </div>
-            {parcelas !== null && (
-              <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}
+            {parcelasEfetivas !== null && (
+              <select value={parcelasEfetivas} onChange={(e) => setParcelas(Number(e.target.value))}
                 aria-label="Número de parcelas"
                 className="rounded-lg px-3 py-2 text-sm outline-none"
                 style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
-                {Array.from({ length: MAX_PARCELAS - 1 }, (_, i) => MAX_PARCELAS - i).map((n) => (
+                {Array.from({ length: tetoParcelas - 1 }, (_, i) => tetoParcelas - i).map((n) => (
                   <option key={n} value={n}>{n}x de {fmtMoney(precoSelecionado / n)} sem juros</option>
                 ))}
               </select>
             )}
           </div>
           <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-            {parcelas === null
-              ? 'PIX, boleto ou cartão, de uma vez. Renova sozinho todo ano.'
-              : 'Só no cartão de crédito. Usa o limite do valor total do ano. Não renova sozinho: no fim do ano você escolhe de novo.'}
+            {parcelasEfetivas === null
+              ? `PIX, boleto ou cartão, de uma vez. Renova sozinho a cada ${cicloSelecionado?.months ?? ''} meses.`
+              : `Só no cartão de crédito. Usa o limite do valor total do ${periodo}. Não renova sozinho: no fim do ${periodo} você escolhe de novo.`}
           </p>
         </div>
       )}
@@ -341,7 +347,7 @@ export default function PlanoCheckout({
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {/* "a cada {rótulo}" sai errado no anual ("a cada anual") — contar em meses */}
                 {parcelasEfetivas
-                  ? `${parcelasEfetivas}x de ${fmtMoney(precoSelecionado / parcelasEfetivas)} no cartão · ${fmtMoney(precoSelecionado)} no ano`
+                  ? `${parcelasEfetivas}x de ${fmtMoney(precoSelecionado / parcelasEfetivas)} no cartão · ${fmtMoney(precoSelecionado)} no ${periodo}`
                   : `${fmtMoney(precoSelecionado)} ${cicloEfetivo === 'MONTHLY' ? 'por mês' : `a cada ${cicloSelecionado?.months ?? ''} meses`}`}
               </span>
             )}
