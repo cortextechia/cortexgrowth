@@ -10,6 +10,10 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Erro ao carregar nunca vira tela vazia: um 403 de permissão parecia "não há criativo".
+const falhaAoCarregar = (showToast: (m: string, t: 'ok' | 'err') => void) => (e: any) =>
+  showToast(e?.response?.data?.message ?? 'Não foi possível carregar os criativos.', 'err');
+
 function Spinner() {
   return (
     <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -129,7 +133,7 @@ function AnaliseCard({ showToast }: { showToast: (m: string, t: 'ok' | 'err') =>
   const [error, setError] = useState('');
 
   useEffect(() => {
-    apiService.getLatestCreativeAnalysis().then((r) => { if (r.data) setAnalysis(r.data); }).catch(() => {});
+    apiService.getLatestCreativeAnalysis().then((r) => { if (r.data) setAnalysis(r.data); }).catch(falhaAoCarregar(showToast));
   }, []);
 
   const run = async () => {
@@ -221,7 +225,7 @@ function IdeiasCard({ showToast, campaigns }: { showToast: (m: string, t: 'ok' |
       const item = await apiService.getCreativeHistoryItem(last.id);
       setResult(item.data.outputData as CreativeIdeasOutput);
       if (item.data.campaignName) setCampaign(item.data.campaignName);
-    }).catch(() => {});
+    }).catch(falhaAoCarregar(showToast));
   }, []);
 
   const detect = async () => {
@@ -321,7 +325,7 @@ function BriefingCard({ showToast, onUseInCopy, campaigns }: { showToast: (m: st
       setResult(item.data.outputData as CreativeBriefingOutput);
       setBriefingId(item.data.id);
       if (item.data.campaignName) setCampaign(item.data.campaignName);
-    }).catch(() => {});
+    }).catch(falhaAoCarregar(showToast));
   }, []);
 
   const run = async () => {
@@ -432,7 +436,7 @@ function CopyCard({ showToast, handoff, campaigns }: { showToast: (m: string, t:
       const item = await apiService.getCreativeHistoryItem(last.id);
       setResult(item.data.outputData as CopyOutput);
       if (item.data.campaignName) setCampaign(item.data.campaignName);
-    }).catch(() => {});
+    }).catch(falhaAoCarregar(showToast));
   }, []);
 
   const run = async (overrideCampaign?: string, overrideBriefingId?: string) => {
@@ -529,7 +533,7 @@ function CompetitiveCard({ profile, showToast }: { profile: CreativeProfile | nu
   useEffect(() => {
     apiService.getLatestCompetitiveInsight().then((r) => {
       if (r.data) { setResult(r.data.adsData as CompetitiveOutput); setWeekOf(r.data.weekOf); }
-    }).catch(() => {});
+    }).catch(falhaAoCarregar(showToast));
   }, []);
 
   const run = async () => {
@@ -745,8 +749,8 @@ export function CreativeSection({ showToast }: { showToast: (m: string, t: 'ok' 
   const [copyHandoff, setCopyHandoff] = useState<{ campaign: string; briefingId: string; nonce: number } | null>(null);
 
   useEffect(() => {
-    apiService.getCreativeProfile().then((r) => setProfile(r.data)).catch(() => {});
-    apiService.getCreativeCampaigns().then((r) => setCampaigns(r.data)).catch(() => {});
+    apiService.getCreativeProfile().then((r) => setProfile(r.data)).catch(falhaAoCarregar(showToast));
+    apiService.getCreativeCampaigns().then((r) => setCampaigns(r.data)).catch(falhaAoCarregar(showToast));
   }, []);
 
   return (
