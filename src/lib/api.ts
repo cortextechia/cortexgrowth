@@ -394,7 +394,7 @@ class ApiService {
 
   // Emite a cobrança do ciclo no Asaas e devolve o link da fatura (PIX ou boleto,
   // o cliente escolhe lá). taxId só é obrigatório na PRIMEIRA assinatura.
-  async createCheckout(payload: { plan: string; billingCycle: import('@/types').BillingCycle; taxId?: string }):
+  async createCheckout(payload: { plan: string; billingCycle: import('@/types').BillingCycle; taxId?: string; installments?: number }):
     Promise<{ success: boolean; message: string; data: import('@/types').CheckoutResult }> {
     const response = await this.client.post('/billing/checkout', payload);
     return response.data;

@@ -820,7 +820,10 @@ export interface BillingStatus {
     dueDate: string | null;
     plan: string;
     billingCycle: BillingCycle;
+    installmentCount: number | null; // anual parcelado no cartão; null = à vista
   } | null;
+  // Acesso vigente pago no anual parcelado (sem assinatura recorrente).
+  installmentPlan: { installmentCount: number; amount: number } | null;
 }
 
 export interface CheckoutResult {
@@ -846,6 +849,7 @@ export interface PaymentRecord {
   paidAt: string | null;
   invoiceUrl: string | null;
   notes: string | null;
+  installmentCount: number | null;
 }
 
 export interface SellerRankingRow {

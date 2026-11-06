@@ -48,6 +48,8 @@ const IDENTIDADE: Record<string, { cor: string; corSuave: string; chamada: strin
 };
 
 const fmtMoney = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+// Mesmo teto do backend (MAX_PARCELAS em billingService.ts).
+const MAX_PARCELAS = 12;
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
@@ -154,6 +156,9 @@ export default function PlanoCheckout({
   const cicloInicial = status.pendingCharge?.billingCycle ?? status.billingCycle;
   const [plano, setPlano] = useState<string>(planoInicial);
   const [ciclo, setCiclo] = useState<BillingCycle>(cicloInicial);
+  // Anual: à vista (null) ou parcelado no cartão em N vezes, sem juros.
+  const parcelasIniciais = status.pendingCharge?.installmentCount ?? null;
+  const [parcelas, setParcelas] = useState<number | null>(parcelasIniciais);
   const [doc, setDoc] = useState('');
   const [gerando, setGerando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -169,9 +174,16 @@ export default function PlanoCheckout({
   const cicloSelecionado = opcaoSelecionada?.cycles.find((c) => c.cycle === ciclo) ?? opcaoSelecionada?.cycles[0];
   const cicloEfetivo = cicloSelecionado?.cycle ?? ciclo;
   const precoSelecionado = cicloSelecionado?.total ?? null;
+  // Parcelar só existe no anual: trocar de ciclo leva a escolha junto para "à vista".
+  const parcelasEfetivas = cicloEfetivo === 'ANNUAL' ? parcelas : null;
   // Compara com o que a tela ABRIU marcado, não com o plano da org: quem escolheu
   // ENTERPRISE no cadastro não está "trocando de plano" ao pagar o que escolheu.
-  const trocandoPlano = plano !== planoInicial || cicloEfetivo !== cicloInicial;
+  const trocandoPlano = plano !== planoInicial || cicloEfetivo !== cicloInicial || parcelasEfetivas !== parcelasIniciais;
+  // Anual parcelado em vigor: não há assinatura que renove sozinha, então a renovação
+  // abre aqui no último mês (a faixa "encerra em X dias" do dashboard traz o cliente).
+  const parcelado = status.installmentPlan;
+  const podeRenovar = !!parcelado && status.daysLeft !== null && status.daysLeft <= 30;
+  const semNadaAPagar = status.hasActiveSubscription || (!!parcelado && !podeRenovar);
   const docIncompleto = !status.hasTaxId && doc.replace(/[^0-9A-Z]/gi, '').length < 11;
 
   const gerarCobranca = async () => {
@@ -181,6 +193,7 @@ export default function PlanoCheckout({
       const r = await apiService.createCheckout({
         plan: plano, billingCycle: cicloEfetivo,
         ...(status.hasTaxId ? {} : { taxId: doc }),
+        ...(parcelasEfetivas ? { installments: parcelasEfetivas } : {}),
       });
       await onAtualizado?.();
       // A fatura abre em aba nova: o pagamento acontece no Asaas, não aqui.
@@ -204,7 +217,9 @@ export default function PlanoCheckout({
               Você tem uma cobrança em aberto
             </p>
             <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-              {fmtMoney(status.pendingCharge.amount)}
+              {status.pendingCharge.installmentCount
+                ? `${status.pendingCharge.installmentCount}x de ${fmtMoney(status.pendingCharge.amount / status.pendingCharge.installmentCount)} no cartão`
+                : fmtMoney(status.pendingCharge.amount)}
               {status.pendingCharge.dueDate && ` · vence em ${fmtDate(status.pendingCharge.dueDate)}`}
             </p>
           </div>
@@ -221,6 +236,7 @@ export default function PlanoCheckout({
           <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
             {titulo ?? (status.hasActiveSubscription
               ? 'Trocar de plano'
+              : parcelado ? (podeRenovar ? 'Renovar plano' : 'Trocar de plano')
               : status.subscriptionEnds === null ? 'Escolher plano' : 'Reativar assinatura')}
           </p>
           <p className="mt-0.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -229,6 +245,10 @@ export default function PlanoCheckout({
                 gerar cobrança agora criaria uma fatura extra pra quem já está em dia. */}
             {status.hasActiveSubscription
               ? 'A próxima cobrança é emitida automaticamente e chega no seu e-mail. Você não precisa fazer nada.'
+              : parcelado
+                ? `Seu plano anual foi pago em ${parcelado.installmentCount}x no cartão e vale até ${fmtDate(status.subscriptionEnds)}. ${podeRenovar
+                  ? 'Ele não renova sozinho: escolha abaixo como quer pagar o próximo ano.'
+                  : 'Ele não renova sozinho: no último mês, a renovação abre aqui.'}`
               : 'O pagamento é por PIX, boleto ou cartão — você escolhe na fatura.'}
           </p>
         </div>
@@ -257,6 +277,35 @@ export default function PlanoCheckout({
         ))}
       </div>
 
+      {/* Parcelar existe só no anual: é o único ciclo cujo valor pede isso. Sem juros
+          (decisão do Benny, 05/11) — a taxa do parcelamento fica com a Cromalex. */}
+      {cicloEfetivo === 'ANNUAL' && precoSelecionado !== null && (!semNadaAPagar || trocandoPlano) && (
+        <div className="mt-4">
+          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Como você quer pagar o ano</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3">
+            <div className="ui-seg" role="group" aria-label="Forma de pagamento do plano anual">
+              <button type="button" aria-pressed={parcelas === null} onClick={() => setParcelas(null)}>À vista</button>
+              <button type="button" aria-pressed={parcelas !== null} onClick={() => setParcelas(parcelas ?? MAX_PARCELAS)}>Parcelado no cartão</button>
+            </div>
+            {parcelas !== null && (
+              <select value={parcelas} onChange={(e) => setParcelas(Number(e.target.value))}
+                aria-label="Número de parcelas"
+                className="rounded-lg px-3 py-2 text-sm outline-none"
+                style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
+                {Array.from({ length: MAX_PARCELAS - 1 }, (_, i) => MAX_PARCELAS - i).map((n) => (
+                  <option key={n} value={n}>{n}x de {fmtMoney(precoSelecionado / n)} sem juros</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
+            {parcelas === null
+              ? 'PIX, boleto ou cartão, de uma vez. Renova sozinho todo ano.'
+              : 'Só no cartão de crédito. Usa o limite do valor total do ano. Não renova sozinho: no fim do ano você escolhe de novo.'}
+          </p>
+        </div>
+      )}
+
       {/* Documento só na PRIMEIRA assinatura: depois o cliente já existe no gateway */}
       {!status.hasTaxId && (
         <div className="mt-4">
@@ -278,7 +327,7 @@ export default function PlanoCheckout({
       {/* Assinatura ativa e nenhum plano novo escolhido = não há ação a oferecer.
           O botão some em vez de ficar desabilitado: botão apagado ainda sugere que
           existe algo pendente ali. */}
-      {(!status.hasActiveSubscription || trocandoPlano) && (
+      {(!semNadaAPagar || trocandoPlano) && (
         <>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button type="button" onClick={gerarCobranca} disabled={gerando || docIncompleto}
@@ -286,20 +335,24 @@ export default function PlanoCheckout({
               style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
               {/* "Gerar cobrança" é linguagem de quem EMITE. Para quem paga, o botão
                   leva à fatura do Asaas, onde ele escolhe PIX, boleto ou cartão. */}
-              {gerando ? 'Abrindo pagamento…' : trocandoPlano ? 'Mudar de plano e pagar' : 'Ir para o pagamento'}
+              {gerando ? 'Abrindo pagamento…' : podeRenovar && !trocandoPlano ? 'Renovar e pagar' : trocandoPlano ? 'Mudar de plano e pagar' : 'Ir para o pagamento'}
             </button>
             {precoSelecionado !== null && (
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {/* "a cada {rótulo}" sai errado no anual ("a cada anual") — contar em meses */}
-                {fmtMoney(precoSelecionado)} {cicloEfetivo === 'MONTHLY' ? 'por mês' : `a cada ${cicloSelecionado?.months ?? ''} meses`}
+                {parcelasEfetivas
+                  ? `${parcelasEfetivas}x de ${fmtMoney(precoSelecionado / parcelasEfetivas)} no cartão · ${fmtMoney(precoSelecionado)} no ano`
+                  : `${fmtMoney(precoSelecionado)} ${cicloEfetivo === 'MONTHLY' ? 'por mês' : `a cada ${cicloSelecionado?.months ?? ''} meses`}`}
               </span>
             )}
           </div>
 
           <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-            {trocandoPlano
+            {trocandoPlano && !parcelado && (status.hasActiveSubscription || !parcelasEfetivas)
               ? 'A assinatura atual é encerrada e a nova passa a valer quando o pagamento for confirmado.'
-              : 'O acesso é liberado assim que o pagamento for confirmado — no PIX leva segundos, no boleto pode levar até 3 dias úteis. Você recebe um e-mail quando entrar.'}
+              : parcelasEfetivas
+                ? 'O acesso é liberado assim que o cartão for aprovado. Você recebe um e-mail quando entrar.'
+                : 'O acesso é liberado assim que o pagamento for confirmado — no PIX leva segundos, no boleto pode levar até 3 dias úteis. Você recebe um e-mail quando entrar.'}
           </p>
         </>
       )}

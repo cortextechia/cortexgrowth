@@ -198,7 +198,7 @@ export default function AssinaturaPage() {
                       </td>
                       <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{p.plan}</td>
                       <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{CICLO[p.billingCycle]}</td>
-                      <td className="px-4 py-2.5 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.amount)}</td>
+                      <td className="px-4 py-2.5 font-medium whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.amount)}{p.installmentCount ? ` em ${p.installmentCount}x` : ''}</td>
                       {/* Enquanto está PENDENTE o método é desconhecido: o cliente ainda
                           vai escolher PIX ou boleto na fatura. Mostrar "Manual" seria mentira. */}
                       <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>
