@@ -9,8 +9,8 @@ import ClientReportsModal from '@/components/ClientReportsModal';
 import GestorStatsCard from '@/components/GestorStatsCard';
 import { QRCodeSVG } from 'qrcode.react';
 
-const PLAN_LABELS: Record<string, string> = { CRM: 'CRM', STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
-const PLAN_PRICES: Record<string, number> = { CRM: 149, STARTER: 297, PROFESSIONAL: 597, ENTERPRISE: 1497 };
+const PLAN_LABELS: Record<string, string> = { DEMO: 'Demo', CRM: 'CRM', STARTER: 'Starter', PROFESSIONAL: 'Pro', ENTERPRISE: 'Enterprise' };
+const PLAN_PRICES: Record<string, number> = { DEMO: 10, CRM: 149, STARTER: 297, PROFESSIONAL: 597, ENTERPRISE: 1497 };
 const PLAN_COLORS: Record<string, string> = { STARTER: '#64748b', PROFESSIONAL: '#3b82f6', ENTERPRISE: '#a855f7' };
 
 const BRIEFING_DAY_OPTIONS = [
@@ -29,7 +29,7 @@ const BRIEFING_HOUR_OPTIONS = [
   ...Array.from({ length: 13 }, (_, i) => ({ value: i + 6, label: `${String(i + 6).padStart(2, '0')}:00` })),
 ];
 
-type MainTab = 'financeiro' | 'relatorio' | 'configuracoes';
+type MainTab = 'clientes' | 'comissao' | 'configuracoes';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -119,7 +119,7 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes sem Comissão</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Conectados via código — sem geração de comissão.
+              Criados por você ou vinculados por código — só gera comissão quem se cadastra pelo seu link.
             </p>
           </div>
           <div className="space-y-2">
@@ -146,9 +146,74 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
   );
 }
 
-// ─── Aba: Relatório ───────────────────────────────────────────────────────────
+// ─── Aba: Clientes ────────────────────────────────────────────────────────────
 
-function TabRelatorio({
+const DIA_MS = 24 * 60 * 60 * 1000;
+
+type SituacaoTipo = 'aguardando' | 'ativo' | 'vence_logo' | 'vencido' | 'suspenso' | 'sem_vencimento';
+type Situacao = { tipo: SituacaoTipo; rotulo: string; dica: string };
+
+// Situação da conta do cliente, lida do que a org tem no banco. Não diz "pagando":
+// a tela não sabe se o acesso vigente veio de pagamento, teste ou cortesia.
+function situacaoDoCliente(c: TrafficManagerClient, agora: number): Situacao {
+  if (c.source === 'MANAGER' && !c.claimed) {
+    return { tipo: 'aguardando', rotulo: 'Aguardando o cliente', dica: 'Você criou este painel e o cliente ainda não assumiu. Mande o convite.' };
+  }
+  if (c.status === 'SUSPENDED') return { tipo: 'suspenso', rotulo: 'Suspenso', dica: 'Conta suspensa: o cliente não consegue entrar.' };
+  if (c.status === 'CANCELLED') return { tipo: 'suspenso', rotulo: 'Cancelado', dica: 'Conta cancelada: o cliente não consegue entrar.' };
+  if (!c.subscriptionEnds) return { tipo: 'sem_vencimento', rotulo: 'Sem vencimento', dica: 'Conta sem data de vencimento (cobrança combinada à parte).' };
+  const fim = new Date(c.subscriptionEnds).getTime();
+  const data = new Date(fim).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  if (fim < agora) return { tipo: 'vencido', rotulo: `Vencido em ${data}`, dica: 'O cliente cai na tela de assinatura ao entrar.' };
+  const dias = Math.ceil((fim - agora) / DIA_MS);
+  if (dias <= 7) return { tipo: 'vence_logo', rotulo: dias <= 1 ? 'Vence amanhã' : `Vence em ${dias} dias`, dica: `Acesso liberado até ${data}.` };
+  return { tipo: 'ativo', rotulo: `Ativo até ${data}`, dica: `Acesso liberado até ${data}.` };
+}
+
+const SITUACAO_COR: Record<SituacaoTipo, React.CSSProperties> = {
+  aguardando: { backgroundColor: 'var(--tint-bg)', color: 'var(--tint-ink)' },
+  ativo: { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
+  vence_logo: { backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' },
+  vencido: { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' },
+  suspenso: { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' },
+  sem_vencimento: { backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' },
+};
+
+type FiltroClientes = 'todos' | 'ativos' | 'atencao' | 'aguardando';
+const FILTROS: { id: FiltroClientes; label: string; casa: (t: SituacaoTipo) => boolean }[] = [
+  { id: 'todos', label: 'Todos', casa: () => true },
+  { id: 'ativos', label: 'Ativos', casa: (t) => t === 'ativo' || t === 'vence_logo' || t === 'sem_vencimento' },
+  { id: 'atencao', label: 'Vencidos', casa: (t) => t === 'vencido' || t === 'suspenso' },
+  { id: 'aguardando', label: 'Aguardando', casa: (t) => t === 'aguardando' },
+];
+
+const comissaoDoCliente = (c: TrafficManagerClient) => (c.source === 'LINK' ? (PLAN_PRICES[c.plan] ?? 0) * 0.1 : null);
+
+function ResumoGestor({ clients, loading }: { clients: TrafficManagerClient[]; loading: boolean }) {
+  const [agora] = useState(() => Date.now());
+  const reais = clients.filter((c) => !c.isSelf);
+  const tipos = reais.map((c) => situacaoDoCliente(c, agora).tipo);
+  const comissao = reais.reduce((soma, c) => soma + (comissaoDoCliente(c) ?? 0), 0);
+  const itens = [
+    { rotulo: 'Clientes', valor: String(reais.length), nota: `${reais.filter((c) => c.source === 'LINK').length} pelo seu link` },
+    { rotulo: 'Ativos', valor: String(tipos.filter((t) => FILTROS[1].casa(t)).length), nota: `${tipos.filter((t) => t === 'vence_logo').length} vencem em até 7 dias` },
+    { rotulo: 'Vencidos ou suspensos', valor: String(tipos.filter((t) => FILTROS[2].casa(t)).length), nota: `${tipos.filter((t) => t === 'aguardando').length} aguardando o cliente` },
+    { rotulo: 'Comissão do mês', valor: fmtMoney(comissao), nota: '10% dos clientes pelo seu link' },
+  ];
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {itens.map((i, idx) => (
+        <div key={i.rotulo} className={`ui-card ${idx === 3 ? 'ui-card-hl' : ''}`} style={{ padding: 16 }}>
+          <p className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>{i.rotulo}</p>
+          <p className="ui-big mt-2" style={{ fontSize: 24 }}>{loading ? '…' : i.valor}</p>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{loading ? '' : i.nota}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TabClientes({
   clients,
   loading,
   selfEntry,
@@ -156,6 +221,7 @@ function TabRelatorio({
   onManageReports,
   onCreateClient,
   onInviteClient,
+  onCopyReferral,
 }: {
   clients: TrafficManagerClient[];
   loading: boolean;
@@ -164,138 +230,135 @@ function TabRelatorio({
   onManageReports: (c: TrafficManagerClient) => void;
   onCreateClient: () => void;
   onInviteClient: (c: TrafficManagerClient) => void;
+  onCopyReferral: () => void;
 }) {
-  const realClients = clients.filter((c) => !c.isSelf);
+  const [filtro, setFiltro] = useState<FiltroClientes>('todos');
+  const [busca, setBusca] = useState('');
+  const [agora] = useState(() => Date.now());
+
+  const linhas = clients
+    .filter((c) => !c.isSelf)
+    .map((c) => ({ c, s: situacaoDoCliente(c, agora) }));
+  const casaFiltro = FILTROS.find((f) => f.id === filtro)!.casa;
+  const termo = busca.trim().toLowerCase();
+  const visiveis = linhas.filter(({ c, s }) => casaFiltro(s.tipo) && (!termo || c.name.toLowerCase().includes(termo)));
 
   return (
-    <div className="space-y-6">
-      {/* Minha Conta */}
+    <div className="space-y-4">
+      {/* Sua conta */}
       {selfEntry && (
-        <div className="rounded-xl p-5 space-y-3" style={card}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Minha Conta</p>
-          <div className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--accent)' }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{selfEntry.name}</p>
-                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>Você</span>
-                </div>
-                <span className="text-xs" style={{ color: PLAN_COLORS[selfEntry.plan] ?? '#64748b' }}>{PLAN_LABELS[selfEntry.plan] ?? selfEntry.plan}</span>
-              </div>
+        <div className="ui-card flex flex-wrap items-center justify-between gap-3" style={{ padding: 16 }}>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} style={{ color: 'var(--accent)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+              </svg>
             </div>
-            <button
-              onClick={() => onViewDashboard(selfEntry)}
-              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}
-            >
-              Dashboard
-            </button>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{selfEntry.name}</p>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Sua conta — os anúncios que você mesmo gerencia</p>
+            </div>
           </div>
+          <button onClick={() => onViewDashboard(selfEntry)} className="ui-btn ui-btn-secondary ui-btn-sm">Abrir dashboard</button>
         </div>
       )}
 
-      {/* Clientes */}
-      <div className="rounded-xl p-5 space-y-4" style={card}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes</p>
-            {!loading && (
-              <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}>
-                {realClients.length} {realClients.length === 1 ? 'cliente' : 'clientes'}
-              </span>
-            )}
-          </div>
-          <button
-            onClick={onCreateClient}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Criar Dashboard
-          </button>
+      {/* Filtros */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="ui-seg" role="group" aria-label="Filtrar clientes">
+          {FILTROS.map((f) => (
+            <button key={f.id} aria-pressed={filtro === f.id} onClick={() => setFiltro(f.id)}>
+              {f.label} <span style={{ opacity: 0.7 }}>{linhas.filter(({ s }) => f.casa(s.tipo)).length}</span>
+            </button>
+          ))}
         </div>
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar cliente"
+          aria-label="Buscar cliente"
+          className="rounded-xl px-3 py-2 text-sm outline-none w-full sm:w-60"
+          style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+        />
+      </div>
 
+      {/* Lista */}
+      <div className="ui-card" style={{ padding: 0 }}>
         {loading ? (
-          <div className="flex items-center gap-2 py-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-            <Spinner /> Carregando...
+          <div className="flex items-center gap-2 p-5 text-sm" style={{ color: 'var(--text-secondary)' }}>
+            <Spinner /> Carregando clientes...
           </div>
-        ) : realClients.length === 0 ? (
-          <div className="rounded-xl p-6 text-center" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Nenhum cliente conectado ainda.</p>
+        ) : linhas.length === 0 ? (
+          <div className="p-8 text-center space-y-3">
+            <p className="ui-h2">Nenhum cliente ainda</p>
+            <p className="text-sm mx-auto" style={{ color: 'var(--text-secondary)', maxWidth: 440 }}>
+              Mande seu link de indicação para o cliente se cadastrar (gera 10% de comissão) ou crie o dashboard dele com a sua conta de anúncio.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              <button onClick={onCopyReferral} className="ui-btn ui-btn-primary ui-btn-sm">Copiar link de indicação</button>
+              <button onClick={onCreateClient} className="ui-btn ui-btn-secondary ui-btn-sm">Criar dashboard</button>
+            </div>
           </div>
+        ) : visiveis.length === 0 ? (
+          <p className="p-5 text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum cliente neste filtro.</p>
         ) : (
-          <div className="space-y-2">
-            {realClients.map((client) => (
-              <div key={client.id} className="flex items-center justify-between gap-4 px-4 py-3 rounded-xl" style={{ border: '1px solid var(--border)' }}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
-                    <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{client.name.charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{client.name}</p>
-                      {client.source === 'LINK' && (
-                        <span className="text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0" style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}>
-                          via link
-                        </span>
-                      )}
+          <ul>
+            {visiveis.map(({ c, s }, i) => {
+              const comissao = comissaoDoCliente(c);
+              return (
+                <li
+                  key={c.id}
+                  className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 sm:px-5 lg:grid lg:grid-cols-[minmax(0,1fr)_11rem_7.5rem_21rem]"
+                  style={i > 0 ? { borderTop: '1px solid var(--border)' } : undefined}
+                >
+                  {/* Nome + plano + plataformas */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1 basis-60">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'var(--accent-dim)' }}>
+                      <span className="text-sm font-bold" style={{ color: 'var(--accent)' }}>{c.name.charAt(0).toUpperCase()}</span>
                     </div>
-                    <span className="text-xs" style={{ color: PLAN_COLORS[client.plan] ?? '#64748b' }}>{PLAN_LABELS[client.plan] ?? client.plan}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{c.name}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="ui-chip">{PLAN_LABELS[c.plan] ?? c.plan}</span>
+                        {c.hasMeta && <span className="ui-chip">Meta</span>}
+                        {c.hasGoogle && <span className="ui-chip">Google</span>}
+                        {c.hasKommo && <span className="ui-chip">Kommo</span>}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {client.source === 'MANAGER' && (
-                    client.claimed ? (
-                      <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' }}>
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                        </svg>
-                        Ativado
-                      </span>
+
+                  {/* Situação */}
+                  <div className="basis-40 shrink-0">
+                    <span className="ui-badge" style={{ ...SITUACAO_COR[s.tipo], fontSize: 11 }} title={s.dica}>{s.rotulo}</span>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      {c.source === 'LINK' ? 'Veio pelo seu link' : c.source === 'MANAGER' ? 'Criado por você' : 'Vinculado por código'}
+                    </p>
+                  </div>
+
+                  {/* Comissão */}
+                  <div className="basis-28 shrink-0 text-left sm:text-right">
+                    {comissao !== null ? (
+                      <>
+                        <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(comissao)}</p>
+                        <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>comissão/mês</p>
+                      </>
                     ) : (
-                      <button
-                        onClick={() => onInviteClient(client)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                        style={{ backgroundColor: 'var(--badge-success-bg)', border: '1px solid var(--badge-success-text)', color: 'var(--badge-success-text)' }}
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                        </svg>
-                        Convidar cliente
-                      </button>
-                    )
-                  )}
-                  <button
-                    onClick={() => onViewDashboard(client)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ backgroundColor: 'transparent', border: '1px solid var(--border-md)', color: 'var(--text-secondary)' }}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-                    </svg>
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={() => onManageReports(client)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                    style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent-line)', color: 'var(--accent)' }}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Relatórios Auto.
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }} title="Só gera comissão quem se cadastra pelo seu link de indicação.">Sem comissão</p>
+                    )}
+                  </div>
+
+                  {/* Ações */}
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto sm:ml-auto lg:ml-0 lg:justify-end">
+                    {s.tipo === 'aguardando' && (
+                      <button onClick={() => onInviteClient(c)} className="ui-btn ui-btn-tint ui-btn-sm">Convidar cliente</button>
+                    )}
+                    <button onClick={() => onViewDashboard(c)} className="ui-btn ui-btn-secondary ui-btn-sm">Dashboard</button>
+                    <button onClick={() => onManageReports(c)} className="ui-btn ui-btn-secondary ui-btn-sm">Relatórios</button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
       </div>
     </div>
@@ -1012,7 +1075,7 @@ export default function GestorPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<MainTab>('financeiro');
+  const [activeTab, setActiveTab] = useState<MainTab>('clientes');
 
   // ── Referral ───────────────────────────────────────────────────────────────
   const [referral, setReferral] = useState<ManagerReferral | null>(null);
@@ -1235,8 +1298,8 @@ export default function GestorPage() {
   const selfEntry = clients.find((c) => c.isSelf);
 
   const TABS: { id: MainTab; label: string }[] = [
-    { id: 'financeiro', label: 'Financeiro' },
-    { id: 'relatorio', label: 'Relatório' },
+    { id: 'clientes', label: 'Clientes' },
+    { id: 'comissao', label: 'Comissão' },
     { id: 'configuracoes', label: 'Configurações' },
   ];
 
@@ -1253,18 +1316,35 @@ export default function GestorPage() {
         </div>
       )}
 
-      {/* ── Header com tabs ─────────────────────────────────────────────── */}
-      <div className="mb-6">
-        <h1 className="ui-h1 mb-4">Gestão</h1>
-        <div className="flex border-b" style={{ borderColor: 'var(--border)' }}>
+      {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
+      <div className="mb-6 space-y-5">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="ui-h1">Gestão</h1>
+            <p className="ui-sub">Seus clientes, a situação da conta de cada um e a sua comissão.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => void handleCopyReferral()}
+              disabled={!referral}
+              className="ui-btn ui-btn-secondary ui-btn-sm"
+            >
+              {copiedReferral ? 'Link copiado' : 'Copiar link de indicação'}
+            </button>
+            <button onClick={() => setShowCreateModal(true)} className="ui-btn ui-btn-primary ui-btn-sm">
+              Criar dashboard
+            </button>
+          </div>
+        </div>
+
+        <ResumoGestor clients={clients} loading={loadingClients} />
+
+        <div className="ui-seg" role="group" aria-label="Seções da gestão">
           {TABS.map((tab) => (
             <button
               key={tab.id}
+              aria-pressed={activeTab === tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className="px-5 py-2.5 text-sm font-medium transition-colors"
-              style={activeTab === tab.id
-                ? { color: 'var(--accent)', borderBottom: '2px solid var(--accent)' }
-                : { color: 'var(--text-muted)', borderBottom: '2px solid transparent' }}
             >
               {tab.label}
             </button>
@@ -1273,12 +1353,8 @@ export default function GestorPage() {
       </div>
 
       {/* ── Conteúdo da aba ─────────────────────────────────────────────── */}
-      {activeTab === 'financeiro' && (
-        <TabFinanceiro clients={clients} loading={loadingClients} />
-      )}
-
-      {activeTab === 'relatorio' && (
-        <TabRelatorio
+      {activeTab === 'clientes' && (
+        <TabClientes
           clients={clients}
           loading={loadingClients}
           selfEntry={selfEntry}
@@ -1286,7 +1362,12 @@ export default function GestorPage() {
           onManageReports={handleManageReports}
           onCreateClient={() => setShowCreateModal(true)}
           onInviteClient={setInviteClient}
+          onCopyReferral={() => void handleCopyReferral()}
         />
+      )}
+
+      {activeTab === 'comissao' && (
+        <TabFinanceiro clients={clients} loading={loadingClients} />
       )}
 
       {activeTab === 'configuracoes' && (

@@ -298,6 +298,8 @@ export interface TrafficManagerClient {
   plan: Plan;
   status: OrgStatus;
   slug: string;
+  // null = sem vencimento (nunca bloqueia)
+  subscriptionEnds?: string | null;
   isSelf?: boolean;
   source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF' | 'MANAGER';
   claimed?: boolean;
