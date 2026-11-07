@@ -172,7 +172,7 @@ class ApiService {
   }
 
   async getClaimInfo(token: string): Promise<{ success: boolean; data: { valid: boolean; organizationName?: string; managerName?: string | null } }> {
-    const response = await this.client.get(`/auth/claim/${token}`);
+    const response = await this.client.get(`/auth/claim/${encodeURIComponent(token)}`);
     return response.data;
   }
 
