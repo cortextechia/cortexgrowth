@@ -167,7 +167,7 @@ export default function PlanoCheckout({
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    apiService.getPlans().then((r) => setPlanos(r.data)).catch(() => setPlanos([]));
+    apiService.getMyPlans().then((r) => setPlanos(r.data)).catch(() => setPlanos([]));
   }, []);
 
   const opcaoSelecionada = planos.find((p) => p.plan === plano);

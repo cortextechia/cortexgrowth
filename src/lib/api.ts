@@ -339,6 +339,13 @@ class ApiService {
     return response.data;
   }
 
+  // Planos que a org atual pode assinar — tela de assinatura. Igual à tabela pública,
+  // mais o DEMO para quem já está nele (saiu de venda em 07/11/2026).
+  async getMyPlans(): Promise<{ success: boolean; data: import('@/types').PlanOption[] }> {
+    const response = await this.client.get('/billing/plans/mine');
+    return response.data;
+  }
+
   // ─── Verificação de e-mail e recuperação de senha ───────────────────────────
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.post('/auth/verify-email', { token });
