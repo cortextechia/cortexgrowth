@@ -152,22 +152,22 @@ class ApiService {
   }
 
   async getCourtesyInfo(token: string): Promise<{ success: boolean; data: { valid: boolean; plan?: string; days?: number; managerName?: string | null } }> {
-    const response = await this.client.get(`/auth/courtesy/${token}`);
+    const response = await this.client.get(`/auth/courtesy/${encodeURIComponent(token)}`);
     return response.data;
   }
 
   async listCourtesyLinks(managerId: string): Promise<{ success: boolean; data: CourtesyLink[] }> {
-    const response = await this.client.get(`/managers/${managerId}/courtesy-links`);
+    const response = await this.client.get(`/managers/${encodeURIComponent(managerId)}/courtesy-links`);
     return response.data;
   }
 
   async createCourtesyLink(managerId: string, data: { plan?: string; days?: number; note?: string }): Promise<{ success: boolean; data: CourtesyLink }> {
-    const response = await this.client.post(`/managers/${managerId}/courtesy-links`, data);
+    const response = await this.client.post(`/managers/${encodeURIComponent(managerId)}/courtesy-links`, data);
     return response.data;
   }
 
   async cancelCourtesyLink(managerId: string, linkId: string): Promise<{ success: boolean }> {
-    const response = await this.client.delete(`/managers/${managerId}/courtesy-links/${linkId}`);
+    const response = await this.client.delete(`/managers/${encodeURIComponent(managerId)}/courtesy-links/${encodeURIComponent(linkId)}`);
     return response.data;
   }
 
