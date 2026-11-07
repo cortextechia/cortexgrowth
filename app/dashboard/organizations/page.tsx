@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import { Organization, User, Plan, OrgStatus, UserRole, UserStatus, TrafficManagerWithClients, AiQuotaKind, AiUsage } from '@/types';
 import { userLimitOf, fmtUserLimit } from '@/lib/planLimits';
+import CourtesyLinksPanel from '@/components/CourtesyLinksPanel';
 
 function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -128,6 +129,7 @@ export default function OrganizationsPage() {
   const [deletingManagerId, setDeletingManagerId] = useState<string | null>(null);
   const [clientsModal, setClientsModal] = useState<{ manager: TrafficManagerWithClients } | null>(null);
   const [linkingOrgId, setLinkingOrgId] = useState<string | null>(null);
+  const [cortesiaManagerId, setCortesiaManagerId] = useState<string | null>(null);
 
   const [editModal, setEditModal] = useState<EditModal | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -1103,6 +1105,16 @@ export default function OrganizationsPage() {
                           {isOpen ? 'Fechar' : 'Gerenciar clientes'}
                         </button>
                         <button
+                          onClick={() => setCortesiaManagerId(cortesiaManagerId === manager.id ? null : manager.id)}
+                          className="text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+                          style={cortesiaManagerId === manager.id
+                            ? { border: '1px solid var(--accent)', color: 'var(--accent)', backgroundColor: 'var(--accent-dim)' }
+                            : { border: '1px solid var(--border)', color: 'var(--text-secondary)' }
+                          }
+                        >
+                          {cortesiaManagerId === manager.id ? 'Fechar' : 'Link de cortesia'}
+                        </button>
+                        <button
                           onClick={() => void handleDeleteManager(manager.id, manager.name)}
                           disabled={deletingManagerId === manager.id}
                           className="flex items-center gap-1 text-xs disabled:opacity-50 transition-opacity hover:opacity-70"
@@ -1112,6 +1124,10 @@ export default function OrganizationsPage() {
                         </button>
                       </div>
                     </div>
+
+                    {cortesiaManagerId === manager.id && (
+                      <CourtesyLinksPanel managerId={manager.id} showToast={showToast} />
+                    )}
 
                     {isOpen && (
                       <div

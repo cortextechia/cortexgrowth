@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage, InstagramStatus, IgMessage, AiUsage } from '@/types';
+import { User, Organization, Integration, RegisterRequest, LoginRequest, AuthResponse, AiAnalysis, AdminMetrics, AttributionSummary, FunnelSummary, HistoricoData, TrafficManagerWithClients, TrafficManagerClient, ReportSchedule, ReportConfig, ManagerStats, ManagerReferral, SeoAnalysis, SeoConfig, AlertConfig, BudgetStatus, GoogleBudgetStatus, AccessibleAccount, CompanyProfile, SetupScore, MetaFormsStatus, MetaFormsPage, InstagramStatus, IgMessage, AiUsage, CourtesyLink } from '@/types';
 
 // Exportada p/ o stream SSE do CRM (fetch manual — axios não lê body em stream)
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
@@ -143,11 +143,31 @@ class ApiService {
 
   // ─── Autenticação ────────────────────────────────────────────────────────────
 
-  async register(data: RegisterRequest & { ref?: string; claim?: string }): Promise<AuthResponse> {
+  async register(data: RegisterRequest & { ref?: string; claim?: string; cortesia?: string }): Promise<AuthResponse> {
     const response = await this.client.post<AuthResponse>('/auth/register', data);
     if (response.data.accessToken) {
       this.setTokens(response.data.accessToken, response.data.refreshToken);
     }
+    return response.data;
+  }
+
+  async getCourtesyInfo(token: string): Promise<{ success: boolean; data: { valid: boolean; plan?: string; days?: number; managerName?: string | null } }> {
+    const response = await this.client.get(`/auth/courtesy/${token}`);
+    return response.data;
+  }
+
+  async listCourtesyLinks(managerId: string): Promise<{ success: boolean; data: CourtesyLink[] }> {
+    const response = await this.client.get(`/managers/${managerId}/courtesy-links`);
+    return response.data;
+  }
+
+  async createCourtesyLink(managerId: string, data: { plan?: string; days?: number; note?: string }): Promise<{ success: boolean; data: CourtesyLink }> {
+    const response = await this.client.post(`/managers/${managerId}/courtesy-links`, data);
+    return response.data;
+  }
+
+  async cancelCourtesyLink(managerId: string, linkId: string): Promise<{ success: boolean }> {
+    const response = await this.client.delete(`/managers/${managerId}/courtesy-links/${linkId}`);
     return response.data;
   }
 

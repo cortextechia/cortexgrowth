@@ -112,6 +112,7 @@ export interface RegisterRequest {
   billingCycle?: BillingCycle;
   ref?: string;
   claim?: string;
+  cortesia?: string;
 }
 
 export interface PlanOption {
@@ -300,6 +301,8 @@ export interface TrafficManagerClient {
   slug: string;
   // null = sem vencimento (nunca bloqueia)
   subscriptionEnds?: string | null;
+  // período grátis do link de cortesia; no futuro = ainda não gera comissão
+  courtesyUntil?: string | null;
   isSelf?: boolean;
   source?: 'LINK' | 'CODE' | 'ADMIN' | 'SELF' | 'MANAGER';
   claimed?: boolean;
@@ -1396,4 +1399,17 @@ export interface IgMessage {
   /** url só vem para post/reel compartilhado; o resto abre pela rota de mídia. */
   attachments: { index: number; type: string; url: string | null }[];
   sentAt: string;
+}
+
+// Link de cadastro com cortesia (gerado pelo super admin, uso único)
+export interface CourtesyLink {
+  id: string;
+  plan: string;
+  days: number;
+  note: string | null;
+  expiresAt: string;
+  usedAt?: string | null;
+  createdAt?: string;
+  organizationName?: string | null;
+  link: string | null;
 }

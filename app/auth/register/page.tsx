@@ -165,12 +165,17 @@ function RegisterContent() {
   const [refCode, setRefCode] = useState<string | null>(null);
   const [claimToken, setClaimToken] = useState<string | null>(null);
   const [claimInfo, setClaimInfo] = useState<{ valid: boolean; organizationName?: string; managerName?: string | null } | null>(null);
+  // Link de cortesia (gerado pelo super admin): o plano e os dias grátis vêm do link.
+  const [cortesiaToken, setCortesiaToken] = useState<string | null>(null);
+  const [cortesiaInfo, setCortesiaInfo] = useState<{ valid: boolean; plan?: string; days?: number; managerName?: string | null } | null>(null);
   const [planos, setPlanos] = useState<PlanOption[]>([]);
   const [plano, setPlano] = useState('STARTER');
   const [ciclo, setCiclo] = useState<BillingCycle>('MONTHLY');
 
   // Quem chega por claim assume uma org que já existe (e já tem plano) — não escolhe nada.
-  const escolhePlano = !claimInfo?.valid;
+  // Quem chega por cortesia já tem plano definido pelo link.
+  const cortesiaValida = !!cortesiaToken && !!cortesiaInfo?.valid;
+  const escolhePlano = !claimInfo?.valid && !cortesiaValida;
 
   useEffect(() => {
     apiService.getPlans().then((r) => setPlanos(r.data)).catch(() => setPlanos([]));
@@ -186,6 +191,12 @@ function RegisterContent() {
     if (planoUrl === 'CRM' || planoUrl === 'STARTER') setPlano(planoUrl);
     const cicloUrl = searchParams.get('ciclo');
     if (cicloUrl === 'MONTHLY' || cicloUrl === 'SEMIANNUAL' || cicloUrl === 'ANNUAL') setCiclo(cicloUrl);
+
+    const cortesia = searchParams.get('cortesia');
+    if (cortesia) {
+      setCortesiaToken(cortesia);
+      apiService.getCourtesyInfo(cortesia).then((res) => setCortesiaInfo(res.data)).catch(() => setCortesiaInfo({ valid: false }));
+    }
 
     const claim = searchParams.get('claim');
     if (claim) {
@@ -214,11 +225,18 @@ function RegisterContent() {
         ...(escolhePlano ? { plan: plano, billingCycle: cicloEfetivo } : {}),
         ...(refCode ? { ref: refCode } : {}),
         ...(claimToken && claimInfo?.valid ? { claim: claimToken } : {}),
+        ...(cortesiaValida && cortesiaToken ? { cortesia: cortesiaToken } : {}),
       });
       if (response.success) {
         // Quem entra por claim assume uma org que o gestor JÁ configurou — inclusive as
         // integrações, que são copiadas na criação do cliente. Mandar essa pessoa para o
         // wizard seria pedir que conectasse o que já está conectado.
+        // Cortesia: a conta já nasce liberada (dias grátis), então vai direto ao wizard.
+        if (cortesiaValida) {
+          sessionStorage.setItem('onboarding_new_account', 'true');
+          router.push('/onboarding');
+          return;
+        }
         if (claimToken && claimInfo?.valid) {
           router.push('/dashboard');
           return;
@@ -319,6 +337,18 @@ function RegisterContent() {
                 )}
               </div>
             </div>
+          ) : cortesiaValida ? (
+            <div>
+              <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
+                Seu primeiro mês é por nossa conta.
+              </h1>
+              <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Crie sua conta e use o plano <strong style={{ color: 'var(--text-primary)' }}>{cortesiaInfo?.plan === 'STARTER' ? 'Starter' : cortesiaInfo?.plan}</strong> de
+                graça por <strong style={{ color: 'var(--text-primary)' }}>{cortesiaInfo?.days} dias</strong>
+                {cortesiaInfo?.managerName ? <>, a convite de {cortesiaInfo.managerName}</> : null}.
+                Nada é cobrado agora: no fim do período você escolhe como pagar.
+              </p>
+            </div>
           ) : (
             <div>
               <h1 className="text-3xl font-bold leading-tight" style={{ color: 'var(--text-primary)' }}>
@@ -350,10 +380,17 @@ function RegisterContent() {
               </p>
             )}
 
-            {refCode && !claimToken && (
+            {refCode && !claimToken && !cortesiaValida && (
               <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
                 style={{ backgroundColor: 'var(--accent-dim)', border: '1px solid var(--accent)', color: 'var(--accent)' }}>
                 Você foi convidado por um gestor de tráfego.
+              </div>
+            )}
+
+            {cortesiaToken && cortesiaInfo && !cortesiaInfo.valid && (
+              <div className="mt-4 flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs"
+                style={{ backgroundColor: 'var(--badge-error-bg)', border: '1px solid var(--badge-error-text)', color: 'var(--badge-error-text)' }}>
+                Este link de cortesia é inválido, expirou ou já foi usado. Você ainda pode criar uma conta normal.
               </div>
             )}
 

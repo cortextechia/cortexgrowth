@@ -49,8 +49,9 @@ const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--bo
 // ─── Aba: Financeiro ──────────────────────────────────────────────────────────
 
 function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; loading: boolean }) {
-  const commissionableClients = clients.filter((c) => !c.isSelf && c.source === 'LINK');
-  const codeClients = clients.filter((c) => !c.isSelf && c.source !== 'LINK');
+  const [agora] = useState(() => Date.now());
+  const commissionableClients = clients.filter((c) => !c.isSelf && c.source === 'LINK' && !cortesiaAte(c, agora));
+  const codeClients = clients.filter((c) => !c.isSelf && (c.source !== 'LINK' || !!cortesiaAte(c, agora)));
 
   return (
     <div className="space-y-6">
@@ -119,7 +120,7 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
           <div>
             <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Clientes sem Comissão</p>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Criados por você ou vinculados por código — só gera comissão quem se cadastra pelo seu link.
+              Criados por você, vinculados por código ou ainda no período grátis — a comissão vem de quem se cadastra pelo seu link e paga.
             </p>
           </div>
           <div className="space-y-2">
@@ -150,8 +151,15 @@ function TabFinanceiro({ clients, loading }: { clients: TrafficManagerClient[]; 
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-type SituacaoTipo = 'aguardando' | 'ativo' | 'vence_logo' | 'vencido' | 'suspenso' | 'sem_vencimento';
+type SituacaoTipo = 'aguardando' | 'cortesia' | 'ativo' | 'vence_logo' | 'vencido' | 'suspenso' | 'sem_vencimento';
 type Situacao = { tipo: SituacaoTipo; rotulo: string; dica: string };
+
+// Data (dd/mm) do fim da cortesia, ou null quando o cliente não está em cortesia.
+function cortesiaAte(c: TrafficManagerClient, agora: number): string | null {
+  if (!c.courtesyUntil) return null;
+  const fim = new Date(c.courtesyUntil).getTime();
+  return fim > agora ? new Date(fim).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : null;
+}
 
 // Situação da conta do cliente, lida do que a org tem no banco. Não diz "pagando":
 // a tela não sabe se o acesso vigente veio de pagamento, teste ou cortesia.
@@ -161,6 +169,8 @@ function situacaoDoCliente(c: TrafficManagerClient, agora: number): Situacao {
   }
   if (c.status === 'SUSPENDED') return { tipo: 'suspenso', rotulo: 'Suspenso', dica: 'Conta suspensa: o cliente não consegue entrar.' };
   if (c.status === 'CANCELLED') return { tipo: 'suspenso', rotulo: 'Cancelado', dica: 'Conta cancelada: o cliente não consegue entrar.' };
+  const emCortesia = cortesiaAte(c, agora);
+  if (emCortesia) return { tipo: 'cortesia', rotulo: `Grátis até ${emCortesia}`, dica: 'Período grátis do link de cortesia. A comissão começa quando ele acaba.' };
   if (!c.subscriptionEnds) return { tipo: 'sem_vencimento', rotulo: 'Sem vencimento', dica: 'Conta sem data de vencimento (cobrança combinada à parte).' };
   const fim = new Date(c.subscriptionEnds).getTime();
   const data = new Date(fim).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -172,6 +182,7 @@ function situacaoDoCliente(c: TrafficManagerClient, agora: number): Situacao {
 
 const SITUACAO_COR: Record<SituacaoTipo, React.CSSProperties> = {
   aguardando: { backgroundColor: 'var(--tint-bg)', color: 'var(--tint-ink)' },
+  cortesia: { backgroundColor: 'var(--tint-bg)', color: 'var(--tint-ink)' },
   ativo: { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)' },
   vence_logo: { backgroundColor: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)' },
   vencido: { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' },
@@ -182,18 +193,20 @@ const SITUACAO_COR: Record<SituacaoTipo, React.CSSProperties> = {
 type FiltroClientes = 'todos' | 'ativos' | 'atencao' | 'aguardando';
 const FILTROS: { id: FiltroClientes; label: string; casa: (t: SituacaoTipo) => boolean }[] = [
   { id: 'todos', label: 'Todos', casa: () => true },
-  { id: 'ativos', label: 'Ativos', casa: (t) => t === 'ativo' || t === 'vence_logo' || t === 'sem_vencimento' },
+  { id: 'ativos', label: 'Ativos', casa: (t) => t === 'ativo' || t === 'cortesia' || t === 'vence_logo' || t === 'sem_vencimento' },
   { id: 'atencao', label: 'Vencidos', casa: (t) => t === 'vencido' || t === 'suspenso' },
   { id: 'aguardando', label: 'Aguardando', casa: (t) => t === 'aguardando' },
 ];
 
-const comissaoDoCliente = (c: TrafficManagerClient) => (c.source === 'LINK' ? (PLAN_PRICES[c.plan] ?? 0) * 0.1 : null);
+// Mesma regra do backend (my-stats): só cliente do link, e só depois da cortesia.
+const comissaoDoCliente = (c: TrafficManagerClient, agora: number) =>
+  c.source === 'LINK' && !cortesiaAte(c, agora) ? (PLAN_PRICES[c.plan] ?? 0) * 0.1 : null;
 
 function ResumoGestor({ clients, loading }: { clients: TrafficManagerClient[]; loading: boolean }) {
   const [agora] = useState(() => Date.now());
   const reais = clients.filter((c) => !c.isSelf);
   const tipos = reais.map((c) => situacaoDoCliente(c, agora).tipo);
-  const comissao = reais.reduce((soma, c) => soma + (comissaoDoCliente(c) ?? 0), 0);
+  const comissao = reais.reduce((soma, c) => soma + (comissaoDoCliente(c, agora) ?? 0), 0);
   const itens = [
     { rotulo: 'Clientes', valor: String(reais.length), nota: `${reais.filter((c) => c.source === 'LINK').length} pelo seu link` },
     { rotulo: 'Ativos', valor: String(tipos.filter((t) => FILTROS[1].casa(t)).length), nota: `${tipos.filter((t) => t === 'vence_logo').length} vencem em até 7 dias` },
@@ -304,7 +317,8 @@ function TabClientes({
         ) : (
           <ul>
             {visiveis.map(({ c, s }, i) => {
-              const comissao = comissaoDoCliente(c);
+              const comissao = comissaoDoCliente(c, agora);
+              const fimCortesia = c.source === 'LINK' ? cortesiaAte(c, agora) : null;
               return (
                 <li
                   key={c.id}
@@ -342,6 +356,8 @@ function TabClientes({
                         <p className="text-sm font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(comissao)}</p>
                         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>comissão/mês</p>
                       </>
+                    ) : fimCortesia ? (
+                      <p className="text-xs" style={{ color: 'var(--text-secondary)' }} title="Cliente em período grátis: a comissão começa quando ele passa a pagar.">Comissão a partir de {fimCortesia}</p>
                     ) : (
                       <p className="text-xs" style={{ color: 'var(--text-secondary)' }} title="Só gera comissão quem se cadastra pelo seu link de indicação.">Sem comissão</p>
                     )}
