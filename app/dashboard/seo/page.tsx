@@ -493,7 +493,7 @@ export default function SeoPage() {
   // Gestor na própria conta ("Eu") configura como ADMIN — espelha o `authorize` do backend.
   const clienteSelecionado = apiService.getSelectedClientOrgId();
   const gestorNaPropriaOrg = user?.role === UserRole.TRAFFIC_MANAGER
-    && (!clienteSelecionado || clienteSelecionado === user.organizationId);
+    && (!clienteSelecionado || clienteSelecionado === user.organization?.id);
   const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || gestorNaPropriaOrg;
 
   const [history, setHistory] = useState<SeoAnalysis[]>([]);
