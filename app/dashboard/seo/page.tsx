@@ -490,7 +490,11 @@ function SnapshotDetail({ analysis, baseline }: { analysis: SeoAnalysis; baselin
 
 export default function SeoPage() {
   const { user } = useAuth();
-  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
+  // Gestor na própria conta ("Eu") configura como ADMIN — espelha o `authorize` do backend.
+  const clienteSelecionado = apiService.getSelectedClientOrgId();
+  const gestorNaPropriaOrg = user?.role === UserRole.TRAFFIC_MANAGER
+    && (!clienteSelecionado || clienteSelecionado === user.organizationId);
+  const canEdit = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || gestorNaPropriaOrg;
 
   const [history, setHistory] = useState<SeoAnalysis[]>([]);
   const [selected, setSelected] = useState<SeoAnalysis | null>(null);
