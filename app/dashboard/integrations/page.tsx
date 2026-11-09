@@ -237,29 +237,89 @@ function MetaAccountSelector({
   );
 }
 
-// Aviso de conta Google Ads não vinculada. Diferente da Meta, aqui não há seletor:
-// o caso real é conta Google SEM Google Ads (listAccessibleCustomers vazio), em que
-// escolher conta não é opção — o certo é reconectar com outra conta. Com 2+ contas a
-// troca segue na tela do Gestor.
-function GoogleAccountNotice() {
-  const [state, setState] = useState<{ count: number } | null>(null);
+// Seletor de conta de anúncios do Google Ads — mesmo papel do da Meta. Antes só havia um aviso
+// mandando para a tela do Gestor, que só o TRAFFIC_MANAGER acessa: um ADMIN com 2+ contas no
+// login do Google ficava sem saída. A lista já vem filtrada pelo backend (só contas ativas, sem
+// a de administrador/MCC; as de debaixo de um MCC entram).
+const formatarIdGoogle = (id: string) => (id.length === 10 ? `${id.slice(0, 3)}-${id.slice(3, 6)}-${id.slice(6)}` : id);
+
+function GoogleAccountSelector({
+  currentExternalId,
+  showToast,
+  onChanged,
+}: {
+  currentExternalId: string | null;
+  showToast: (m: string, t?: 'success' | 'error') => void;
+  onChanged: () => void;
+}) {
+  const [accounts, setAccounts] = useState<{ externalId: string; name: string }[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     apiService.getGoogleAccounts()
-      .then((res) => setState(res.data.connected ? { count: res.data.accounts.length } : null))
-      .catch(() => setState(null));
+      .then((res) => setAccounts(res.data.connected ? res.data.accounts : []))
+      .catch((e) => {
+        setErro((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Não foi possível carregar as contas do Google Ads.');
+        setAccounts([]);
+      });
   }, []);
 
-  if (!state) return null;
+  const pick = async (externalId: string) => {
+    if (!externalId || externalId === currentExternalId) return;
+    setSaving(true);
+    try {
+      const res = await apiService.setGoogleAccount(externalId);
+      showToast(res.message);
+      onChanged();
+    } catch (e) {
+      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Erro ao vincular a conta.';
+      showToast(msg, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  const msg = state.count === 0
-    ? 'Esta conta Google não administra nenhuma conta de Google Ads — a sincronização não vai funcionar. Reconecte usando uma conta com acesso à conta de anúncios.'
-    : `Esta conta Google acessa ${state.count} contas de Google Ads e nenhuma foi vinculada. Selecione a conta desejada na tela do Gestor.`;
-
+  if (accounts === null) {
+    return <p className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>Carregando contas de anúncios…</p>;
+  }
+  if (erro) {
+    return <p className="mt-2 text-xs" style={{ color: 'var(--badge-warn-text)' }}>{erro}</p>;
+  }
+  if (accounts.length === 0) {
+    return (
+      <p className="mt-2 text-xs" style={{ color: 'var(--badge-warn-text)' }}>
+        Este login do Google não tem nenhuma conta de anúncios ativa do Google Ads. Reconecte usando um login com acesso à conta de anúncios.
+      </p>
+    );
+  }
+  const vinculadaNaLista = !currentExternalId || accounts.some((a) => a.externalId === currentExternalId);
   return (
-    <p className="mt-2 text-xs" style={{ color: 'var(--badge-warn-text)' }}>
-      {msg}
-    </p>
+    <div className="mt-2">
+      {!currentExternalId && (
+        <p className="text-xs mb-1" style={{ color: 'var(--badge-warn-text)' }}>
+          Nenhuma conta de anúncios selecionada — escolha a conta para sincronizar.
+        </p>
+      )}
+      {!vinculadaNaLista && (
+        <p className="text-xs mb-1" style={{ color: 'var(--badge-warn-text)' }}>
+          A conta vinculada não está mais ativa neste login (ou é de administrador). Escolha outra.
+        </p>
+      )}
+      <label className="text-xs block mb-1" style={{ color: 'var(--text-secondary)' }}>Conta de anúncios</label>
+      <select
+        value={vinculadaNaLista ? (currentExternalId ?? '') : ''}
+        disabled={saving}
+        onChange={(e) => void pick(e.target.value)}
+        className="w-full rounded-lg px-2.5 py-2 text-xs disabled:opacity-60"
+        style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border-md)', color: 'var(--text-primary)' }}
+      >
+        <option value="" disabled>Selecione a conta…</option>
+        {accounts.map((a) => (
+          <option key={a.externalId} value={a.externalId}>{a.name} ({formatarIdGoogle(a.externalId)})</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
@@ -925,9 +985,18 @@ export default function IntegrationsPage() {
                   />
                 )}
 
-                {/* Aviso de conta Google Ads não vinculada (quando conectado sem externalId) */}
-                {!isLocked && config.type === IntegrationType.GOOGLE_ADS && isConnected && !integration?.externalId && (
-                  <GoogleAccountNotice />
+                {/* Seletor de conta de anúncios do Google Ads (quando conectado) */}
+                {!isLocked && config.type === IntegrationType.GOOGLE_ADS && isConnected && (
+                  <GoogleAccountSelector
+                    currentExternalId={integration?.externalId ?? null}
+                    showToast={showToast}
+                    onChanged={() => {
+                      void loadIntegrations();
+                      apiService.getBudgetStatus()
+                        .then(({ data }) => { setMetaBudget(data.meta); setGoogleBudget(data.google); })
+                        .catch(() => {});
+                    }}
+                  />
                 )}
 
                 {/* Actions */}

@@ -472,6 +472,11 @@ class ApiService {
     return response.data;
   }
 
+  async setGoogleAccount(externalId: string): Promise<{ success: boolean; message: string; data: { externalId: string; name: string; count: number } }> {
+    const response = await this.client.put('/integrations/google/account', { externalId });
+    return response.data;
+  }
+
   async setMetaAccount(externalId: string): Promise<{ success: boolean; message: string; data: { externalId: string; name: string; count: number } }> {
     const response = await this.client.put('/integrations/meta/account', { externalId });
     return response.data;
