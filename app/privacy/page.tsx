@@ -111,8 +111,33 @@ export default function PrivacyPage() {
             </p>
           </section>
 
+          <section id="google-user-data">
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>5. Dados das APIs do Google (Uso Limitado)</h2>
+            <p>
+              Quando você conecta sua conta do Google Ads, o Cromalex Growth solicita o escopo{' '}
+              <code>https://www.googleapis.com/auth/adwords</code> e o usa <strong style={{ color: '#f1f5f9' }}>somente para ler</strong>{' '}
+              as métricas das campanhas da conta que você autorizou (custo, cliques, impressões e conversões), exibidas no seu dashboard.
+              Nunca criamos, editamos, pausamos ou excluímos campanhas, anúncios, orçamentos ou contas.
+            </p>
+            <ul className="space-y-2 mt-3 list-disc list-inside">
+              <li>Os dados do Google são usados apenas para mostrar e analisar o desempenho das suas campanhas dentro da plataforma, a pedido seu.</li>
+              <li>Não vendemos esses dados e não os usamos para publicidade, retargeting ou anúncios personalizados.</li>
+              <li>Não os transferimos a terceiros, exceto para prestar o serviço que você vê na plataforma (por exemplo, métricas agregadas enviadas à Anthropic para gerar os insights de IA do seu dashboard), para cumprir a lei ou em caso de fusão ou aquisição.</li>
+              <li>Não usamos dados do Google para desenvolver, melhorar ou treinar modelos de IA ou de aprendizado de máquina generalizados.</li>
+              <li>Ninguém da nossa equipe lê esses dados, exceto com seu consentimento expresso, por segurança, para cumprir a lei, ou quando agregados e anonimizados para operar o serviço.</li>
+              <li>Você pode revogar o acesso a qualquer momento em <a href="https://myaccount.google.com/permissions" className="underline" style={{ color: 'var(--accent)' }}>myaccount.google.com/permissions</a> ou desconectando o Google Ads em Integrações; o token é apagado da plataforma.</li>
+            </ul>
+            <p className="mt-3" lang="en">
+              Cromalex Growth&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{' '}
+              <a href="https://developers.google.com/terms/api-services-user-data-policy" className="underline" style={{ color: 'var(--accent)' }}>
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements.
+            </p>
+          </section>
+
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>5. Segurança dos dados</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>6. Segurança dos dados</h2>
             <p>Adotamos medidas técnicas rigorosas para proteger seus dados:</p>
             <ul className="space-y-2 mt-3 list-disc list-inside">
               <li>Tokens OAuth criptografados com <strong style={{ color: '#f1f5f9' }}>AES-256-GCM</strong> em repouso</li>
@@ -125,7 +150,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>6. Retenção de dados</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>7. Retenção de dados</h2>
             <p>
               Seus dados são mantidos enquanto sua conta estiver ativa. Dados de métricas de campanhas são mantidos
               por até 12 meses para análise histórica. Logs de autenticação são mantidos por 30 dias.
@@ -137,7 +162,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>7. Seus direitos (LGPD)</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Seus direitos (LGPD)</h2>
             <p>De acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você tem direito a:</p>
             <ul className="space-y-2 mt-3 list-disc list-inside">
               <li>Confirmar a existência de tratamento dos seus dados</li>
@@ -156,7 +181,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Exclusão de dados do usuário</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>9. Exclusão de dados do usuário</h2>
             <p>
               Para solicitar a exclusão completa dos seus dados da plataforma Cromalex Growth, envie um e-mail para{' '}
               <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
@@ -170,7 +195,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>9. Cookies</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>10. Cookies</h2>
             <p>
               O Cromalex Growth não utiliza cookies de rastreamento ou publicidade. Utilizamos apenas o armazenamento
               local (localStorage) do navegador para manter a sessão autenticada, com tokens JWT que expiram automaticamente.
@@ -178,7 +203,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>10. Alterações nesta política</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>11. Alterações nesta política</h2>
             <p>
               Podemos atualizar esta política periodicamente. Notificaremos usuários ativos por e-mail sobre mudanças
               significativas com pelo menos 15 dias de antecedência. O uso continuado da plataforma após a notificação
@@ -187,7 +212,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>11. Contato</h2>
+            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>12. Contato</h2>
             <p>Para dúvidas, solicitações ou reclamações relacionadas a esta política:</p>
             <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
               <p><strong style={{ color: '#f1f5f9' }}>IA Cortex Tech</strong></p>
