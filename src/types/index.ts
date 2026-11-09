@@ -51,7 +51,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  avatar?: string;
+  avatar?: string | null;
+  phone?: string | null;
   role: UserRole;
   status: UserStatus;
   emailVerified: boolean;
@@ -60,6 +61,23 @@ export interface User {
   integrations?: Integration[];
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Minha conta (GET /auth/account): dados do próprio usuário
+export interface Account {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  avatar: string | null;
+  role: UserRole;
+  emailVerified: boolean;
+  hasPassword: boolean;
+  pendingEmail: string | null;
+  pendingEmailExpires: string | null;
+  sessions: number;
+  createdAt: string;
+  lastLoginAt: string | null;
 }
 
 // ===== ORGANIZAÇÃO =====
@@ -150,7 +168,8 @@ export interface AuthContextType {
   login: (data: LoginRequest) => Promise<AuthResponse>;
   logout: () => Promise<void> | void;
   updateProfile: (data: Partial<User>) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  // Atualiza o usuário em memória depois que a tela Minha conta salvou (nome, foto, e-mail)
+  patchUser: (data: Partial<User>) => void;
 }
 
 // ===== AI INSIGHTS =====

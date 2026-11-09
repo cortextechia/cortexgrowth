@@ -250,11 +250,24 @@ const NAV_ITEMS = [
     // Rota `/dashboard/perfil` de propósito: nenhum segmento pode conter `ads`,
     // que o ad blocker cancela no browser pelo path.
     href: '/dashboard/perfil',
-    label: 'Perfil da conta',
-    busca: ['Perfil da empresa', 'Nota de configuração', 'Instagram da empresa', 'Configuração inicial'],
+    // "Perfil da empresa" desde 09/11/2026: "Perfil da conta" se confundia com a Minha conta (dados da pessoa)
+    label: 'Perfil da empresa',
+    busca: ['Perfil da conta', 'Nota de configuração', 'Instagram da empresa', 'Configuração inicial'],
     icon: (
       <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+      </svg>
+    ),
+    roles: null,
+  },
+  {
+    // Dados da PESSOA logada (nome, foto, telefone, e-mail, senha, aparelhos) — 09/11/2026
+    href: '/dashboard/conta',
+    label: 'Minha conta',
+    busca: ['Trocar senha', 'Alterar senha', 'Trocar e-mail', 'Foto de perfil', 'Telefone', 'Sair de todos os aparelhos', 'Meus dados'],
+    icon: (
+      <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
     roles: null,
@@ -283,7 +296,7 @@ const NAV_ITEMS = [
   },
   // A "Configuração Inicial" (/onboarding) NÃO tem item de menu de propósito.
   // O wizard continua existindo e roda uma vez, logo depois do pagamento
-  // (app/assinatura/page.tsx). Fora dali, quem manda é "Perfil da conta": lá todo
+  // (app/assinatura/page.tsx). Fora dali, quem manda é "Perfil da empresa": lá todo
   // ponto que falta tem link para a tela onde ele se resolve (Integrações, RADAR,
   // CRM, Inteligência Criativa), então dois itens de setup no menu seriam o mesmo
   // trabalho em dois lugares — e o do wizard sumia ao concluir, o que fazia a
@@ -784,7 +797,26 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
                 >
                   {user?.role ?? 'USER'}
                 </span>
-                <span className="text-sm max-w-[120px] truncate" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
+                <Link
+                  href="/dashboard/conta"
+                  className="flex items-center gap-2 rounded-full pl-1 pr-2 py-1 transition-colors hover:bg-[var(--bg-elevated)]"
+                  title="Minha conta"
+                  aria-label={`Minha conta${user?.name ? ` — ${user.name}` : ''}`}
+                >
+                  {user?.avatar ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.avatar} alt="" width={28} height={28} className="rounded-full object-cover shrink-0" style={{ width: 28, height: 28 }} />
+                  ) : (
+                    <span
+                      className="rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
+                      style={{ width: 28, height: 28, backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}
+                      aria-hidden
+                    >
+                      {(user?.name ?? '?').trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?'}
+                    </span>
+                  )}
+                  <span className="hidden sm:inline text-sm max-w-[120px] truncate" style={{ color: 'var(--text-secondary)' }}>{user?.name}</span>
+                </Link>
                 <ThemeToggle />
               </div>
             </div>

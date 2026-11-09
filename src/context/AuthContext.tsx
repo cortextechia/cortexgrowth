@@ -114,14 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const changePassword = async (currentPassword: string, newPassword: string) => {
-    if (!user) throw new Error('Usuário não autenticado');
-    try {
-      await apiService.changePassword(user.id, currentPassword, newPassword);
-    } catch (error) {
-      console.error('Erro ao alterar senha:', error);
-      throw error;
-    }
+  const patchUser = (data: Partial<User>) => {
+    setUser((u) => (u ? { ...u, ...data } : u));
   };
 
   const value: AuthContextType = {
@@ -134,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     updateProfile,
-    changePassword,
+    patchUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

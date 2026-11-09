@@ -193,7 +193,7 @@ export default function PerfilPage() {
           </div>
 
           <div className="flex-1 min-w-[250px]">
-            <h1 className="ui-h1">Perfil da conta</h1>
+            <h1 className="ui-h1">Perfil da empresa</h1>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
               A plataforma está usando{' '}
               <b style={{ color: 'var(--text-primary)' }}>{score.score}%</b> do que ela consegue fazer por você.

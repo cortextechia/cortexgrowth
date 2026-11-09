@@ -289,8 +289,47 @@ class ApiService {
     return response.data;
   }
 
-  async changePassword(id: string, currentPassword: string, newPassword: string): Promise<{ success: boolean }> {
-    const response = await this.client.put(`/users/${id}/password`, { currentPassword, newPassword });
+  // ─── Minha conta (sempre o próprio usuário) ─────────────────────────────────
+  async getAccount(): Promise<{ success: boolean; data: import('@/types').Account }> {
+    const response = await this.client.get('/auth/account');
+    return response.data;
+  }
+
+  async updateAccount(data: { name?: string; phone?: string | null }): Promise<{ success: boolean; message: string; data: import('@/types').Account }> {
+    const response = await this.client.put('/auth/account', data);
+    return response.data;
+  }
+
+  async updateAvatar(avatar: string | null): Promise<{ success: boolean; message: string; data: import('@/types').Account }> {
+    const response = await this.client.put('/auth/account/avatar', { avatar });
+    return response.data;
+  }
+
+  // Manda o refresh token deste aparelho: o servidor derruba todos os OUTROS e mantém este
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string; data: { revokedSessions: number } }> {
+    const response = await this.client.post('/auth/account/password', {
+      currentPassword, newPassword, currentRefreshToken: this.getRefreshToken() ?? undefined,
+    });
+    return response.data;
+  }
+
+  async logoutOtherDevices(): Promise<{ success: boolean; message: string; data: { revokedSessions: number } }> {
+    const response = await this.client.post('/auth/account/logout-others', { currentRefreshToken: this.getRefreshToken() ?? '' });
+    return response.data;
+  }
+
+  async requestEmailChange(newEmail: string, currentPassword: string): Promise<{ success: boolean; message: string; data: import('@/types').Account }> {
+    const response = await this.client.post('/auth/account/email', { newEmail, currentPassword });
+    return response.data;
+  }
+
+  async cancelEmailChange(): Promise<{ success: boolean; message: string; data: import('@/types').Account }> {
+    const response = await this.client.delete('/auth/account/email');
+    return response.data;
+  }
+
+  async confirmEmailChange(token: string): Promise<{ success: boolean; message: string; data: { email: string } }> {
+    const response = await this.client.post('/auth/account/email/confirm', { token });
     return response.data;
   }
 

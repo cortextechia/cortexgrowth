@@ -736,7 +736,7 @@ function StepDone({ onFinish }: { onFinish: (destino: string) => void }) {
           style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
         >
           <div className="flex justify-between items-baseline mb-2">
-            <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Perfil da conta</span>
+            <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>Perfil da empresa</span>
             <span className="text-xs font-semibold" style={{ color: 'var(--accent)' }}>{score.score} de 100</span>
           </div>
           <div className="h-2 rounded-full overflow-hidden mb-3" style={{ backgroundColor: 'var(--bg-surface)' }}>
