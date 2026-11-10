@@ -2163,10 +2163,27 @@ function DrawerTasks({ clientId, tasks, onAdd, onToggle, onDelete }: {
 
 const REPORT_PERIODS = [
   { value: '1', label: 'Este mês' },
-  { value: '3', label: 'Últimos 3 meses' },
-  { value: '6', label: 'Últimos 6 meses' },
-  { value: '12', label: 'Últimos 12 meses' },
+  { value: '3', label: '3 meses' },
+  { value: '6', label: '6 meses' },
+  { value: '12', label: '12 meses' },
+  { value: 'custom', label: 'Personalizado' },
 ];
+
+type ReportPeriodo = { months: number } | { from: string; to: string };
+
+// Dia de hoje em Fortaleza (AAAA-MM-DD) — o servidor recorta os dias nesse fuso.
+const hojeBRT = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+const fmtDias = (d: number) => `${d.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} dia${d === 1 ? '' : 's'}`;
+
+// Frase do período que está na tela: "1 de out. a 31 de out. de 2026".
+function periodoEmPalavras(p: CrmReport['period']): string {
+  const ini = new Date(p.since);
+  const fim = new Date(new Date(p.until).getTime() - 1);
+  const f = (d: Date, ano: boolean) => d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', ...(ano ? { year: 'numeric' } : {}), timeZone: 'America/Fortaleza' });
+  const mesmoAno = ini.toLocaleDateString('pt-BR', { year: 'numeric', timeZone: 'America/Fortaleza' }) === fim.toLocaleDateString('pt-BR', { year: 'numeric', timeZone: 'America/Fortaleza' });
+  const ate = p.months !== null ? 'hoje' : f(fim, true);
+  return `${f(ini, !mesmoAno || p.months !== null)} a ${ate}`;
+}
 
 // Barra do relatório: trilho do tema + cor da série (marca por padrão; perda/descarte usam a cor de estado).
 function ReportBar({ pct, cor = 'var(--chart-primary)' }: { pct: number; cor?: string }) {
@@ -2177,40 +2194,71 @@ function ReportBar({ pct, cor = 'var(--chart-primary)' }: { pct: number; cor?: s
   );
 }
 
-function ReportKpi({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function ReportKpi({ label, value, sub, accent }: { label: string; value: string; sub?: string; accent?: string }) {
   return (
-    <div className="ui-inset p-4">
-      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</p>
-      <p className="ui-big mt-1 !text-[24px]" style={{ color: accent ?? 'var(--text-primary)' }}>{value}</p>
+    <div className="ui-inset p-4 min-w-0">
+      <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{label}</p>
+      <p className="ui-big mt-1 !text-[22px]" style={{ color: accent ?? 'var(--text-primary)' }}>{value}</p>
+      {sub && <p className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
     </div>
   );
 }
 
 // Seção do relatório no padrão de card do design system.
-function ReportSecao({ titulo, nota, children }: { titulo: string; nota?: React.ReactNode; children: React.ReactNode }) {
+function ReportSecao({ titulo, nota, className = '', children }: { titulo: string; nota?: React.ReactNode; className?: string; children: React.ReactNode }) {
   return (
-    <section className="ui-card !p-5">
+    <section className={`ui-card !p-5 ${className}`}>
       <h3 className="ui-h2 !text-[15px]">{titulo}</h3>
-      {nota && <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{nota}</p>}
-      <div className="mt-3">{children}</div>
+      {nota && <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{nota}</p>}
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
 
+// Título de grupo dentro do relatório (Resultado · Funil · Onde e o quê · Equipe).
+function ReportGrupo({ children }: { children: React.ReactNode }) {
+  return <p className="eyebrow pt-2">{children}</p>;
+}
+
 function ReportModal({ onClose }: { onClose: () => void }) {
-  const [months, setMonths] = useState('3');
+  const [periodKey, setPeriodKey] = useState('3');
+  const [periodo, setPeriodo] = useState<ReportPeriodo>({ months: 3 });
+  const [customFrom, setCustomFrom] = useState(() => `${hojeBRT().slice(0, 8)}01`);
+  const [customTo, setCustomTo] = useState(hojeBRT);
+  const [customErro, setCustomErro] = useState<string | null>(null);
   const [report, setReport] = useState<CrmReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    apiService.getCrmReport(Number(months))
+    setErro(null);
+    apiService.getCrmReport(periodo)
       .then((res) => { if (alive && res.success) setReport(res.data); })
-      .catch(() => { /* mantém o último resultado */ })
+      .catch((e: { response?: { data?: { message?: string } } }) => {
+        if (alive) setErro(e.response?.data?.message ?? 'Não foi possível carregar o relatório. Tente de novo.');
+      })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [months]);
+  }, [periodo]);
+
+  const escolherPeriodo = (key: string) => {
+    setPeriodKey(key);
+    setCustomErro(null);
+    if (key !== 'custom') setPeriodo({ months: Number(key) });
+  };
+
+  // Mesmas regras do servidor, para o erro aparecer antes da ida: os dois dias, ordem e até 2 anos.
+  const aplicarCustom = () => {
+    if (!customFrom || !customTo) return setCustomErro('Escolha a data inicial e a final.');
+    if (customFrom > customTo) return setCustomErro('A data inicial é depois da final.');
+    const dias = (Date.parse(customTo) - Date.parse(customFrom)) / 86_400_000 + 1;
+    if (dias > 731) return setCustomErro('O período pode ter no máximo 2 anos.');
+    setCustomErro(null);
+    setPeriodo({ from: customFrom, to: customTo });
+  };
+  const customAplicado = 'from' in periodo && periodo.from === customFrom && periodo.to === customTo;
 
   const t = report?.totals;
   const maxReached = Math.max(1, ...(report?.stageFlow.map((s) => s.reached) ?? [1]));
@@ -2218,221 +2266,299 @@ function ReportModal({ onClose }: { onClose: () => void }) {
   const maxDiscard = Math.max(1, ...(report?.discards.reasons.map((r) => r.count) ?? [1]));
   // Cidades: mostra as 10 melhores e abre a lista inteira sob demanda
   const [cityRows, setCityRows] = useState(10);
+  const semMovimento = !!t && t.wonCount === 0 && t.lostCount === 0 && t.createdCount === 0 && report!.discards.total === 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 sm:p-8 bg-black/50 overflow-y-auto" onClick={onClose}>
       <div
-        className="w-full max-w-4xl rounded-[22px] p-5 sm:p-6"
+        className="w-full max-w-5xl rounded-[22px] p-5 sm:p-7"
         style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border-md)', boxShadow: '0 30px 80px rgba(0,0,0,0.35)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-wrap items-end gap-3 mb-5">
+        {/* Cabeçalho: título + período em palavras */}
+        <div className="flex items-start gap-3">
           <div className="flex-1 min-w-0">
             <p className="eyebrow">RELATÓRIO DO CRM</p>
             <h2 className="ui-h1 mt-1 !text-[26px]">Vendas</h2>
-          </div>
-          <div className="ui-seg" role="group" aria-label="Período">
-            {REPORT_PERIODS.map((p) => (
-              <button key={p.value} onClick={() => setMonths(p.value)} aria-pressed={months === p.value}>{p.label}</button>
-            ))}
+            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              {report ? periodoEmPalavras(report.period) : 'Carregando o período...'}
+            </p>
           </div>
           <button onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm !px-2.5" aria-label="Fechar">✕</button>
         </div>
 
-        {loading && !report ? (
-          <p className="text-sm py-10 text-center" style={{ color: 'var(--text-muted)' }}>Calculando...</p>
-        ) : !report ? (
-          <p className="text-sm py-10 text-center" style={{ color: 'var(--text-muted)' }}>Não foi possível carregar o relatório.</p>
-        ) : (
-          <div className="space-y-4" style={{ opacity: loading ? 0.6 : 1 }}>
-            {/* KPIs do período */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <ReportKpi label="Vendas ganhas" value={String(t!.wonCount)} accent="var(--badge-success-text)" />
-              <ReportKpi label="Receita fechada" value={fmtMoney(t!.wonValue)} accent="var(--badge-success-text)" />
-              <ReportKpi label="Perdidas" value={String(t!.lostCount)} accent={t!.lostCount > 0 ? 'var(--badge-error-text)' : undefined} />
-              <ReportKpi label="Win rate" value={t!.winRate !== null ? `${t!.winRate}%` : '—'} />
-              <ReportKpi label="Ticket médio" value={t!.wonCount > 0 ? fmtMoney(t!.avgTicket) : '—'} />
-              <ReportKpi label="Ciclo médio" value={t!.avgCycleDays !== null ? `${t!.avgCycleDays} dias` : '—'} />
-            </div>
-
-            {/* Conversão por etapa (coorte: vendas criadas no período) */}
-            <ReportSecao titulo="Conversão por etapa" nota={<>
-                {t!.createdCount} venda{t!.createdCount === 1 ? '' : 's'} criada{t!.createdCount === 1 ? '' : 's'} no período · quantas passaram por cada etapa
-              </>}>
-              <div className="space-y-2">
-                {report.stageFlow.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2 text-xs">
-                    <span className="w-36 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{s.name}</span>
-                    <ReportBar pct={(s.reached / maxReached) * 100} />
-                    <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{s.reached}</span>
-                    <span className="w-12 text-right tabular-nums shrink-0" style={{ color: 'var(--text-muted)' }}>
-                      {s.conversionFromPrev !== null ? `${s.conversionFromPrev}%` : '—'}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex items-center gap-2 text-xs pt-2" style={{ borderTop: '1px solid var(--border)' }}>
-                  <span
-                    className="w-36 shrink-0 font-semibold leading-tight"
-                    style={{ color: 'var(--badge-success-text)' }}
-                    title="Das vendas criadas no período, quantas foram ganhas. Diferente do card 'Vendas ganhas' do topo, que conta as FECHADAS no período. Pode passar do número da última etapa: ganhar não exige percorrer o funil inteiro."
-                  >
-                    Ganhas (das criadas no período)
-                  </span>
-                  <ReportBar pct={(t!.cohortWon / maxReached) * 100} cor="var(--badge-success-text)" />
-                  <span className="w-8 text-right tabular-nums shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>{t!.cohortWon}</span>
-                  <span className="w-12 shrink-0" />
-                </div>
-              </div>
-            </ReportSecao>
-
-            {/* Tempo médio por etapa */}
-            <ReportSecao titulo="Tempo médio em cada etapa">
-              <div className="flex flex-wrap gap-2">
-                {report.stageDurations.map((s) => (
-                  <span
-                    key={s.id}
-                    className="ui-inset inline-flex items-baseline gap-2 px-3 py-2 text-xs"
-                    style={{ color: 'var(--text-secondary)' }}
-                    title={s.samples > 0 ? `${s.samples} passagem(ns) pela etapa` : 'Sem passagens no período'}
-                  >
-                    {s.name}
-                    <strong className="text-sm tabular-nums" style={{ color: 'var(--text-primary)' }}>{s.avgDays !== null ? `${s.avgDays}d` : '—'}</strong>
-                  </span>
-                ))}
-              </div>
-            </ReportSecao>
-
-            {/* Motivos de perda */}
-            {report.lostReasons.length > 0 && (
-              <ReportSecao titulo="Motivos de perda">
-                <div className="space-y-2">
-                  {report.lostReasons.map((r) => (
-                    <div key={r.reason} className="flex items-center gap-2 text-xs">
-                      <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
-                      <ReportBar pct={(r.count / maxLost) * 100} cor="var(--badge-error-text)" />
-                      <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </ReportSecao>
-            )}
-
-            {/* Leads descartados — separado das vendas de propósito: aqui não
-                houve venda nenhuma, é o contato que nunca virou conversa. */}
-            {report.discards.total > 0 && (
-              <ReportSecao titulo={`Leads descartados: ${report.discards.total}`} nota={<>
-                  Lead que não qualificou — não entra em venda perdida nem no win rate.
-                  Muito &quot;clique errado no anúncio&quot; aqui é sinal de mídia, não de vendedor.
-                </>}>
-                <div className="space-y-2">
-                  {report.discards.reasons.map((r) => (
-                    <div key={r.reason} className="flex items-center gap-2 text-xs">
-                      <span className="w-44 truncate shrink-0" style={{ color: 'var(--text-secondary)' }}>{r.reason}</span>
-                      <ReportBar pct={(r.count / maxDiscard) * 100} cor="var(--warn-mark)" />
-                      <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
-                    </div>
-                  ))}
-                </div>
-              </ReportSecao>
-            )}
-
-            {/* Por cidade — de onde vem quem chega e onde o dinheiro fecha */}
-            {report.cities.length > 0 && (
-              <ReportSecao titulo="Por cidade" nota="Leads = cards criados no período · Receita = vendas ganhas. Só conta card com cidade preenchida.">
-                <div className="overflow-x-auto">
-                  <table className="ui-table !text-[13px]">
-                    <thead>
-                      <tr>
-                        <th>Cidade</th>
-                        <th className="ui-num">Leads</th>
-                        <th className="ui-num">Vendas</th>
-                        <th className="ui-num">Receita</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.cities.slice(0, cityRows).map((c) => (
-                        <tr key={c.label}>
-                          <td>{c.label}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
-                          <td className="ui-num font-semibold" style={{ color: c.wonValue > 0 ? 'var(--badge-success-text)' : 'var(--text-muted)' }}>
-                            {fmtMoney(c.wonValue)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {report.cities.length > cityRows && (
-                  <button
-                    onClick={() => setCityRows(report.cities.length)}
-                    className="ui-btn ui-btn-secondary ui-btn-sm mt-3"
-                  >
-                    Ver todas as {report.cities.length} cidades
-                  </button>
-                )}
-              </ReportSecao>
-            )}
-
-            {/* Produtos mais vendidos — só vendas montadas por produto */}
-            {(report.products?.length ?? 0) > 0 && (
-              <ReportSecao titulo="Produtos mais vendidos" nota="Vendas ganhas no período montadas por produto. A receita já desconta o desconto da venda, dividido entre os produtos dela.">
-                <div className="overflow-x-auto">
-                  <table className="ui-table !text-[13px]">
-                    <thead>
-                      <tr>
-                        <th>Produto</th>
-                        <th className="ui-num">Vendas</th>
-                        <th className="ui-num">Unidades</th>
-                        <th className="ui-num">Receita</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.products!.map((p) => (
-                        <tr key={p.name}>
-                          <td>{p.name}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.sales}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.quantity}</td>
-                          <td className="ui-num font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.revenue)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </ReportSecao>
-            )}
-
-            {/* Por vendedor */}
-            {report.sellers.length > 0 && (
-              <ReportSecao titulo="Por vendedor">
-                <div className="overflow-x-auto">
-                  <table className="ui-table !text-[13px]">
-                    <thead>
-                      <tr>
-                        <th>Vendedor</th>
-                        <th className="ui-num">Ganhas</th>
-                        <th className="ui-num">Receita</th>
-                        <th className="ui-num">Ticket médio</th>
-                        <th className="ui-num">Win rate</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.sellers.map((s) => (
-                        <tr key={s.id ?? '_none'}>
-                          <td className="font-medium">{s.name}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount}</td>
-                          <td className="ui-num font-semibold" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(s.wonValue)}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount > 0 ? fmtMoney(s.avgTicket) : '—'}</td>
-                          <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.winRate !== null ? `${s.winRate}%` : '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </ReportSecao>
-            )}
+        {/* Período */}
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="ui-seg" role="group" aria-label="Período">
+            {REPORT_PERIODS.map((p) => (
+              <button key={p.value} onClick={() => escolherPeriodo(p.value)} aria-pressed={periodKey === p.value}>{p.label}</button>
+            ))}
           </div>
+          {periodKey === 'custom' && (
+            <form
+              className="flex flex-wrap items-end gap-2"
+              onSubmit={(e) => { e.preventDefault(); aplicarCustom(); }}
+            >
+              <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                De
+                <input
+                  type="date" value={customFrom} max={customTo || undefined}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="rounded-lg px-2.5 py-1.5 text-sm" style={input}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Até
+                <input
+                  type="date" value={customTo} min={customFrom || undefined}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="rounded-lg px-2.5 py-1.5 text-sm" style={input}
+                />
+              </label>
+              <button type="submit" className="ui-btn ui-btn-primary ui-btn-sm" disabled={customAplicado && !loading}>
+                {customAplicado ? 'Aplicado' : 'Aplicar'}
+              </button>
+            </form>
+          )}
+        </div>
+        {customErro && periodKey === 'custom' && (
+          <p className="mt-2 text-xs" role="alert" style={{ color: 'var(--badge-error-text)' }}>{customErro}</p>
         )}
+        {periodKey === 'custom' && !('from' in periodo) && !customErro && (
+          <p className="mt-2 text-xs" style={{ color: 'var(--text-secondary)' }}>Escolha as datas e clique em Aplicar.</p>
+        )}
+
+        <div className="mt-6">
+          {erro ? (
+            <div className="ui-card text-center py-10">
+              <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>{erro}</p>
+            </div>
+          ) : loading && !report ? (
+            <p className="text-sm py-10 text-center" style={{ color: 'var(--text-secondary)' }}>Calculando...</p>
+          ) : !report ? null : semMovimento ? (
+            <div className="ui-card text-center py-12">
+              <p className="ui-h2">Nada aconteceu neste período</p>
+              <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhuma venda criada, ganha, perdida ou lead descartado. Experimente um período maior.</p>
+            </div>
+          ) : (
+            <div className="space-y-4 transition-opacity" style={{ opacity: loading ? 0.55 : 1 }} aria-busy={loading}>
+              <ReportGrupo>RESULTADO</ReportGrupo>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)]">
+                {/* Destaque: receita */}
+                <div className="ui-card ui-card-hl !p-5 flex flex-col justify-between min-w-0">
+                  <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Receita fechada</p>
+                  <p className="ui-big mt-2 !text-[34px] break-words">{fmtMoney(t!.wonValue)}</p>
+                  <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                    {t!.wonCount} venda{t!.wonCount === 1 ? '' : 's'} ganha{t!.wonCount === 1 ? '' : 's'}
+                    {t!.wonCount > 0 && <> · ticket médio {fmtMoney(t!.avgTicket)}</>}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <ReportKpi label="Win rate" value={t!.winRate !== null ? `${t!.winRate}%` : '—'} sub="das vendas decididas" />
+                  <ReportKpi label="Perdidas" value={String(t!.lostCount)} accent={t!.lostCount > 0 ? 'var(--badge-error-text)' : undefined} />
+                  <ReportKpi label="Ciclo médio" value={t!.avgCycleDays !== null ? `${fmtDias(t!.avgCycleDays)}` : '—'} sub="da criação ao ganho" />
+                  <ReportKpi label="Vendas criadas" value={String(t!.createdCount)} />
+                  <ReportKpi label="Ganhas das criadas" value={String(t!.cohortWon)} sub="criadas no período" />
+                  <ReportKpi label="Leads descartados" value={String(report.discards.total)} accent={report.discards.total > 0 ? 'var(--warn-mark)' : undefined} />
+                </div>
+              </div>
+
+              <ReportGrupo>FUNIL</ReportGrupo>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {/* Conversão por etapa (coorte: vendas criadas no período) */}
+                <ReportSecao titulo="Conversão por etapa" nota={<>
+                    {t!.createdCount} venda{t!.createdCount === 1 ? '' : 's'} criada{t!.createdCount === 1 ? '' : 's'} no período · quantas passaram por cada etapa e a % que seguiu da anterior
+                  </>}>
+                  <div className="space-y-2.5">
+                    {report.stageFlow.map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 text-xs">
+                        <span className="w-32 truncate shrink-0" style={{ color: 'var(--text-secondary)' }} title={s.name}>{s.name}</span>
+                        <ReportBar pct={(s.reached / maxReached) * 100} />
+                        <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{s.reached}</span>
+                        <span className="w-11 text-right tabular-nums shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                          {s.conversionFromPrev !== null ? `${s.conversionFromPrev}%` : '—'}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2 text-xs pt-2.5" style={{ borderTop: '1px solid var(--border)' }}>
+                      <span
+                        className="w-32 shrink-0 font-semibold leading-tight"
+                        style={{ color: 'var(--badge-success-text)' }}
+                        title="Das vendas criadas no período, quantas foram ganhas. Diferente da receita do topo, que conta as FECHADAS no período. Pode passar do número da última etapa: ganhar não exige percorrer o funil inteiro."
+                      >
+                        Ganhas
+                      </span>
+                      <ReportBar pct={(t!.cohortWon / maxReached) * 100} cor="var(--badge-success-text)" />
+                      <span className="w-8 text-right tabular-nums shrink-0 font-semibold" style={{ color: 'var(--badge-success-text)' }}>{t!.cohortWon}</span>
+                      <span className="w-11 shrink-0" />
+                    </div>
+                  </div>
+                </ReportSecao>
+
+                {/* Tempo médio por etapa */}
+                <ReportSecao titulo="Tempo médio em cada etapa" nota="Quanto tempo, em média, o card fica parado em cada etapa antes de seguir.">
+                  <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                    {report.stageDurations.map((s) => (
+                      <div
+                        key={s.id}
+                        className="flex items-baseline justify-between gap-3 py-2 text-sm first:pt-0"
+                        style={{ borderColor: 'var(--border)' }}
+                        title={s.samples > 0 ? `${s.samples} passagem(ns) pela etapa` : 'Sem passagens no período'}
+                      >
+                        <span className="truncate" style={{ color: 'var(--text-secondary)' }}>{s.name}</span>
+                        <strong className="tabular-nums shrink-0" style={{ color: s.avgDays !== null ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                          {s.avgDays !== null ? fmtDias(s.avgDays) : '—'}
+                        </strong>
+                      </div>
+                    ))}
+                  </div>
+                </ReportSecao>
+
+                {/* Motivos de perda */}
+                {report.lostReasons.length > 0 && (
+                  <ReportSecao titulo="Motivos de perda" nota="Vendas perdidas no período, pelo motivo que o vendedor marcou.">
+                    <div className="space-y-2.5">
+                      {report.lostReasons.map((r) => (
+                        <div key={r.reason} className="flex items-center gap-2 text-xs">
+                          <span className="w-40 truncate shrink-0" style={{ color: 'var(--text-secondary)' }} title={r.reason}>{r.reason}</span>
+                          <ReportBar pct={(r.count / maxLost) * 100} cor="var(--badge-error-text)" />
+                          <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ReportSecao>
+                )}
+
+                {/* Leads descartados — separado das vendas de propósito: aqui não
+                    houve venda nenhuma, é o contato que nunca virou conversa. */}
+                {report.discards.total > 0 && (
+                  <ReportSecao titulo={`Leads descartados: ${report.discards.total}`} nota={<>
+                      Lead que não qualificou — não entra em venda perdida nem no win rate.
+                      Muito &quot;clique errado no anúncio&quot; aqui é sinal de mídia, não de vendedor.
+                    </>}>
+                    <div className="space-y-2.5">
+                      {report.discards.reasons.map((r) => (
+                        <div key={r.reason} className="flex items-center gap-2 text-xs">
+                          <span className="w-40 truncate shrink-0" style={{ color: 'var(--text-secondary)' }} title={r.reason}>{r.reason}</span>
+                          <ReportBar pct={(r.count / maxDiscard) * 100} cor="var(--warn-mark)" />
+                          <span className="w-8 text-right tabular-nums shrink-0" style={{ color: 'var(--text-primary)' }}>{r.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </ReportSecao>
+                )}
+              </div>
+
+              {(report.cities.length > 0 || (report.products?.length ?? 0) > 0) && (
+                <>
+                  <ReportGrupo>ONDE E O QUÊ</ReportGrupo>
+                  <div className={`grid gap-4 ${report.cities.length > 0 && (report.products?.length ?? 0) > 0 ? 'lg:grid-cols-2' : ''}`}>
+                    {/* Por cidade — de onde vem quem chega e onde o dinheiro fecha */}
+                    {report.cities.length > 0 && (
+                      <ReportSecao titulo="Por cidade" nota="Leads = cards criados no período · Receita = vendas ganhas. Só conta card com cidade preenchida.">
+                        <div className="overflow-x-auto">
+                          <table className="ui-table !text-[13px]">
+                            <thead>
+                              <tr>
+                                <th>Cidade</th>
+                                <th className="ui-num">Leads</th>
+                                <th className="ui-num">Vendas</th>
+                                <th className="ui-num">Receita</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {report.cities.slice(0, cityRows).map((c) => (
+                                <tr key={c.label}>
+                                  <td>{c.label}</td>
+                                  <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.leads}</td>
+                                  <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{c.wonCount}</td>
+                                  <td className="ui-num font-semibold" style={{ color: c.wonValue > 0 ? 'var(--badge-success-text)' : 'var(--text-secondary)' }}>
+                                    {fmtMoney(c.wonValue)}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        {report.cities.length > cityRows && (
+                          <button
+                            onClick={() => setCityRows(report.cities.length)}
+                            className="ui-btn ui-btn-secondary ui-btn-sm mt-3"
+                          >
+                            Ver todas as {report.cities.length} cidades
+                          </button>
+                        )}
+                      </ReportSecao>
+                    )}
+
+                    {/* Produtos mais vendidos — só vendas montadas por produto */}
+                    {(report.products?.length ?? 0) > 0 && (
+                      <ReportSecao titulo="Produtos mais vendidos" nota="Vendas ganhas no período montadas por produto. A receita já desconta o desconto da venda, dividido entre os produtos dela.">
+                        <div className="overflow-x-auto">
+                          <table className="ui-table !text-[13px]">
+                            <thead>
+                              <tr>
+                                <th>Produto</th>
+                                <th className="ui-num">Vendas</th>
+                                <th className="ui-num">Unidades</th>
+                                <th className="ui-num">Receita</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {report.products!.map((p) => (
+                                <tr key={p.name}>
+                                  <td>{p.name}</td>
+                                  <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.sales}</td>
+                                  <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{p.quantity}</td>
+                                  <td className="ui-num font-semibold" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.revenue)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </ReportSecao>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Por vendedor */}
+              {report.sellers.length > 0 && (
+                <>
+                  <ReportGrupo>EQUIPE</ReportGrupo>
+                  <ReportSecao titulo="Por vendedor" nota="Vendas ganhas e perdidas no período, pelo responsável do card.">
+                    <div className="overflow-x-auto">
+                      <table className="ui-table !text-[13px]">
+                        <thead>
+                          <tr>
+                            <th>Vendedor</th>
+                            <th className="ui-num">Ganhas</th>
+                            <th className="ui-num">Perdidas</th>
+                            <th className="ui-num">Receita</th>
+                            <th className="ui-num">Ticket médio</th>
+                            <th className="ui-num">Win rate</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.sellers.map((s) => (
+                            <tr key={s.id ?? '_none'}>
+                              <td className="font-medium">{s.name}</td>
+                              <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount}</td>
+                              <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.lostCount}</td>
+                              <td className="ui-num font-semibold" style={{ color: 'var(--badge-success-text)' }}>{fmtMoney(s.wonValue)}</td>
+                              <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.wonCount > 0 ? fmtMoney(s.avgTicket) : '—'}</td>
+                              <td className="ui-num" style={{ color: 'var(--text-secondary)' }}>{s.winRate !== null ? `${s.winRate}%` : '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </ReportSecao>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

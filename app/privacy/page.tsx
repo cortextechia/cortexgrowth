@@ -1,240 +1,300 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import LogoCromalex from '@/components/LogoCromalex';
 
 export const metadata: Metadata = {
   title: 'Política de Privacidade — Cromalex Growth',
   description: 'Saiba como o Cromalex Growth coleta, usa e protege seus dados pessoais.',
 };
 
+// Data fixa: muda só quando o texto mudar (antes era a data do dia, o que dizia que a
+// política tinha sido atualizada hoje toda vez que alguém abria a página).
+const ATUALIZADA_EM = '10 de novembro de 2026';
+const EMAIL = 'privacidade@iacortextech.com.br';
+
+const SECOES = [
+  { id: 'introducao', titulo: 'Introdução' },
+  { id: 'dados', titulo: 'Dados que coletamos' },
+  { id: 'uso', titulo: 'Como usamos seus dados' },
+  { id: 'compartilhamento', titulo: 'Com quem compartilhamos' },
+  { id: 'google-user-data', titulo: 'Dados das APIs do Google (Uso Limitado)' },
+  { id: 'seguranca', titulo: 'Segurança dos dados' },
+  { id: 'retencao', titulo: 'Retenção de dados' },
+  { id: 'direitos', titulo: 'Seus direitos (LGPD)' },
+  { id: 'exclusao', titulo: 'Exclusão de dados do usuário' },
+  { id: 'cookies', titulo: 'Cookies e armazenamento local' },
+  { id: 'alteracoes', titulo: 'Alterações nesta política' },
+  { id: 'contato', titulo: 'Contato' },
+] as const;
+
+function Secao({ n, children }: { n: number; children: React.ReactNode }) {
+  const s = SECOES[n - 1];
+  return (
+    <section id={s.id} className="scroll-mt-24">
+      <p className="eyebrow">{String(n).padStart(2, '0')}</p>
+      <h2 className="ui-h2 mt-1 !text-[19px]">{s.titulo}</h2>
+      <div className="mt-3 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function Lista({ children }: { children: React.ReactNode }) {
+  return <ul className="list-disc space-y-1.5 pl-5 marker:text-[var(--text-muted)]">{children}</ul>;
+}
+
+function Grupo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="ui-inset p-4">
+      <h3 className="mb-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{titulo}</h3>
+      {children}
+    </div>
+  );
+}
+
+function B({ children }: { children: React.ReactNode }) {
+  return <strong style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{children}</strong>;
+}
+
+function A({ href, children, lang }: { href: string; children: React.ReactNode; lang?: string }) {
+  return (
+    <a href={href} lang={lang} className="underline underline-offset-2" style={{ color: 'var(--text-primary)', textDecorationColor: 'var(--accent)' }}>
+      {children}
+    </a>
+  );
+}
+
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #080d19 0%, #0a1628 50%, #0d1f3c 100%)', color: '#f1f5f9' }}>
-
-      {/* Navbar simples */}
-      <nav className="border-b px-6 py-4" style={{ borderColor: 'rgba(255,255,255,0.06)', background: 'rgba(8,13,25,0.9)' }}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)', color: 'var(--text-secondary)' }}>
+      <nav className="sticky top-0 z-10 border-b px-4 py-3 sm:px-6" style={{ borderColor: 'var(--border)', backgroundColor: 'color-mix(in srgb, var(--bg-base) 88%, transparent)', backdropFilter: 'blur(10px)' }}>
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #3b82f6, #1d4ed8)' }}>
-              <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-              </svg>
-            </div>
-            <span className="font-bold text-white">Cromalex Growth</span>
+            <LogoCromalex size={26} />
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Cromalex Growth</span>
           </Link>
-          <Link href="/" className="text-sm transition-colors" style={{ color: '#94a3b8' }}>
-            ← Voltar
-          </Link>
+          <Link href="/" className="ui-btn ui-btn-secondary ui-btn-sm">Voltar ao início</Link>
         </div>
       </nav>
 
-      {/* Conteúdo */}
-      <main className="max-w-4xl mx-auto px-6 py-16">
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold mb-3" style={{ color: '#f1f5f9' }}>Política de Privacidade</h1>
-          <p className="text-sm" style={{ color: '#475569' }}>Última atualização: {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-        </div>
+      <header className="mx-auto max-w-5xl px-4 pb-8 pt-12 sm:px-6 sm:pt-16">
+        <p className="eyebrow">DOCUMENTO LEGAL</p>
+        <h1 className="ui-h1 mt-2 !text-[34px] sm:!text-[40px]">Política de Privacidade</h1>
+        <p className="ui-sub">Como o Cromalex Growth coleta, usa, guarda e protege os dados de quem usa a plataforma e dos contatos que chegam pelo CRM.</p>
+        <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>Última atualização: {ATUALIZADA_EM}</p>
+      </header>
 
-        <div className="space-y-10 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+      <div className="mx-auto grid max-w-5xl gap-10 px-4 pb-20 sm:px-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-20 lg:self-start">
+          <nav aria-label="Sumário" className="ui-card !p-4">
+            <p className="mb-2 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Nesta página</p>
+            <ol className="space-y-1 text-[13px]">
+              {SECOES.map((s, i) => (
+                <li key={s.id}>
+                  <a href={`#${s.id}`} className="flex gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]">
+                    <span className="font-mono text-[11px] leading-5" style={{ color: 'var(--text-muted)' }}>{String(i + 1).padStart(2, '0')}</span>
+                    <span>{s.titulo}</span>
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </aside>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>1. Introdução</h2>
+        <main className="max-w-[720px] space-y-12 text-[15px] leading-relaxed">
+          <Secao n={1}>
             <p>
-              O <strong style={{ color: '#f1f5f9' }}>Cromalex Growth</strong>, desenvolvido e operado pela <strong style={{ color: '#f1f5f9' }}>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</strong>
-              {' '}(CNPJ 52.722.681/0001-03), é uma plataforma SaaS de analytics de marketing que centraliza dados
-              de Meta Ads, Google Ads e Kommo CRM em um único dashboard inteligente.
+              O <B>Cromalex Growth</B>, desenvolvido e operado pela <B>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</B>{' '}
+              (CNPJ 52.722.681/0001-03), é uma plataforma de marketing e vendas que reúne num só lugar os dados de Meta Ads e
+              Google Ads, um CRM próprio com WhatsApp e Instagram, e análises feitas por inteligência artificial.
             </p>
-            <p className="mt-3">
-              Esta Política de Privacidade descreve como coletamos, usamos, armazenamos e protegemos suas informações
-              ao utilizar nossa plataforma. Ao criar uma conta e usar o Cromalex Growth, você concorda com os termos desta política.
+            <p>
+              Esta política descreve como coletamos, usamos, guardamos e protegemos as informações tratadas na plataforma.
+              Ao criar uma conta e usar o Cromalex Growth, você concorda com ela.
             </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>2. Dados que coletamos</h2>
-            <div className="space-y-4">
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <h3 className="font-medium mb-2" style={{ color: '#f1f5f9' }}>Dados de cadastro</h3>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li>Nome completo</li>
-                  <li>Endereço de e-mail</li>
-                  <li>Senha (armazenada com hash bcrypt — nunca em texto plano)</li>
-                  <li>Nome da organização/empresa</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <h3 className="font-medium mb-2" style={{ color: '#f1f5f9' }}>Dados de integrações OAuth</h3>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li>Tokens de acesso OAuth (Meta Ads, Google Ads, Kommo CRM) — armazenados criptografados com AES-256-GCM</li>
-                  <li>Métricas de campanhas de anúncios (gastos, impressões, cliques, conversões)</li>
-                  <li>Dados de leads e negociações do CRM (nome, status, pipeline)</li>
-                  <li>ID de contas de anúncios vinculadas</li>
-                </ul>
-              </div>
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <h3 className="font-medium mb-2" style={{ color: '#f1f5f9' }}>Dados de uso</h3>
-                <ul className="space-y-1 list-disc list-inside">
-                  <li>Logs de acesso e autenticação</li>
-                  <li>Data e hora de login</li>
-                  <li>Endereço IP (para segurança e rate limiting)</li>
-                </ul>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>3. Como usamos seus dados</h2>
-            <ul className="space-y-2 list-disc list-inside">
-              <li>Autenticar e manter sua sessão na plataforma</li>
-              <li>Importar e exibir métricas de performance de marketing no dashboard</li>
-              <li>Gerar análises e insights automáticos via agentes de IA</li>
-              <li>Enviar alertas e notificações sobre sua conta</li>
-              <li>Melhorar a segurança e prevenir fraudes</li>
-              <li>Cumprir obrigações legais</li>
-            </ul>
-            <p className="mt-3">
-              <strong style={{ color: '#f1f5f9' }}>Não</strong> utilizamos seus dados para fins publicitários, não os vendemos
-              a terceiros e não os compartilhamos com parceiros comerciais.
+            <p>
+              Para os dados da sua conta, nós somos o <B>controlador</B>. Para os dados dos seus contatos e clientes que entram
+              no CRM (conversas, telefones, leads), a sua empresa é a controladora e nós atuamos como <B>operador</B>: tratamos esses
+              dados só para prestar o serviço, conforme as suas instruções.
             </p>
-          </section>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>4. Compartilhamento de dados</h2>
-            <p>Seus dados são compartilhados apenas nas seguintes situações:</p>
-            <ul className="space-y-2 mt-3 list-disc list-inside">
-              <li><strong style={{ color: '#f1f5f9' }}>Meta Platforms Inc.</strong> — via API oficial do Meta Ads, para importação de dados de campanhas autorizadas por você via OAuth.</li>
-              <li><strong style={{ color: '#f1f5f9' }}>Google LLC</strong> — via API oficial do Google Ads e Google Analytics, para importação de métricas autorizadas por você.</li>
-              <li><strong style={{ color: '#f1f5f9' }}>Kommo (amocrm)</strong> — via API oficial do Kommo CRM, para sincronização de leads autorizados por você.</li>
-              <li><strong style={{ color: '#f1f5f9' }}>Anthropic (Claude API)</strong> — para geração de insights de IA. Apenas métricas agregadas são enviadas, sem dados pessoais identificáveis.</li>
-            </ul>
-            <p className="mt-3">
-              Nenhuma outra empresa ou terceiro tem acesso aos seus dados.
+          <Secao n={2}>
+            <Grupo titulo="Dados da sua conta">
+              <Lista>
+                <li>Nome, e-mail, telefone (opcional) e foto de perfil (opcional)</li>
+                <li>Senha, guardada só como hash bcrypt, nunca em texto</li>
+                <li>Nome e perfil da empresa (ramo, produtos, público), usados para dar contexto às análises</li>
+              </Lista>
+            </Grupo>
+            <Grupo titulo="Dados de cobrança">
+              <Lista>
+                <li>Nome ou razão social, CPF ou CNPJ e e-mail para emitir a cobrança</li>
+                <li>Os dados do cartão são digitados e processados pelo Asaas; não passam pelos nossos servidores nem ficam guardados conosco</li>
+              </Lista>
+            </Grupo>
+            <Grupo titulo="Dados das integrações que você conecta">
+              <Lista>
+                <li>Tokens de acesso (Meta, Google, Instagram, Kommo), guardados criptografados com AES-256-GCM</li>
+                <li>Métricas das campanhas de anúncios: investimento, impressões, cliques, conversões e identificação dos anúncios</li>
+                <li>Leads e negociações do Kommo CRM, quando conectado</li>
+              </Lista>
+            </Grupo>
+            <Grupo titulo="Dados dos seus contatos no CRM">
+              <Lista>
+                <li>Conversas do WhatsApp do número que você conecta: texto, fotos, áudios, vídeos, documentos e localização enviados nas conversas</li>
+                <li>Mensagens do Direct do Instagram da conta que você conecta</li>
+                <li>Respostas dos formulários de anúncios da Meta (Lead Ads), como nome, telefone e e-mail do interessado</li>
+                <li>Informações que a sua equipe registra: etapa do funil, vendas, tarefas, anotações, motivos de perda e origem do contato</li>
+              </Lista>
+            </Grupo>
+            <Grupo titulo="Dados de uso">
+              <Lista>
+                <li>Data e hora de login e aparelhos com sessão aberta</li>
+                <li>Endereço IP, usado para segurança e limite de requisições</li>
+              </Lista>
+            </Grupo>
+          </Secao>
+
+          <Secao n={3}>
+            <Lista>
+              <li>Autenticar você e manter sua sessão</li>
+              <li>Mostrar as métricas de marketing e o funil de vendas no painel</li>
+              <li>Receber e enviar as mensagens do CRM em seu nome, incluindo as mensagens automáticas e os disparos que você configurar</li>
+              <li>Gerar análises, relatórios e sugestões com inteligência artificial</li>
+              <li>Enviar alertas, relatórios e avisos da conta por e-mail, Telegram ou WhatsApp, nos canais que você escolher</li>
+              <li>Cobrar a assinatura</li>
+              <li>Proteger a plataforma contra fraude e acesso indevido e cumprir obrigações legais</li>
+            </Lista>
+            <p>
+              <B>Não</B> vendemos seus dados, não os usamos para publicidade e não os usamos para treinar modelos de inteligência artificial.
             </p>
-          </section>
+          </Secao>
 
-          <section id="google-user-data">
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>5. Dados das APIs do Google (Uso Limitado)</h2>
+          <Secao n={4}>
+            <p>Seus dados só são compartilhados com os fornecedores necessários para o serviço funcionar:</p>
+            <Lista>
+              <li><B>Meta Platforms</B>: APIs oficiais do Meta Ads, do Instagram e dos formulários de Lead Ads, nas contas que você autorizar.</li>
+              <li><B>Google</B>: API oficial do Google Ads, na conta que você autorizar (veja a seção 5).</li>
+              <li><B>Kommo</B>: API oficial do Kommo CRM, quando você conectar.</li>
+              <li><B>Anthropic (Claude)</B>: gera as análises de IA. Recebe métricas das campanhas, o perfil da sua empresa e os motivos de perda registrados no CRM. Não enviamos nome, telefone nem conversas dos seus contatos.</li>
+              <li><B>Asaas</B>: processamento dos pagamentos da assinatura.</li>
+              <li><B>Hospedagem e infraestrutura</B>: Render e Vercel (aplicação), Neon (banco de dados) e Hostinger (servidor da integração com o WhatsApp e armazenamento das mídias das conversas).</li>
+              <li><B>Envio de avisos</B>: Zoho (e-mail) e Telegram (alertas, quando você ativa).</li>
+            </Lista>
+            <p>
+              Alguns desses fornecedores guardam ou processam dados fora do Brasil, principalmente nos Estados Unidos. Essa transferência
+              é feita para executar o contrato com você, com fornecedores que adotam padrões de segurança compatíveis com a LGPD.
+            </p>
+            <p>Também podemos compartilhar dados quando a lei ou uma ordem judicial exigir.</p>
+          </Secao>
+
+          <Secao n={5}>
             <p>
               Quando você conecta sua conta do Google Ads, o Cromalex Growth solicita o escopo{' '}
-              <code>https://www.googleapis.com/auth/adwords</code> e o usa <strong style={{ color: '#f1f5f9' }}>somente para ler</strong>{' '}
+              <code className="rounded px-1 py-0.5 text-[13px]" style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>https://www.googleapis.com/auth/adwords</code>{' '}
+              e o usa <B>somente para ler</B>{' '}
               as métricas das campanhas da conta que você autorizou (custo, cliques, impressões e conversões), exibidas no seu dashboard.
               Nunca criamos, editamos, pausamos ou excluímos campanhas, anúncios, orçamentos ou contas.
             </p>
-            <ul className="space-y-2 mt-3 list-disc list-inside">
+            <Lista>
               <li>Os dados do Google são usados apenas para mostrar e analisar o desempenho das suas campanhas dentro da plataforma, a pedido seu.</li>
               <li>Não vendemos esses dados e não os usamos para publicidade, retargeting ou anúncios personalizados.</li>
               <li>Não os transferimos a terceiros, exceto para prestar o serviço que você vê na plataforma (por exemplo, métricas agregadas enviadas à Anthropic para gerar os insights de IA do seu dashboard), para cumprir a lei ou em caso de fusão ou aquisição.</li>
               <li>Não usamos dados do Google para desenvolver, melhorar ou treinar modelos de IA ou de aprendizado de máquina generalizados.</li>
               <li>Ninguém da nossa equipe lê esses dados, exceto com seu consentimento expresso, por segurança, para cumprir a lei, ou quando agregados e anonimizados para operar o serviço.</li>
-              <li>Você pode revogar o acesso a qualquer momento em <a href="https://myaccount.google.com/permissions" className="underline" style={{ color: 'var(--accent)' }}>myaccount.google.com/permissions</a> ou desconectando o Google Ads em Integrações; o token é apagado da plataforma.</li>
-            </ul>
-            <p className="mt-3" lang="en">
+              <li>Você pode revogar o acesso a qualquer momento em <A href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</A> ou desconectando o Google Ads em Integrações; o token é apagado da plataforma.</li>
+            </Lista>
+            <p lang="en">
               Cromalex Growth&apos;s use and transfer to any other app of information received from Google APIs will adhere to the{' '}
-              <a href="https://developers.google.com/terms/api-services-user-data-policy" className="underline" style={{ color: 'var(--accent)' }}>
-                Google API Services User Data Policy
-              </a>
+              <A href="https://developers.google.com/terms/api-services-user-data-policy" lang="en">Google API Services User Data Policy</A>
               , including the Limited Use requirements.
             </p>
-          </section>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>6. Segurança dos dados</h2>
-            <p>Adotamos medidas técnicas rigorosas para proteger seus dados:</p>
-            <ul className="space-y-2 mt-3 list-disc list-inside">
-              <li>Tokens OAuth criptografados com <strong style={{ color: '#f1f5f9' }}>AES-256-GCM</strong> em repouso</li>
-              <li>Senhas com hash <strong style={{ color: '#f1f5f9' }}>bcrypt</strong> (fator 12) — nunca armazenadas em texto plano</li>
-              <li>Comunicação via <strong style={{ color: '#f1f5f9' }}>HTTPS/TLS</strong> em todas as requisições</li>
-              <li>Tokens JWT com expiração de 15 minutos e refresh token com rotação</li>
-              <li>Rate limiting e proteção contra ataques de força bruta</li>
-              <li>Headers de segurança via Helmet.js</li>
-            </ul>
-          </section>
+          <Secao n={6}>
+            <Lista>
+              <li>Tokens das integrações criptografados com <B>AES-256-GCM</B></li>
+              <li>Senhas com hash <B>bcrypt</B> (fator 12)</li>
+              <li><B>HTTPS/TLS</B> em todas as comunicações</li>
+              <li>Login com token de acesso de 15 minutos e renovação com rotação; trocar a senha encerra as sessões nos outros aparelhos</li>
+              <li>Dados de cada empresa isolados: uma empresa nunca vê os dados de outra</li>
+              <li>Limite de tentativas contra força bruta e cabeçalhos de segurança no site e na API</li>
+              <li>Cópias de segurança do banco de dados</li>
+            </Lista>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>7. Retenção de dados</h2>
+          <Secao n={7}>
+            <Lista>
+              <li>Dados da conta, das integrações e do CRM: enquanto a conta estiver ativa.</li>
+              <li>Fotos, áudios, vídeos e documentos das conversas do WhatsApp: 90 dias; depois disso o arquivo é apagado e a conversa fica só com o texto.</li>
+              <li>Sessões de login: até 30 dias sem uso.</li>
+              <li>Cópias de segurança do banco: 7 dias.</li>
+            </Lista>
             <p>
-              Seus dados são mantidos enquanto sua conta estiver ativa. Dados de métricas de campanhas são mantidos
-              por até 12 meses para análise histórica. Logs de autenticação são mantidos por 30 dias.
+              Quando a exclusão da conta é pedida, os dados pessoais e os tokens das integrações são apagados em até 30 dias.
+              Dados que a lei obriga a guardar, como os de cobrança, ficam pelo prazo legal.
             </p>
-            <p className="mt-3">
-              Ao solicitar a exclusão da conta, todos os seus dados pessoais e tokens OAuth são removidos
-              permanentemente em até 30 dias.
-            </p>
-          </section>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>8. Seus direitos (LGPD)</h2>
-            <p>De acordo com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você tem direito a:</p>
-            <ul className="space-y-2 mt-3 list-disc list-inside">
-              <li>Confirmar a existência de tratamento dos seus dados</li>
-              <li>Acessar seus dados pessoais armazenados</li>
-              <li>Corrigir dados incompletos, inexatos ou desatualizados</li>
-              <li>Solicitar a anonimização, bloqueio ou eliminação dos dados</li>
-              <li>Revogar o consentimento a qualquer momento</li>
-              <li>Solicitar a portabilidade dos dados</li>
-            </ul>
-            <p className="mt-3">
-              Para exercer qualquer um desses direitos, entre em contato pelo e-mail:{' '}
-              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
-                privacidade@iacortextech.com.br
-              </a>
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>9. Exclusão de dados do usuário</h2>
+          <Secao n={8}>
+            <p>Pela Lei Geral de Proteção de Dados (Lei nº 13.709/2018), você pode:</p>
+            <Lista>
+              <li>Confirmar se tratamos seus dados e acessá-los</li>
+              <li>Corrigir dados incompletos ou desatualizados (nome, telefone, foto e e-mail podem ser alterados em Minha conta)</li>
+              <li>Pedir anonimização, bloqueio ou eliminação</li>
+              <li>Pedir a portabilidade</li>
+              <li>Revogar o consentimento e desconectar qualquer integração a qualquer momento</li>
+            </Lista>
             <p>
-              Para solicitar a exclusão completa dos seus dados da plataforma Cromalex Growth, envie um e-mail para{' '}
-              <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>
-                privacidade@iacortextech.com.br
-              </a>{' '}
-              com o assunto <strong style={{ color: '#f1f5f9' }}>"Exclusão de dados"</strong> e o e-mail cadastrado na sua conta.
+              Para exercer esses direitos, escreva para <A href={`mailto:${EMAIL}`}>{EMAIL}</A>. Se você é contato de uma empresa
+              que usa o Cromalex Growth, procure primeiro essa empresa, que é a controladora dos seus dados; nós a ajudamos a atender o pedido.
             </p>
-            <p className="mt-3">
-              Processaremos sua solicitação em até 30 dias. Você receberá uma confirmação por e-mail quando a exclusão for concluída.
-            </p>
-          </section>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>10. Cookies</h2>
+          <Secao n={9}>
             <p>
-              O Cromalex Growth não utiliza cookies de rastreamento ou publicidade. Utilizamos apenas o armazenamento
-              local (localStorage) do navegador para manter a sessão autenticada, com tokens JWT que expiram automaticamente.
+              Para pedir a exclusão completa dos seus dados, envie um e-mail para <A href={`mailto:${EMAIL}`}>{EMAIL}</A> com o
+              assunto <B>&quot;Exclusão de dados&quot;</B> e o e-mail cadastrado na sua conta.
             </p>
-          </section>
+            <p>Processamos o pedido em até 30 dias e confirmamos por e-mail quando a exclusão terminar.</p>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>11. Alterações nesta política</h2>
+          <Secao n={10}>
             <p>
-              Podemos atualizar esta política periodicamente. Notificaremos usuários ativos por e-mail sobre mudanças
-              significativas com pelo menos 15 dias de antecedência. O uso continuado da plataforma após a notificação
-              implica concordância com a nova política.
+              Não usamos cookies de rastreamento ou de publicidade próprios. Sua sessão fica no armazenamento local (localStorage) do
+              navegador, com tokens que expiram sozinhos.
             </p>
-          </section>
+            <p>
+              O site carrega o SDK do Facebook para permitir conectar contas da Meta. Esse SDK pode gravar cookies da própria Meta,
+              regidos pela <A href="https://www.facebook.com/privacy/policy/">Política de Privacidade da Meta</A>.
+            </p>
+          </Secao>
 
-          <section>
-            <h2 className="text-lg font-semibold mb-3" style={{ color: '#f1f5f9' }}>12. Contato</h2>
-            <p>Para dúvidas, solicitações ou reclamações relacionadas a esta política:</p>
-            <div className="mt-4 p-4 rounded-xl" style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent-line)' }}>
-              <p><strong style={{ color: '#f1f5f9' }}>IA Cortex Tech</strong></p>
-              <p className="mt-1">E-mail: <a href="mailto:privacidade@iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>privacidade@iacortextech.com.br</a></p>
-              <p>Site: <a href="https://iacortextech.com.br" className="underline" style={{ color: 'var(--accent)' }}>iacortextech.com.br</a></p>
+          <Secao n={11}>
+            <p>
+              Podemos atualizar esta política. Mudanças relevantes são avisadas por e-mail aos usuários ativos com pelo menos
+              15 dias de antecedência. Continuar usando a plataforma depois do aviso significa concordar com a nova versão.
+            </p>
+          </Secao>
+
+          <Secao n={12}>
+            <div className="ui-card space-y-1">
+              <p><B>Cortex Tech Locação e Desenvolvimento de Sistemas Ltda</B></p>
+              <p>CNPJ 52.722.681/0001-03</p>
+              <p>E-mail: <A href={`mailto:${EMAIL}`}>{EMAIL}</A></p>
+              <p>Site: <A href="https://www.cortexgrowth.com.br">cortexgrowth.com.br</A></p>
             </div>
-          </section>
+          </Secao>
+        </main>
+      </div>
 
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="py-8 px-6 mt-8" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <p className="text-xs" style={{ color: '#475569' }}>
-            © {new Date().getFullYear()} IA Cortex Tech. Todos os direitos reservados.
-          </p>
-          <Link href="/" className="text-xs transition-colors" style={{ color: '#475569' }}
-            onMouseEnter={undefined}
-            onMouseLeave={undefined}>
-            Voltar ao início
-          </Link>
+      <footer className="border-t px-4 py-8 sm:px-6" style={{ borderColor: 'var(--border)' }}>
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+          <p>© 2026 Cortex Tech. Todos os direitos reservados.</p>
+          <div className="flex gap-4">
+            <Link href="/terms" className="hover:text-[var(--text-primary)]">Termos de Serviço</Link>
+            <Link href="/" className="hover:text-[var(--text-primary)]">Voltar ao início</Link>
+          </div>
         </div>
       </footer>
     </div>

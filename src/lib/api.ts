@@ -1432,8 +1432,9 @@ class ApiService {
 
   // ─── CRM — Relatório e export ───────────────────────────────────────────────
 
-  async getCrmReport(months?: number): Promise<{ success: boolean; data: import('@/types').CrmReport }> {
-    const response = await this.client.get('/crm/report', { params: months ? { months } : {} });
+  // Período fixo (`months`) ou personalizado (`from`/`to`, AAAA-MM-DD, dias de Fortaleza).
+  async getCrmReport(periodo: { months: number } | { from: string; to: string }): Promise<{ success: boolean; data: import('@/types').CrmReport }> {
+    const response = await this.client.get('/crm/report', { params: periodo });
     return response.data;
   }
 

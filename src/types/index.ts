@@ -1226,7 +1226,8 @@ export interface CardMessage {
 }
 
 export interface CrmReport {
-  period: { months: number; since: string };
+  /** `months` null = período personalizado (`from`/`to`). `until` é exclusivo. */
+  period: { months: number | null; from: string | null; to: string | null; since: string; until: string };
   totals: {
     createdCount: number;
     wonCount: number;
