@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import AvisosNoCelular from '@/components/AvisosNoCelular';
 import { apiService } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import type { Account } from '@/types';
@@ -534,6 +535,7 @@ export default function MinhaContaPage() {
       <SecaoEmail conta={conta} onConta={setConta} />
       <SecaoSenha conta={conta} onTrocou={() => void carregar()} />
       <SecaoAparelhos conta={conta} onSaiu={() => void carregar()} />
+      <AvisosNoCelular />
     </div>
   );
 }

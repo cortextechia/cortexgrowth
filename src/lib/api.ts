@@ -289,6 +289,27 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Notificação no celular (PWA) — inscrição do aparelho do próprio usuário ─
+  async getPushConfig(): Promise<{ success: boolean; data: { enabled: boolean; publicKey: string | null; devices: number } }> {
+    const response = await this.client.get('/push/config');
+    return response.data;
+  }
+
+  async subscribePush(sub: { endpoint: string; keys: { p256dh: string; auth: string } }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post('/push/subscribe', sub);
+    return response.data;
+  }
+
+  async unsubscribePush(endpoint: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.delete('/push/subscribe', { data: { endpoint } });
+    return response.data;
+  }
+
+  async testPush(): Promise<{ success: boolean; data: { sent: number; removed: number; failed: number } }> {
+    const response = await this.client.post('/push/test');
+    return response.data;
+  }
+
   // ─── Minha conta (sempre o próprio usuário) ─────────────────────────────────
   async getAccount(): Promise<{ success: boolean; data: import('@/types').Account }> {
     const response = await this.client.get('/auth/account');

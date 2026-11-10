@@ -6,6 +6,7 @@
 // esta página também trata o acesso direto por URL).
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import AvisosNoCelular from '@/components/AvisosNoCelular';
 import { useAuth } from '@/context/AuthContext';
 import { Dropdown, Chevron, usePopover } from '@/components/Dropdown';
 import { apiService, API_BASE_URL } from '@/lib/api';
@@ -1503,6 +1504,7 @@ export default function CrmPage() {
 
       {isPhone && (
         <>
+          <AvisosNoCelular variant="banner" />
           {phoneView === 'conversas' && (
             <section aria-label="Conversas">
               {phoneConversas.length === 0 ? (
