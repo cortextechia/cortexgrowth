@@ -94,6 +94,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    // Avisos no celular: o aparelho para de receber os avisos desta conta ao sair
+    // (celular compartilhado, vendedor que devolveu o aparelho). Precisa vir ANTES do
+    // logout, enquanto o token ainda vale. Se o servidor falhar, cancelar a inscrição no
+    // navegador já basta: o próximo envio volta 410 e o servidor apaga a linha.
+    try {
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
+      const sub = await reg?.pushManager?.getSubscription();
+      if (sub) {
+        await apiService.unsubscribePush(sub.endpoint).catch((err) => console.error('[Push] não removi a inscrição no servidor ao sair', err));
+        await sub.unsubscribe();
+      }
+    } catch (err) {
+      console.error('[Push] não cancelei os avisos deste aparelho ao sair', err);
+    }
     setUser(null);
     setOrganization(null);
     setToken(null);
