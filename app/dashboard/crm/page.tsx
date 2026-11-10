@@ -11,9 +11,10 @@ import GravadorAudio from '@/components/GravadorAudio';
 import { useAuth } from '@/context/AuthContext';
 import { Dropdown, Chevron, usePopover } from '@/components/Dropdown';
 import { apiService, API_BASE_URL } from '@/lib/api';
+import { originLabel, originOptions, originValue, parseOriginValue, originFilterOptions, matchesOriginFilter, ORIGIN_LABELS } from '@/lib/crmOrigins';
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
-  CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
+  CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmCustomOriginOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
   CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage, CrmProduct,
 } from '@/types';
 
@@ -39,18 +40,6 @@ function WaAvatar({ url, name, className }: { url: string | null; name: string; 
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-
-const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
-  { key: 'META',      label: 'Meta Ads' },
-  { key: 'GOOGLE',    label: 'Google Ads' },
-  { key: 'WHATSAPP',  label: 'WhatsApp' },
-  { key: 'INDICACAO', label: 'Indicação' },
-  { key: 'FACHADA',   label: 'Na loja' },
-  { key: 'LINK_BIO',  label: 'Link da bio' },
-  { key: 'INSTAGRAM', label: 'Direct do Instagram' },
-  { key: 'ORGANICO',  label: 'Orgânico' },
-  { key: 'OUTRO',     label: 'Outro' },
-];
 
 const EVENT_LABELS: Record<string, string> = {
   CLIENT_CREATED: 'Cliente criado',
@@ -167,10 +156,6 @@ function fmtDate(iso: string): string {
 /** YYYY-MM-DD no fuso do navegador (toISOString daria o dia em UTC). */
 function localDay(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function originLabel(o: CrmOrigin): string {
-  return ORIGIN_OPTIONS.find((x) => x.key === o)?.label ?? o;
 }
 
 function initials(name: string): string {
@@ -301,9 +286,9 @@ function DiscardBadge({ client, className = '' }: {
 }
 
 // Selo do design system: anúncio pago (Meta/Google) em limão, o resto em tom suave.
-function OriginPill({ origin }: { origin: CrmOrigin }) {
+function OriginPill({ origin, customOrigin }: { origin: CrmOrigin; customOrigin?: string | null }) {
   const pago = origin === 'META' || origin === 'GOOGLE';
-  return <span className={`ui-badge ${pago ? 'ui-badge-lime' : 'ui-badge-tint'}`}>{originLabel(origin).toUpperCase()}</span>;
+  return <span className={`ui-badge ${pago ? 'ui-badge-lime' : 'ui-badge-tint'}`}>{originLabel(origin, customOrigin).toUpperCase()}</span>;
 }
 
 /** Menu de ações (header) — itens executam, não selecionam. */
@@ -549,6 +534,7 @@ export default function CrmPage() {
   const [periodTo, setPeriodTo] = useState('');
   const periodRef = useRef<{ createdFrom?: string; createdTo?: string }>({});
   const [periodByOrigin, setPeriodByOrigin] = useState<Record<string, number> | null>(null);
+  const [periodByCustomOrigin, setPeriodByCustomOrigin] = useState<Record<string, number> | null>(null);
 
   // Drawer + modais
   const [detail, setDetail] = useState<CrmClientDetail | null>(null);
@@ -572,6 +558,8 @@ export default function CrmPage() {
   // Listas configuráveis da org — alimentam os seletores no card e os filtros
   const [clientTypes, setClientTypes] = useState<CrmClientTypeOption[]>([]);
   const [crmTags, setCrmTags] = useState<CrmTagOption[]>([]);
+  const [customOrigins, setCustomOrigins] = useState<CrmCustomOriginOption[]>([]);
+  const [showCustomOriginsEditor, setShowCustomOriginsEditor] = useState(false);
   // Celular: três telas com barra embaixo no lugar do kanban
   const isPhone = useIsPhone();
   const [phoneView, setPhoneView] = useState<PhoneView>('conversas');
@@ -621,6 +609,7 @@ export default function CrmPage() {
         setClients(cl.data.clients);
         setTotalClients(cl.data.total);
         setPeriodByOrigin(cl.data.byOrigin ?? null);
+        setPeriodByCustomOrigin(cl.data.byCustomOrigin ?? null);
         const comPeriodo = !!(periodRef.current.createdFrom || periodRef.current.createdTo);
         // Lista recortada por período não serve de base: ao limpar o filtro, todo card de
         // fora do período pareceria "novo". Zera para a próxima lista completa refazer a base.
@@ -665,11 +654,19 @@ export default function CrmPage() {
     } catch { /* seletor/filtro apenas degradam para vazio */ }
   }, []);
 
+  const loadCustomOrigins = useCallback(async () => {
+    try {
+      const res = await apiService.getCrmCustomOrigins();
+      if (res.success) setCustomOrigins(res.data);
+    } catch { /* seletor/filtro apenas degradam para os canais padrão */ }
+  }, []);
+
   useEffect(() => {
     if (!status?.enabled) return;
     void loadClientTypes();
     void loadTags();
-  }, [status?.enabled, loadClientTypes, loadTags]);
+    void loadCustomOrigins();
+  }, [status?.enabled, loadClientTypes, loadTags, loadCustomOrigins]);
 
   // Deep-link: /dashboard/crm?client=<id> abre o drawer direto (link compartilhável)
   useEffect(() => {
@@ -1146,7 +1143,7 @@ export default function CrmPage() {
     (!filterResponsible || c.responsibleId === filterResponsible ||
       (filterResponsible === '_none' && !c.responsibleId)) &&
     (!filterTag || c.tags.includes(filterTag)) &&
-    (!filterOrigin || c.origin === filterOrigin) &&
+    matchesOriginFilter(filterOrigin, c.origin, c.customOrigin) &&
     (!filterClientType || c.clientType === filterClientType) &&
     (!filterSale ||
       (filterSale === 'won' && c.sales.some((s) => s.status === 'WON')) ||
@@ -1256,6 +1253,7 @@ export default function CrmPage() {
                 ...(isAdmin ? [
                   { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
                   { label: 'Tags', onClick: () => setShowTagsEditor(true) },
+                  { label: 'Origens (dentro de "Outro")', onClick: () => setShowCustomOriginsEditor(true) },
                   { label: 'Motivos de perda (venda)', onClick: () => setShowLostReasonsEditor(true) },
                   { label: 'Motivos de descarte (lead)', onClick: () => setShowDiscardReasonsEditor(true) },
                 ] : []),
@@ -1332,6 +1330,7 @@ export default function CrmPage() {
               { label: 'Motivos de descarte (lead)', onClick: () => setShowDiscardReasonsEditor(true) },
               { label: 'Tipos de cliente', onClick: () => setShowClientTypesEditor(true) },
               { label: 'Tags', onClick: () => setShowTagsEditor(true) },
+              { label: 'Origens (dentro de "Outro")', onClick: () => setShowCustomOriginsEditor(true) },
               { label: 'Importar clientes (CSV)', onClick: () => setShowImport(true) },
               { label: 'Exportar clientes (CSV)', onClick: () => void handleExport() },
             ]}
@@ -1439,7 +1438,7 @@ export default function CrmPage() {
           label="Origem"
           value={filterOrigin}
           onChange={setFilterOrigin}
-          options={[{ value: '', label: 'todas' }, ...ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]}
+          options={[{ value: '', label: 'todas' }, ...originFilterOptions(customOrigins.map((o) => o.label))]}
         />
         {clientTypes.length > 0 && (
           <Dropdown
@@ -1485,16 +1484,16 @@ export default function CrmPage() {
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
             <strong style={{ color: 'var(--text-primary)' }}>{totalClients}</strong> contato{totalClients === 1 ? '' : 's'} chegaram no período:
           </span>
-          {ORIGIN_OPTIONS.filter((o) => (periodByOrigin[o.key] ?? 0) > 0).map((o) => (
+          {chipsDeOrigem(periodByOrigin, periodByCustomOrigin).map((o) => (
             <button
-              key={o.key}
-              onClick={() => setFilterOrigin(filterOrigin === o.key ? '' : o.key)}
+              key={o.value}
+              onClick={() => setFilterOrigin(filterOrigin === o.value ? '' : o.value)}
               className="text-xs px-2.5 py-1 rounded-full"
-              style={filterOrigin === o.key
+              style={filterOrigin === o.value
                 ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }
                 : { ...card, color: 'var(--text-secondary)' }}
             >
-              {o.label} <strong style={{ color: 'var(--text-primary)' }}>{periodByOrigin[o.key]}</strong>
+              {o.label} <strong style={{ color: 'var(--text-primary)' }}>{o.count}</strong>
             </button>
           ))}
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -1793,7 +1792,7 @@ export default function CrmPage() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                      <OriginPill origin={client.origin} />
+                      <OriginPill origin={client.origin} customOrigin={client.customOrigin} />
                       <FollowUpChip iso={client.nextFollowUpAt} />
                       <DiscardBadge client={client} />
                       {client.tags.slice(0, 2).map((tag) => {
@@ -1919,6 +1918,9 @@ export default function CrmPage() {
           stages={status.stages}
           clientTypes={clientTypes}
           crmTags={crmTags}
+          customOrigins={customOrigins}
+          onCustomOriginsChanged={loadCustomOrigins}
+          onError={(msg) => showToast('error', msg)}
           isAdmin={isAdmin}
           canSendOnBehalf={WA_ORG_ROLES.includes(user?.role ?? '')}
           currentUserId={user?.id ?? null}
@@ -2033,6 +2035,7 @@ export default function CrmPage() {
       {/* Modais */}
       {showNewClient && (
         <NewClientModal
+          customOrigins={customOrigins.map((o) => o.label)}
           onClose={() => setShowNewClient(false)}
           onSaved={async (created, msg) => {
             setShowNewClient(false);
@@ -2155,6 +2158,18 @@ export default function CrmPage() {
             setShowClientTypesEditor(false);
             showToast('success', msg);
             await loadClientTypes();
+          }}
+          onError={(msg) => showToast('error', msg)}
+        />
+      )}
+
+      {showCustomOriginsEditor && (
+        <CustomOriginsEditorModal
+          onClose={() => setShowCustomOriginsEditor(false)}
+          onSaved={async (msg) => {
+            setShowCustomOriginsEditor(false);
+            showToast('success', msg);
+            await loadCustomOrigins();
           }}
           onError={(msg) => showToast('error', msg)}
         />
@@ -3281,6 +3296,9 @@ function ClientDrawer(props: {
   stages: CrmStage[];
   clientTypes: CrmClientTypeOption[];
   crmTags: CrmTagOption[];
+  customOrigins: CrmCustomOriginOption[];
+  onCustomOriginsChanged: () => Promise<void>;
+  onError: (msg: string) => void;
   isAdmin: boolean;
   canSendOnBehalf: boolean; // ADMIN/SUPER_ADMIN respondem card alheio pelo número do responsável
   currentUserId: string | null;
@@ -3306,7 +3324,7 @@ function ClientDrawer(props: {
   onDeleteSale: (saleId: string) => void;
   onUpdateSaleValue: (saleId: string, value: number) => Promise<void>;
   onChangeSaleClosedDate: (saleId: string, closedDate: string) => Promise<void>;
-  onUpdateClient: (data: { name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[]; phone?: string }) => Promise<void>;
+  onUpdateClient: (data: { customOrigin?: string | null; name?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; origin?: CrmOrigin; tags?: string[]; phone?: string }) => Promise<void>;
   onAddNote: (text: string) => Promise<void>;
   onPinNote: (eventId: string, pinned: boolean) => Promise<void>;
   onEditNote: (eventId: string, text: string) => Promise<void>;
@@ -3878,11 +3896,14 @@ function ClientDrawer(props: {
 
               <div className="grid grid-cols-[130px_1fr] items-center gap-2">
                 <span className="text-sm" style={{ color: 'var(--text-muted)' }}>Origem</span>
-                <Dropdown
-                  className="w-fit min-w-[160px]"
-                  value={detail.origin}
-                  onChange={(v) => void props.onUpdateClient({ origin: v as CrmOrigin })}
-                  options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+                <OrigemDoCard
+                  origin={detail.origin}
+                  customOrigin={detail.customOrigin}
+                  customOrigins={props.customOrigins}
+                  podeCadastrar={props.isAdmin}
+                  onChange={(origin, customOrigin) => props.onUpdateClient({ origin, customOrigin })}
+                  onCadastrada={props.onCustomOriginsChanged}
+                  onError={props.onError}
                 />
               </div>
 
@@ -6060,13 +6081,14 @@ function ModalShell({ title, onClose, children }: { title: string; onClose: () =
 
 const label = { color: 'var(--text-muted)' } as const;
 
-function NewClientModal({ onClose, onSaved }: {
+function NewClientModal({ customOrigins, onClose, onSaved }: {
+  customOrigins: string[];
   onClose: () => void;
   onSaved: (created: boolean, msg: string) => void;
 }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [origin, setOrigin] = useState<CrmOrigin>('OUTRO');
+  const [origin, setOrigin] = useState<string>('WHATSAPP');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -6076,7 +6098,12 @@ function NewClientModal({ onClose, onSaved }: {
     setSaving(true);
     setError(null);
     try {
-      const res = await apiService.createCrmClient({ name: name.trim(), phone: phone.trim(), origin, ...(notes.trim() ? { notes: notes.trim() } : {}) });
+      const o = parseOriginValue(origin);
+      const res = await apiService.createCrmClient({
+        name: name.trim(), phone: phone.trim(), origin: o.origin,
+        ...(o.customOrigin ? { customOrigin: o.customOrigin } : {}),
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
+      });
       onSaved(res.data.created, res.message);
     } catch (err) {
       setError(apiErrorMsg(err, 'Erro ao criar cliente.'));
@@ -6099,8 +6126,8 @@ function NewClientModal({ onClose, onSaved }: {
           <label className="text-xs block mb-1" style={label}>Origem</label>
           <Dropdown
             value={origin}
-            onChange={(v) => setOrigin(v as CrmOrigin)}
-            options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+            onChange={setOrigin}
+            options={originOptions(customOrigins)}
           />
         </div>
         <div>
@@ -6366,7 +6393,7 @@ function NewSaleModal({ client, stages, onClose, onSaved, onError }: {
           <Dropdown
             value={origin}
             onChange={(v) => setOrigin(v as CrmOrigin)}
-            options={ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
+            options={originOptions([], { origin: client.origin })}
           />
         </div>
 
@@ -6791,6 +6818,181 @@ function ClientTypesEditorModal({ onClose, onSaved, onError }: {
             style={{ backgroundColor: 'var(--accent-fill)' }}
           >
             {saving ? 'Salvando...' : 'Salvar tipos'}
+          </button>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// Contagem do período por origem: canais, depois "Outro" (todos) e cada origem própria.
+function chipsDeOrigem(
+  byOrigin: Record<string, number>,
+  byCustomOrigin: Record<string, number> | null,
+): { value: string; label: string; count: number }[] {
+  const chips: { value: string; label: string; count: number }[] = [];
+  for (const [key, label] of Object.entries(ORIGIN_LABELS) as [CrmOrigin, string][]) {
+    const n = byOrigin[key] ?? 0;
+    if (n > 0) chips.push({ value: key, label, count: n });
+  }
+  for (const [label, n] of Object.entries(byCustomOrigin ?? {})) {
+    if (n > 0) chips.push({ value: originValue('OUTRO', label), label: `Outro · ${label}`, count: n });
+  }
+  return chips;
+}
+
+const NOVA_ORIGEM = '__nova__';
+
+// Origem no card: canais padrão + "Outro · <origem da org>". Admin cadastra uma nova ali mesmo.
+function OrigemDoCard({ origin, customOrigin, customOrigins, podeCadastrar, onChange, onCadastrada, onError }: {
+  origin: CrmOrigin;
+  customOrigin: string | null;
+  customOrigins: CrmCustomOriginOption[];
+  podeCadastrar: boolean;
+  onChange: (origin: CrmOrigin, customOrigin: string | null) => Promise<void> | void;
+  onCadastrada: () => Promise<void>;
+  onError: (msg: string) => void;
+}) {
+  const [nova, setNova] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  const opcoes = [
+    ...originOptions(customOrigins.map((o) => o.label), { origin, customOrigin }),
+    ...(podeCadastrar ? [{ value: NOVA_ORIGEM, label: '+ Cadastrar outra origem' }] : []),
+  ];
+
+  const cadastrar = async () => {
+    const label = (nova ?? '').trim();
+    if (!label) return;
+    const existente = customOrigins.find((o) => o.label.toLowerCase() === label.toLowerCase());
+    setSalvando(true);
+    try {
+      if (!existente) {
+        await apiService.saveCrmCustomOrigins([...customOrigins.map((o) => ({ id: o.id, label: o.label })), { label }]);
+        await onCadastrada();
+      }
+      await onChange('OUTRO', existente?.label ?? label);
+      setNova(null);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao cadastrar a origem.'));
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (nova !== null) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          className="rounded-lg px-3 py-1.5 text-sm w-[180px]"
+          style={input}
+          placeholder="Ex: Loja, Landing page"
+          maxLength={40}
+          value={nova}
+          onChange={(e) => setNova(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') void cadastrar(); if (e.key === 'Escape') setNova(null); }}
+        />
+        <button className="ui-btn ui-btn-primary !py-1.5 !px-3 text-sm" disabled={salvando || !nova.trim()} onClick={() => void cadastrar()}>
+          {salvando ? 'Salvando...' : 'Salvar'}
+        </button>
+        <button className="text-sm px-1.5" style={{ color: 'var(--text-secondary)' }} onClick={() => setNova(null)} aria-label="Cancelar">✕</button>
+      </div>
+    );
+  }
+
+  return (
+    <Dropdown
+      className="w-fit min-w-[160px]"
+      value={originValue(origin, customOrigin)}
+      onChange={(v) => {
+        if (v === NOVA_ORIGEM) { setNova(''); return; }
+        const o = parseOriginValue(v);
+        void onChange(o.origin, o.customOrigin);
+      }}
+      options={opcoes}
+    />
+  );
+}
+
+function CustomOriginsEditorModal({ onClose, onSaved, onError }: {
+  onClose: () => void;
+  onSaved: (msg: string) => void;
+  onError: (msg: string) => void;
+}) {
+  const [draft, setDraft] = useState<{ id?: string; label: string }[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiService.getCrmCustomOrigins()
+      .then((res) => setDraft(res.data.map((o) => ({ id: o.id, label: o.label }))))
+      .catch(() => onError('Erro ao carregar as origens.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = async () => {
+    if (!draft) return;
+    setSaving(true);
+    try {
+      const res = await apiService.saveCrmCustomOrigins(draft.filter((s) => s.label.trim()));
+      onSaved(res.message);
+    } catch (err) {
+      onError(apiErrorMsg(err, 'Erro ao salvar as origens.'));
+      setSaving(false);
+    }
+  };
+
+  const move = (i: number, dir: -1 | 1) => {
+    setDraft((p) => {
+      if (!p) return p;
+      const n = [...p];
+      const j = i + dir;
+      if (j < 0 || j >= n.length) return p;
+      [n[i], n[j]] = [n[j]!, n[i]!];
+      return n;
+    });
+  };
+
+  return (
+    <ModalShell title='Origens (dentro de "Outro")' onClose={onClose}>
+      <p className="text-xs mb-3" style={{ color: 'var(--text-secondary)' }}>
+        Meta, Google, WhatsApp, Indicação, Link da bio e Direct já vêm prontos. Aqui ficam as origens
+        do seu negócio, que aparecem dentro de <strong>Outro</strong> no card (ex: Loja, Fachada, Landing page).
+        Elas não entram no ROAS. Remover uma origem não altera os cards que já a usam.
+      </p>
+      {draft === null ? (
+        <p className="text-xs py-4 text-center" style={{ color: 'var(--text-secondary)' }}>Carregando...</p>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {draft.length === 0 && (
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Nenhuma origem cadastrada ainda.</p>
+            )}
+            {draft.map((s, i) => (
+              <div key={s.id ?? `new-${i}`} className="flex items-center gap-1.5">
+                <input
+                  className="flex-1 rounded-lg px-3 py-2 text-sm"
+                  style={input}
+                  value={s.label}
+                  maxLength={40}
+                  onChange={(e) => setDraft((p) => p!.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                />
+                <button onClick={() => move(i, -1)} disabled={i === 0} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-secondary)' }} aria-label="Subir">↑</button>
+                <button onClick={() => move(i, 1)} disabled={i === draft.length - 1} className="px-1.5 disabled:opacity-30" style={{ color: 'var(--text-secondary)' }} aria-label="Descer">↓</button>
+                <button onClick={() => setDraft((p) => p!.filter((_, j) => j !== i))} className="px-1.5" style={{ color: 'var(--badge-error-text)' }} aria-label="Remover">✕</button>
+              </div>
+            ))}
+          </div>
+          <button onClick={() => setDraft((p) => [...(p ?? []), { label: '' }])} className="text-xs mb-4" style={{ color: 'var(--accent)' }}>
+            + adicionar origem
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-[var(--on-accent)] disabled:opacity-60"
+            style={{ backgroundColor: 'var(--accent-fill)' }}
+          >
+            {saving ? 'Salvando...' : 'Salvar origens'}
           </button>
         </>
       )}

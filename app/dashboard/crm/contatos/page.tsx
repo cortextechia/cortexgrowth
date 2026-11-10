@@ -9,22 +9,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiService } from '@/lib/api';
 import { Dropdown } from '@/components/Dropdown';
-import type { CrmClientSummary, CrmOrigin, CrmTagOption, CrmStatus } from '@/types';
+import type { CrmClientSummary, CrmOrigin, CrmTagOption, CrmCustomOriginOption, CrmStatus } from '@/types';
+import { ORIGIN_LABELS, originLabel, originValue, parseOriginValue, originFilterOptions, matchesOriginFilter } from '@/lib/crmOrigins';
 
 // ── Helpers locais (espelham os do CRM; mantidos aqui para não acoplar esta
 //    página à do funil, que tem 4k+ linhas) ──────────────────────────────────
-const ORIGIN_OPTIONS: { key: CrmOrigin; label: string }[] = [
-  { key: 'META',      label: 'Meta Ads' },
-  { key: 'GOOGLE',    label: 'Google Ads' },
-  { key: 'WHATSAPP',  label: 'WhatsApp' },
-  { key: 'INDICACAO', label: 'Indicação' },
-  { key: 'FACHADA',   label: 'Na loja' },
-  { key: 'LINK_BIO',  label: 'Link da bio' },
-  { key: 'INSTAGRAM', label: 'Direct do Instagram' },
-  { key: 'ORGANICO',  label: 'Orgânico' },
-  { key: 'OUTRO',     label: 'Outro' },
-];
-const originLabel = (o: CrmOrigin) => ORIGIN_OPTIONS.find((x) => x.key === o)?.label ?? o;
 
 // Período de CHEGADA do contato. Dia local no formato do backend (YYYY-MM-DD).
 // Campo de data do período personalizado no mesmo formato de pílula dos filtros.
@@ -120,6 +109,8 @@ export default function CrmContatosPage() {
   const [fDe, setFDe] = useState('');
   const [fAte, setFAte] = useState('');
   const [byOrigin, setByOrigin] = useState<Record<string, number> | null>(null);
+  const [byCustomOrigin, setByCustomOrigin] = useState<Record<string, number> | null>(null);
+  const [customOrigins, setCustomOrigins] = useState<CrmCustomOriginOption[]>([]);
 
   const periodo = PERIODOS.find((p) => p.key === fPeriodo)!;
   const createdFrom = fPeriodo === 'custom' ? fDe : periodo.dias > 0 ? diaLocal(new Date(Date.now() - (periodo.dias - 1) * 86_400_000)) : '';
@@ -128,7 +119,9 @@ export default function CrmContatosPage() {
 
   const filtrosServidor = useCallback((searchTerm?: string) => ({
     ...(searchTerm ? { search: searchTerm } : {}),
-    ...(fOrigin ? { origin: fOrigin } : {}),
+    ...(fOrigin
+      ? (() => { const o = parseOriginValue(fOrigin); return { origin: o.origin, ...(o.customOrigin ? { customOrigin: o.customOrigin } : {}) }; })()
+      : {}),
     ...(createdFrom ? { createdFrom } : {}),
     ...(createdTo ? { createdTo } : {}),
   }), [fOrigin, createdFrom, createdTo]);
@@ -136,16 +129,19 @@ export default function CrmContatosPage() {
   const load = useCallback(async (searchTerm?: string) => {
     setLoading(true);
     try {
-      const [st, cl, tg] = await Promise.all([
+      const [st, cl, tg, co] = await Promise.all([
         apiService.getCrmStatus(),
         apiService.getCrmClients({ take: PAGE, ...filtrosServidor(searchTerm) }),
         apiService.getCrmTags().catch(() => ({ data: [] as CrmTagOption[] })),
+        apiService.getCrmCustomOrigins().catch(() => ({ data: [] as CrmCustomOriginOption[] })),
       ]);
       setStatus(st.data);
       setClients(cl.data.clients);
       setTotal(cl.data.total);
       setByOrigin(cl.data.byOrigin ?? null);
+      setByCustomOrigin(cl.data.byCustomOrigin ?? null);
       setTags(tg.data);
+      setCustomOrigins(co.data);
     } finally {
       setLoading(false);
     }
@@ -207,7 +203,7 @@ export default function CrmContatosPage() {
     (!fUnread || hasUnread(c)) &&
     (!fResponsible || c.responsibleId === fResponsible || (fResponsible === '_none' && !c.responsibleId)) &&
     (!fTag || c.tags.includes(fTag)) &&
-    (!fOrigin || c.origin === fOrigin) &&
+    matchesOriginFilter(fOrigin, c.origin, c.customOrigin) &&
     (!fClientType || c.clientType === fClientType) &&
     (!fSale ||
       (fSale === 'won' && c.sales.some((s) => s.status === 'WON')) ||
@@ -224,7 +220,7 @@ export default function CrmContatosPage() {
           <h1 className="ui-h1">Contatos</h1>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
             {temPeriodo || fOrigin
-              ? <><strong>{total}</strong> contato{total === 1 ? '' : 's'}{fOrigin ? ` de ${originLabel(fOrigin as CrmOrigin)}` : ''}{temPeriodo ? ' chegaram no período' : ''} · mostrando {clients.length}</>
+              ? <><strong>{total}</strong> contato{total === 1 ? '' : 's'}{fOrigin ? ` de ${(() => { const o = parseOriginValue(fOrigin); return originLabel(o.origin, o.customOrigin); })()}` : ''}{temPeriodo ? ' chegaram no período' : ''} · mostrando {clients.length}</>
               : <>{total} cliente{total === 1 ? '' : 's'} na carteira · mostrando {clients.length}</>}
           </p>
         </div>
@@ -276,7 +272,7 @@ export default function CrmContatosPage() {
           </>
         )}
         <Dropdown variant="pill" label="Origem" value={fOrigin} onChange={setFOrigin}
-          options={[{ value: '', label: 'todas' }, ...ORIGIN_OPTIONS.map((o) => ({ value: o.key, label: o.label }))]} />
+          options={[{ value: '', label: 'todas' }, ...originFilterOptions(customOrigins.map((o) => o.label))]} />
         {clientTypeOptions.length > 0 && (
           <Dropdown variant="pill" label="Tipo" value={fClientType} onChange={setFClientType}
             options={[{ value: '', label: 'todos' }, ...clientTypeOptions.map((t) => ({ value: t, label: t }))]} />
@@ -294,16 +290,22 @@ export default function CrmContatosPage() {
       {byOrigin && (
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Chegaram no período:</span>
-          {ORIGIN_OPTIONS.filter((o) => (byOrigin[o.key] ?? 0) > 0).map((o) => (
+          {[
+            ...(Object.entries(ORIGIN_LABELS) as [CrmOrigin, string][])
+              .filter(([key]) => (byOrigin[key] ?? 0) > 0)
+              .map(([key, label]) => ({ value: key as string, label, count: byOrigin[key] ?? 0 })),
+            ...Object.entries(byCustomOrigin ?? {})
+              .map(([label, n]) => ({ value: originValue('OUTRO', label), label: `Outro · ${label}`, count: n })),
+          ].map((o) => (
             <button
-              key={o.key}
-              onClick={() => setFOrigin(fOrigin === o.key ? '' : o.key)}
+              key={o.value}
+              onClick={() => setFOrigin(fOrigin === o.value ? '' : o.value)}
               className="rounded-lg px-2.5 py-1 text-xs"
-              style={fOrigin === o.key
+              style={fOrigin === o.value
                 ? { backgroundColor: 'var(--accent-dim)', color: 'var(--text-primary)', border: '1px solid var(--accent)' }
                 : { ...input }}
             >
-              {o.label} <strong>{byOrigin[o.key]}</strong>
+              {o.label} <strong>{o.count}</strong>
             </button>
           ))}
           {Object.values(byOrigin).every((n) => n === 0) || Object.keys(byOrigin).length === 0 ? (
@@ -360,7 +362,7 @@ export default function CrmContatosPage() {
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{c.phone ? fmtPhone(c.phone) : c.igUsername ? `@${c.igUsername}` : '—'}</td>
                     <td className="py-2.5 pr-4">
                       <span className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                        {originLabel(c.origin)}
+                        {originLabel(c.origin, c.customOrigin)}
                       </span>
                     </td>
                     <td className="py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>{c.responsible?.name ?? '—'}</td>

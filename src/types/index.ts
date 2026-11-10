@@ -260,6 +260,8 @@ export interface FunnelSummary {
   won: number;
   /** Leads por origem do card (chave do `CrmOrigin`). `null` junto com `leads`. */
   leadsByOrigin: Record<string, number> | null;
+  /** Parte de leadsByOrigin.OUTRO com origem própria ("Loja": 3). Ausente em backend antigo. */
+  leadsByCustomOrigin?: Record<string, number> | null;
   /** Funil pelos cards: quantos leads do período alcançaram cada etapa do CRM. */
   cardFunnel: (FunnelChannelCounts & { name: string })[] | null;
   /** Por anúncio rastreado no CRM. Ausente em backend antigo. */
@@ -922,6 +924,13 @@ export interface CrmClientTypeOption {
   order: number;
 }
 
+// Origem própria da org, escolhida dentro de "Outro" (ex: Loja, Landing page)
+export interface CrmCustomOriginOption {
+  id: string;
+  label: string;
+  order: number;
+}
+
 // Tag configurável por org (ex: Carteira, Quente, Frio)
 export interface CrmTagOption {
   id: string;
@@ -1073,6 +1082,8 @@ export interface CrmClientSummary {
   igUserId: string | null;
   igUsername: string | null;
   origin: CrmOrigin;
+  /** Com origin OUTRO: qual das origens próprias da org ("Loja"). */
+  customOrigin: string | null;
   notes: string | null;
   company: string | null;
   clientType: string | null;

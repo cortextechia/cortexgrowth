@@ -1153,12 +1153,12 @@ class ApiService {
     return response.data;
   }
 
-  async getCrmClients(params?: { search?: string; take?: number; skip?: number; unread?: boolean; origin?: string; createdFrom?: string; createdTo?: string }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number; byOrigin?: Record<string, number> } }> {
+  async getCrmClients(params?: { search?: string; take?: number; skip?: number; unread?: boolean; origin?: string; customOrigin?: string; createdFrom?: string; createdTo?: string }): Promise<{ success: boolean; data: { clients: import('@/types').CrmClientSummary[]; total: number; byOrigin?: Record<string, number>; byCustomOrigin?: Record<string, number> } }> {
     const response = await this.client.get('/crm/clients', { params });
     return response.data;
   }
 
-  async createCrmClient(data: { name: string; phone: string; origin?: string; responsibleId?: string; notes?: string }): Promise<{ success: boolean; message: string; data: { client: import('@/types').CrmClientSummary; created: boolean } }> {
+  async createCrmClient(data: { name: string; phone: string; origin?: string; customOrigin?: string; responsibleId?: string; notes?: string }): Promise<{ success: boolean; message: string; data: { client: import('@/types').CrmClientSummary; created: boolean } }> {
     const response = await this.client.post('/crm/clients', data);
     return response.data;
   }
@@ -1168,7 +1168,7 @@ class ApiService {
     return response.data;
   }
 
-  async updateCrmClient(id: string, data: { name?: string; origin?: string; notes?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; tags?: string[]; phone?: string }): Promise<{ success: boolean; message: string }> {
+  async updateCrmClient(id: string, data: { name?: string; origin?: string; customOrigin?: string | null; notes?: string; company?: string | null; clientType?: string | null; email?: string | null; city?: string | null; state?: string | null; nextFollowUpAt?: string | null; tags?: string[]; phone?: string }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.put(`/crm/clients/${id}`, data);
     return response.data;
   }
@@ -1221,6 +1221,16 @@ class ApiService {
 
   async saveCrmClientTypes(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmClientTypeOption[] }> {
     const response = await this.client.put('/crm/client-types', { options });
+    return response.data;
+  }
+
+  async getCrmCustomOrigins(): Promise<{ success: boolean; data: import('@/types').CrmCustomOriginOption[] }> {
+    const response = await this.client.get('/crm/custom-origins');
+    return response.data;
+  }
+
+  async saveCrmCustomOrigins(options: { id?: string; label: string }[]): Promise<{ success: boolean; message: string; data: import('@/types').CrmCustomOriginOption[] }> {
+    const response = await this.client.put('/crm/custom-origins', { options });
     return response.data;
   }
 

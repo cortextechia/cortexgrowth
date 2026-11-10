@@ -2289,9 +2289,15 @@ function DashboardConteudo() {
       ];
 
   const origemDosLeads = funilPorCards && funnelSummary!.leadsByOrigin
-    ? ORIGENS_CRM.map((o) => {
+    ? ORIGENS_CRM.flatMap((o) => {
+        const linha = (label: string, count: number) =>
+          ({ label, count, color: o.color, pct: taxa(count, funnelSummary!.leads!.total) * 100 });
         const count = funnelSummary!.leadsByOrigin![o.key] ?? 0;
-        return { label: o.label, count, color: o.color, pct: taxa(count, funnelSummary!.leads!.total) * 100 };
+        if (o.key !== 'OUTRO') return [linha(o.label, count)];
+        // "Outro" se abre nas origens próprias da org (Loja, Landing page...); sobra o "Outro" solto.
+        const proprias = Object.entries(funnelSummary!.leadsByCustomOrigin ?? {});
+        const soltos = count - proprias.reduce((acc, [, n]) => acc + n, 0);
+        return [...proprias.map(([label, n]) => linha(`Outro · ${label}`, n)), linha(o.label, soltos)];
       })
     : leadsByOrigin;
 
