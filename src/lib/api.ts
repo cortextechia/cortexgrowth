@@ -1498,6 +1498,12 @@ class ApiService {
     return response.data;
   }
 
+  // Áudio gravado no CRM — chega como mensagem de voz do WhatsApp
+  async sendCrmWhatsappAudio(clientId: string, data: { mimetype: string; base64: string }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send-audio`, data);
+    return response.data;
+  }
+
   async sendCrmWhatsappMedia(clientId: string, data: { mediatype: 'image' | 'video' | 'document'; mimetype: string; base64: string; fileName?: string; caption?: string }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send-media`, data);
     return response.data;

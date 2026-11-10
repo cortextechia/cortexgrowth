@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AvisosNoCelular from '@/components/AvisosNoCelular';
+import GravadorAudio from '@/components/GravadorAudio';
 import { useAuth } from '@/context/AuthContext';
 import { Dropdown, Chevron, usePopover } from '@/components/Dropdown';
 import { apiService, API_BASE_URL } from '@/lib/api';
@@ -79,7 +80,7 @@ const EVENT_LABELS: Record<string, string> = {
 const eventTitle = (e: CrmEvent): string => {
   if (e.type === 'WA_SENT_ON_BEHALF') {
     const nome = typeof e.payload.responsibleName === 'string' ? e.payload.responsibleName : 'outro vendedor';
-    return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : ''}`;
+    return ` ${nome}${e.payload.kind === 'MEDIA' ? ' (anexo)' : e.payload.kind === 'AUDIO' ? ' (áudio)' : ''}`;
   }
   if (e.type === 'AUTO_MESSAGE_SKIPPED' && typeof e.payload.reason === 'string') return `: ${e.payload.reason}`;
   if (e.type === 'CONDITION_CHECKED' && typeof e.payload.text === 'string') {
@@ -5227,6 +5228,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [sendingFile, setSendingFile] = useState(false);
+  const [gravando, setGravando] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
   const [replies, setReplies] = useState<CrmQuickReply[] | null>(null);
   const [showRepliesEditor, setShowRepliesEditor] = useState(false);
@@ -5625,7 +5627,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
           {available && canSend && (
             <form
               // items-end: com o textarea crescendo, os botões ficam alinhados embaixo
-              className="mt-2 flex items-end gap-2"
+              className="mt-2 flex flex-wrap items-end gap-2"
               onSubmit={(e) => { e.preventDefault(); void send(); }}
             >
               <input
@@ -5635,6 +5637,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
                 className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) void sendFile(f); }}
               />
+              {!gravando && (<>
               <button
                 type="button"
                 onClick={() => void toggleReplies()}
@@ -5660,6 +5663,13 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
               >
                 {sendingFile ? '⏳' : '📎'}
               </button>
+              </>)}
+              <GravadorAudio
+                disabled={sending || sendingFile}
+                onAtivo={setGravando}
+                onEnviar={async (a) => { await apiService.sendCrmWhatsappAudio(clientId, a); await load(); }}
+              />
+              {!gravando && (<>
               <textarea
                 ref={draftRef}
                 value={draft}
@@ -5680,6 +5690,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
               >
                 {sending ? 'Enviando...' : 'Enviar'}
               </button>
+              </>)}
             </form>
           )}
           {sendError && (
