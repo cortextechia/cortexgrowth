@@ -398,6 +398,123 @@ function playDing() {
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
+// ─── Celular (vendedor) ───────────────────────────────────────────────────────
+// Abaixo de 768px o CRM troca o kanban (colunas que rolam para o lado) por três
+// telas com barra embaixo: Conversas · Funil · Tarefas. O computador não muda.
+
+function useIsPhone(): boolean {
+  const [isPhone, setIsPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)');
+    const onChange = () => setIsPhone(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return isPhone;
+}
+
+type PhoneView = 'conversas' | 'funil' | 'tarefas';
+
+// "agora", "12 min", "3 h", "ontem", "08/11"
+function fmtAgo(iso: string | null): string {
+  if (!iso) return '';
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (min < 1) return 'agora';
+  if (min < 60) return `${min} min`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)} h`;
+  if (min < 48 * 60) return 'ontem';
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+function PhoneClientRow({ client, stage, valor, onOpen, children }: {
+  client: CrmClientSummary;
+  stage: { name: string; color: string } | null;
+  valor: number;
+  onOpen: () => void;
+  children?: React.ReactNode;
+}) {
+  const unread = hasUnread(client);
+  return (
+    <div className="py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+      <button onClick={onOpen} className="w-full text-left flex items-center gap-3 min-h-[44px]">
+        <WaAvatar url={client.waAvatarUrl} name={client.name} className="w-11 h-11 text-sm shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`truncate text-[15px] ${unread ? 'font-semibold' : 'font-medium'}`} style={{ color: 'var(--text-primary)' }}>{client.name}</span>
+            <span className="ml-auto shrink-0 text-xs tabular-nums" style={{ color: unread ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+              {fmtAgo(client.lastInboundAt ?? client.updatedAt)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            {client.triageStatus === 'PENDING' ? (
+              <span className="ui-badge ui-badge-lime">NOVO CONTATO</span>
+            ) : stage ? (
+              <span className="inline-flex items-center gap-1 truncate">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: stage.color }} aria-hidden />
+                <span className="truncate">{stage.name}</span>
+              </span>
+            ) : (
+              <span className="truncate">Fora do funil</span>
+            )}
+            {valor > 0 && <span className="shrink-0 tabular-nums" style={{ color: 'var(--text-primary)' }}>· {fmtMoney(valor)}</span>}
+            {unread && <span className="ml-auto shrink-0"><UnreadDot lastInboundAt={client.lastInboundAt} /></span>}
+          </div>
+        </div>
+      </button>
+      {children && <div className="mt-2 pl-14 flex gap-2">{children}</div>}
+    </div>
+  );
+}
+
+function PhoneBottomNav({ view, onChange, unread, tasksDue }: {
+  view: PhoneView;
+  onChange: (v: PhoneView) => void;
+  unread: number;
+  tasksDue: number;
+}) {
+  const itens: { key: PhoneView; label: string; badge: number; icon: React.ReactNode }[] = [
+    { key: 'conversas', label: 'Conversas', badge: unread, icon: <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h8M8 14h5m-9 6l2.5-3H18a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v14z" /> },
+    { key: 'funil', label: 'Funil', badge: 0, icon: <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h16l-6 7v6l-4 2v-8L4 5z" /> },
+    { key: 'tarefas', label: 'Tarefas', badge: tasksDue, icon: <path strokeLinecap="round" strokeLinejoin="round" d="M9 11l2 2 4-4m-9 9h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z" /> },
+  ];
+  return (
+    <nav
+      className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
+      style={{ backgroundColor: 'var(--bg-sidebar)', borderTop: '1px solid var(--border)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      aria-label="CRM"
+    >
+      {itens.map((it) => {
+        const ativo = view === it.key;
+        return (
+          <button
+            key={it.key}
+            onClick={() => onChange(it.key)}
+            aria-pressed={ativo}
+            className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] relative"
+            style={{ color: ativo ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+          >
+            <span className="relative">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={ativo ? 2.2 : 1.7}>{it.icon}</svg>
+              {it.badge > 0 && (
+                <span
+                  className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: 'var(--badge-error-text)', color: 'var(--bg-base)' }}
+                >
+                  {it.badge > 99 ? '99+' : it.badge}
+                </span>
+              )}
+            </span>
+            <span className={`text-[11px] ${ativo ? 'font-bold' : 'font-medium'}`}>{it.label}</span>
+            {ativo && <span className="absolute top-0 inset-x-6 h-0.5 rounded-full" style={{ backgroundColor: 'var(--accent)' }} aria-hidden />}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function CrmPage() {
   const { user } = useAuth();
   const isAdmin = ADMIN_ROLES.includes(user?.role ?? '');
@@ -453,6 +570,11 @@ export default function CrmPage() {
   // Listas configuráveis da org — alimentam os seletores no card e os filtros
   const [clientTypes, setClientTypes] = useState<CrmClientTypeOption[]>([]);
   const [crmTags, setCrmTags] = useState<CrmTagOption[]>([]);
+  // Celular: três telas com barra embaixo no lugar do kanban
+  const isPhone = useIsPhone();
+  const [phoneView, setPhoneView] = useState<PhoneView>('conversas');
+  const [phoneStage, setPhoneStage] = useState('');
+  const [showPhoneFilters, setShowPhoneFilters] = useState(false);
 
   const showToast = (type: 'success' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -1096,9 +1218,75 @@ export default function CrmPage() {
   const stageLocksValue = (stage: { order: number }) =>
     valueThreshold !== null && stage.order >= valueThreshold;
 
+  // Celular: Conversas = todo mundo, sem resposta primeiro, depois quem falou por último.
+  const phoneConversas = [...filtered].sort((a, b) => {
+    const ua = hasUnread(a) ? 1 : 0, ub = hasUnread(b) ? 1 : 0;
+    if (ua !== ub) return ub - ua;
+    return (b.lastInboundAt ?? b.updatedAt).localeCompare(a.lastInboundAt ?? a.updatedAt);
+  });
+  const phoneStageOf = (c: CrmClientSummary) => {
+    const st = status.stages.find((x) => x.id === c.stageId);
+    return st ? { name: st.name, color: stageColor(st) } : null;
+  };
+  const phoneStageTabs = [
+    ...(pendingClients.length > 0 ? [{ id: '_novos', name: 'Novos contatos', count: pendingClients.length, color: 'var(--accent)' }] : []),
+    ...(returningClients.length > 0 ? [{ id: '_recorrente', name: 'Recorrente', count: returningClients.length, color: 'var(--badge-warn-text)' }] : []),
+    ...status.stages.map((st) => ({ id: st.id, name: st.name, count: (clientsByStage.get(st.id) ?? []).length, color: stageColor(st) })),
+  ];
+  const phoneStageAtiva = phoneStageTabs.find((t) => t.id === phoneStage) ?? phoneStageTabs[0];
+  const phoneFunilLista = phoneStageAtiva?.id === '_novos' ? pendingClients
+    : phoneStageAtiva?.id === '_recorrente' ? returningClients
+    : (clientsByStage.get(phoneStageAtiva?.id ?? '') ?? []);
+  const tasksDue = tasks.filter((t) => taskTone(t.dueAt) !== 'future').length;
+
   return (
-    <div>
+    <div className={isPhone ? 'pb-24' : ''}>
+      {/* Cabeçalho do celular: o essencial na primeira dobra, o resto no menu Mais */}
+      {isPhone && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2">
+            <h1 className="ui-h1 !text-[24px] flex-1">CRM</h1>
+            <ActionsMenu
+              label="Mais"
+              items={[
+                { label: 'Relatório', onClick: () => setShowReport(true) },
+                { label: soundOn ? 'Silenciar som de mensagem' : 'Ligar som de mensagem', onClick: toggleSound },
+                ...(isAdmin ? [
+                  { label: 'Editar funil', onClick: () => setShowStagesEditor(true) },
+                  { label: 'Tags', onClick: () => setShowTagsEditor(true) },
+                  { label: 'Motivos de perda (venda)', onClick: () => setShowLostReasonsEditor(true) },
+                  { label: 'Motivos de descarte (lead)', onClick: () => setShowDiscardReasonsEditor(true) },
+                ] : []),
+                { label: 'Contatos (lista completa)', onClick: () => { window.location.href = '/dashboard/crm/contatos'; } },
+                { label: 'Manual do CRM', onClick: () => { window.open('/manual-crm.html', '_blank', 'noopener'); } },
+              ]}
+            />
+            <button onClick={() => setShowNewClient(true)} className="ui-btn ui-btn-primary ui-btn-sm">+ Novo</button>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar nome ou telefone"
+              className="rounded-lg px-3 py-2.5 text-[15px] flex-1 min-w-0"
+              style={input}
+              type="search"
+            />
+            <button
+              onClick={() => setShowPhoneFilters((v) => !v)}
+              className="ui-filtro shrink-0"
+              data-ativo={hasActiveFilter}
+              aria-expanded={showPhoneFilters}
+            >
+              Filtros{hasActiveFilter ? ' •' : ''}
+            </button>
+          </div>
+          <div className="mt-2"><WhatsappConnectButton showToast={showToast} /></div>
+        </div>
+      )}
+
       {/* Header */}
+      {!isPhone && (
       <div className="flex flex-wrap items-center gap-3 mb-5">
         <div className="flex-1 min-w-[200px]">
           <h1 className="ui-h1">CRM</h1>
@@ -1167,8 +1355,10 @@ export default function CrmPage() {
           ?
         </a>
       </div>
+      )}
 
-      {/* Filtros — aplicam no kanban e na tabela */}
+      {/* Filtros — aplicam no kanban e na tabela (no celular, só quando abertos) */}
+      {(!isPhone || showPhoneFilters) && (
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <button
           onClick={() => {
@@ -1285,6 +1475,7 @@ export default function CrmPage() {
           </button>
         )}
       </div>
+      )}
 
       {/* Contagem do período — vem do servidor, não dos cards desenhados */}
       {temPeriodo && periodByOrigin && (
@@ -1310,6 +1501,74 @@ export default function CrmPage() {
         </div>
       )}
 
+      {isPhone && (
+        <>
+          {phoneView === 'conversas' && (
+            <section aria-label="Conversas">
+              {phoneConversas.length === 0 ? (
+                <p className="py-12 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhuma conversa por aqui.</p>
+              ) : phoneConversas.map((c) => (
+                <PhoneClientRow key={c.id} client={c} stage={phoneStageOf(c)} valor={openValue(c)} onOpen={() => openClient(c.id)} />
+              ))}
+              {totalClients > clients.length && (
+                <p className="pt-4 text-center text-xs" style={{ color: 'var(--text-secondary)' }}>
+                  Mostrando os {clients.length} mais recentes · use a busca para achar os outros
+                </p>
+              )}
+            </section>
+          )}
+
+          {phoneView === 'funil' && (
+            <section aria-label="Funil">
+              <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-2" role="group" aria-label="Etapa">
+                {phoneStageTabs.map((t) => {
+                  const ativo = t.id === phoneStageAtiva?.id;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setPhoneStage(t.id)}
+                      aria-pressed={ativo}
+                      className="ui-filtro shrink-0 !py-2"
+                      data-ativo={ativo}
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.color }} aria-hidden />
+                      {t.name} <strong style={{ color: 'var(--text-primary)' }}>{t.count}</strong>
+                    </button>
+                  );
+                })}
+              </div>
+              {phoneFunilLista.length === 0 ? (
+                <p className="py-12 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum card nesta etapa.</p>
+              ) : phoneFunilLista.map((c) => (
+                <PhoneClientRow key={c.id} client={c} stage={phoneStageOf(c)} valor={openValue(c)} onOpen={() => openClient(c.id)}>
+                  {phoneStageAtiva?.id === '_novos' && (
+                    <>
+                      <button onClick={() => void handleAccept(c.id)} disabled={triaging.has(c.id)} className="ui-btn ui-btn-tint ui-btn-sm flex-1">Aceitar</button>
+                      <button onClick={() => setDiscardTarget({ id: c.id, name: c.name })} disabled={triaging.has(c.id)} className="ui-btn ui-btn-secondary ui-btn-sm flex-1">Descartar</button>
+                    </>
+                  )}
+                  {phoneStageAtiva?.id === '_recorrente' && (
+                    <>
+                      <button onClick={() => void handleReopen(c.id)} disabled={triaging.has(c.id)} className="ui-btn ui-btn-tint ui-btn-sm flex-1">Aceitar</button>
+                      <button onClick={() => void handleDismissReturning(c.id)} disabled={triaging.has(c.id)} className="ui-btn ui-btn-secondary ui-btn-sm flex-1">Dispensar</button>
+                    </>
+                  )}
+                </PhoneClientRow>
+              ))}
+            </section>
+          )}
+
+          {phoneView === 'tarefas' && (
+            tasks.length === 0
+              ? <p className="py-12 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhuma tarefa pendente.</p>
+              : <TasksPanel tasks={tasks} onToggle={handleToggleTask} onOpenClient={openClient} />
+          )}
+
+          <PhoneBottomNav view={phoneView} onChange={setPhoneView} unread={unreadCount} tasksDue={tasksDue} />
+        </>
+      )}
+
+      {!isPhone && (<>
       {/* Tarefas do dia — a rotina do vendedor (vencidas + hoje em destaque) */}
       <TasksPanel
         tasks={tasks}
@@ -1647,6 +1906,7 @@ export default function CrmPage() {
           Ver contatos →
         </a>
       </div>
+      </>)}
 
       {/* Drawer do cliente */}
       {(detail || detailLoading) && (
@@ -3051,6 +3311,10 @@ function ClientDrawer(props: {
 }) {
   const { detail, loading, stages, isAdmin, orgUsers, tasks } = props;
   const isDesktop = useIsDesktop();
+  // Celular: o card abre na CONVERSA (é o que o vendedor faz o dia todo); o resto do card
+  // fica na aba Detalhes. No computador a conversa já é a coluna da direita.
+  const [mobileTab, setMobileTab] = useState<'conversa' | 'detalhes'>('conversa');
+  const mobileConv = !isDesktop && mobileTab === 'conversa';
   // Sinal do stream só interessa se for do cliente aberto neste drawer
   const waRefresh =
     props.liveSignal && detail && props.liveSignal.clientId === detail.id ? props.liveSignal.seq : 0;
@@ -3235,11 +3499,11 @@ function ClientDrawer(props: {
           </div>
         ) : (
           // Desktop: card à esquerda + conversa lateral (como no Kommo). Mobile: empilhado.
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden overscroll-contain">
-          <div className="flex-1 min-w-0 lg:overflow-y-auto overscroll-contain">
-          <div className="p-5">
+          <div className={`flex-1 min-h-0 flex flex-col lg:flex-row ${mobileConv ? 'overflow-hidden' : 'overflow-y-auto'} lg:overflow-hidden overscroll-contain`}>
+          <div className={`flex-1 min-w-0 lg:overflow-y-auto overscroll-contain ${mobileConv ? 'flex flex-col min-h-0' : ''}`}>
+          <div className={mobileConv ? 'p-5 flex-1 min-h-0 flex flex-col' : 'p-5'}>
             {/* Cabeçalho do card — banner escuro estilo Kommo (fundo fixo nos 2 temas) */}
-            <div className="-m-5 mb-0 p-5 pb-4" style={{ background: CARD_HEADER_BG, borderBottom: '1px solid var(--border)' }}>
+            <div className="-m-5 mb-0 p-5 pb-4 shrink-0" style={{ background: CARD_HEADER_BG, borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex items-center gap-3">
                   <WaAvatar url={avatarUrl} name={detail.name} className="w-11 h-11 text-sm" />
@@ -3383,6 +3647,27 @@ function ClientDrawer(props: {
               })()}
             </div>
 
+            {/* Celular: abas Conversa | Detalhes + etapa à mão na conversa */}
+            {!isDesktop && (
+              <div className="mt-4 shrink-0 flex items-center gap-2">
+                <div className="ui-seg !flex flex-1" role="group" aria-label="Seção do card">
+                  <button className="flex-1" aria-pressed={mobileTab === 'conversa'} onClick={() => setMobileTab('conversa')}>Conversa</button>
+                  <button className="flex-1" aria-pressed={mobileTab === 'detalhes'} onClick={() => setMobileTab('detalhes')}>Detalhes</button>
+                </div>
+              </div>
+            )}
+            {mobileConv && detail.triageStatus === 'ACCEPTED' && detail.stageId && (
+              <div className="mt-3 shrink-0 flex items-center gap-2">
+                <span className="text-sm shrink-0" style={{ color: 'var(--text-secondary)' }}>Etapa</span>
+                <Dropdown
+                  className="flex-1 min-w-0"
+                  value={detail.stageId}
+                  onChange={(v) => v && props.onChangeClientStage(v)}
+                  options={stages.map((st) => ({ value: st.id, label: st.name }))}
+                />
+              </div>
+            )}
+
             {/* Triagem — mesmo Aceitar/Rejeitar da coluna "Novos contatos", agora dentro
                 do card: contato novo do WhatsApp aguardando decisão antes de entrar no funil. */}
             {detail.triageStatus === 'PENDING' && (
@@ -3420,7 +3705,7 @@ function ClientDrawer(props: {
             {/* Descarte do lead já aceito: até então a única saída do funil era
                 fechar uma venda, e quem nunca conversou virava venda de R$0
                 perdida — venda que não existiu, contada no dashboard. */}
-            {detail.triageStatus === 'ACCEPTED' && (
+            {!mobileConv && detail.triageStatus === 'ACCEPTED' && (
               <div className="mt-3 flex items-center justify-between gap-2">
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                   Lead não qualificou (não responde, clique errado...)?
@@ -3474,6 +3759,7 @@ function ClientDrawer(props: {
               );
             })()}
 
+            {!mobileConv && (<>
             {/* Nota fixada — no TOPO do card, não só no topo da timeline.
                 Fixar já ordenava a lista certo, mas "Notas e histórico" fica no
                 fim do drawer: conforme o atendimento gera tarefas e vendas, a
@@ -3971,27 +4257,34 @@ function ClientDrawer(props: {
               </div>
             )}
 
-            {/* Conversa WhatsApp no fluxo — só no mobile (desktop usa o painel lateral) */}
-            {!isDesktop && convSwitch && <div className="mt-6">{convSwitch}</div>}
-            {!isDesktop && showIg && (
-              <IgConversation
-                clientId={detail.id}
-                clientName={detail.name}
-                igUsername={detail.igUsername}
-                refreshSignal={waRefresh}
-              />
-            )}
-            {!isDesktop && !showIg && (
-              <WaConversation
-                clientId={detail.id}
-                clientName={detail.name}
-                canEdit={isAdmin}
-                canSend={detail.responsibleId !== null && (detail.responsibleId === props.currentUserId || props.canSendOnBehalf)}
-                sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
-                responsibleName={detail.responsible?.name ?? null}
-                onAssumir={() => props.onTransfer(props.currentUserId)}
-                refreshSignal={waRefresh}
-              />
+            </>)}
+
+            {/* Conversa no celular — aba própria, em altura cheia, como no WhatsApp */}
+            {mobileConv && (
+              <div className="flex-1 min-h-0 -mx-5 -mb-5 mt-3 flex flex-col" style={{ backgroundColor: 'var(--bg-elevated)', borderTop: '1px solid var(--border)' }}>
+                {convSwitch && <div className="px-4 pt-3 -mb-3 shrink-0">{convSwitch}</div>}
+                {showIg ? (
+                  <IgConversation
+                    clientId={detail.id}
+                    clientName={detail.name}
+                    igUsername={detail.igUsername}
+                    refreshSignal={waRefresh}
+                    variant="panel"
+                  />
+                ) : (
+                  <WaConversation
+                    clientId={detail.id}
+                    clientName={detail.name}
+                    canEdit={isAdmin}
+                    canSend={detail.responsibleId !== null && (detail.responsibleId === props.currentUserId || props.canSendOnBehalf)}
+                    sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
+                    responsibleName={detail.responsible?.name ?? null}
+                    onAssumir={() => props.onTransfer(props.currentUserId)}
+                    refreshSignal={waRefresh}
+                    variant="panel"
+                  />
+                )}
+              </div>
             )}
           </div>
           </div>

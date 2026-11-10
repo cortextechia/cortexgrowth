@@ -14,6 +14,7 @@ import { TrafficManagerClient, UserRole } from '@/types';
 import { usePlano } from '@/hooks/useApi';
 import { IconeCadeado, RecursoBloqueado } from '@/components/RecursoBloqueado';
 import LogoCromalex from '@/components/LogoCromalex';
+import InstalarApp from '@/components/InstalarApp';
 
 // Telas do Growth: no plano CRM continuam no menu, com cadeado, e abrem a explicação em vez
 // da tela. A API barra as rotas delas do mesmo jeito (403 PLAN_FEATURE_LOCKED).
@@ -824,6 +825,7 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
 
           <AvisoEmailNaoConfirmado />
           <AvisoAssinaturaEncerrando />
+          <InstalarApp />
 
           <div className="p-4 sm:p-6">
             {telaBloqueada
