@@ -46,7 +46,7 @@ const IDENTIDADE: Record<string, {
     cor: 'var(--accent)',
     corSuave: 'var(--accent-dim)',
     chamada: 'Growth + CRM',
-    publico: 'até 3 usuários',
+    publico: 'até 4 usuários',
     inclui: ['Meta Ads e Google Ads no mesmo painel', 'CRM Cromalex sem limite de clientes', 'Relatórios e insights de IA'],
   },
   PROFESSIONAL: {

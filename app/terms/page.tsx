@@ -97,7 +97,7 @@ export default function TermsPage() {
               <p>O Cromalex Growth oferece planos pagos com diferentes funcionalidades:</p>
               <div className="p-4 rounded-xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
                 <ul className="space-y-1">
-                  <li><strong style={{ color: '#f1f5f9' }}>Starter</strong> — 1 usuário · sem integração CRM</li>
+                  <li><strong style={{ color: '#f1f5f9' }}>Starter</strong> — até 4 usuários · Growth + CRM Cromalex</li>
                   <li><strong style={{ color: '#f1f5f9' }}>Professional</strong> — até 3 usuários · com Kommo CRM</li>
                   <li><strong style={{ color: '#f1f5f9' }}>Enterprise</strong> — usuários ilimitados · com Kommo CRM</li>
                 </ul>

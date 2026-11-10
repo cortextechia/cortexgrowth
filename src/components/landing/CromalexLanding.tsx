@@ -720,7 +720,7 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
               {precos.growth.economia && <span className="self-start rounded-lg px-2.5 py-1 text-[13px] font-bold" style={{ background: 'var(--cx-lime)', color: 'var(--cx-on-lime)' }}>{precos.growth.economia}</span>}
             </div>
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0 text-[15px]">
-              {['Tudo do CRM', 'Rastreio de cada lead até o anúncio', 'Painel Meta Ads + Google Ads', 'Relatórios de IA e alertas', '3 usuários'].map((i) => <li key={i}>✓ {i}</li>)}
+              {['Tudo do CRM', 'Rastreio de cada lead até o anúncio', 'Painel Meta Ads + Google Ads', 'Relatórios de IA e alertas', '4 usuários'].map((i) => <li key={i}>✓ {i}</li>)}
             </ul>
             <Link href={linkCadastro('STARTER', ciclo)} className="cx-btn-lime mt-auto rounded-[14px] p-3.5 text-center text-base font-bold no-underline">Assinar o Growth + CRM</Link>
           </div>
