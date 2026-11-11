@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return response;
     } catch (error: any) {
       const errorMessage =
+        (typeof error.response?.data === 'string' && error.response.data) ||
         error.response?.data?.message ||
         error.response?.data?.errors?.[0]?.msg ||
         error.message ||

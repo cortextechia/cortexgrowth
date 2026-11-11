@@ -1569,3 +1569,12 @@ class ApiService {
 }
 
 export const apiService = new ApiService();
+
+// O texto do axios ("Request failed with status code 429") não diz nada a quem está logando.
+// O servidor manda o motivo em JSON ({ message }) ou, no rate limit, como texto puro.
+export function mensagemDoServidor(err: unknown, padrao: string): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data;
+  if (typeof data === 'string' && data.trim()) return data;
+  const msg = (data as { message?: unknown } | undefined)?.message;
+  return typeof msg === 'string' && msg.trim() ? msg : padrao;
+}

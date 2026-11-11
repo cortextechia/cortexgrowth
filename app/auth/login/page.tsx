@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import BetaBadge from '@/components/BetaBadge';
 import LogoCromalex from '@/components/LogoCromalex';
+import { mensagemDoServidor } from '@/lib/api';
 
 function Spinner() {
   return (
@@ -37,7 +38,7 @@ export default function LoginPage() {
       const response = await login(formData);
       if (response.success) router.push('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao fazer login. Tente novamente.');
+      setError(mensagemDoServidor(err, 'Erro ao fazer login. Tente novamente.'));
     } finally {
       setIsLoading(false);
     }

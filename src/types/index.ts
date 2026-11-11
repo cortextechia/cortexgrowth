@@ -215,6 +215,9 @@ export interface AttributionSummary {
   revenueGoogle: number;
   /** Parte de `revenueMeta` vinda do link da bio. */
   revenueLinkBio?: number;
+  /** Partes de `revenueMeta`/`revenueGoogle` com origem escolhida pelo vendedor (não medida). */
+  revenueInformedMeta?: number;
+  revenueInformedGoogle?: number;
   pipelineValue: number;
   spend: number;
   spendMeta: number;

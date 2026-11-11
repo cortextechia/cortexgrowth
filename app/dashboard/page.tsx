@@ -2190,6 +2190,12 @@ function DashboardConteudo() {
   // Parte da receita acima que veio do link da bio. No Total a receita da Meta só entra com gasto.
   const mktBioRevenue = mktTab === 'meta' || (mktTab === 'total' && (attributionSummary?.spendMeta ?? 0) > 0)
     ? (attributionSummary?.revenueLinkBio ?? 0) : 0;
+  // Parte da receita acima cuja origem o vendedor escolheu à mão — o webhook não mediu.
+  // No Total, como a receita, só entra a plataforma com gasto.
+  const informadaMeta   = attributionSummary?.revenueInformedMeta   ?? 0;
+  const informadaGoogle = attributionSummary?.revenueInformedGoogle ?? 0;
+  const mktInformedRevenue = mktTab === 'meta' ? informadaMeta : mktTab === 'google' ? informadaGoogle
+    : ((attributionSummary?.spendMeta ?? 0) > 0 ? informadaMeta : 0) + ((attributionSummary?.spendGoogle ?? 0) > 0 ? informadaGoogle : 0);
   const mktSpend      = mktTab === 'meta' ? (attributionSummary?.spendMeta   ?? 0) : mktTab === 'google' ? (attributionSummary?.spendGoogle   ?? 0) : (attributionSummary?.spend   ?? 0);
   const mktCac        = mktTab === 'meta'   ? (canalComparativo.meta.leads   > 0 ? canalComparativo.meta.spend   / canalComparativo.meta.leads   : null)
                       : mktTab === 'google' ? (canalComparativo.google.leads > 0 ? canalComparativo.google.spend / canalComparativo.google.leads : null)
@@ -2753,10 +2759,10 @@ function DashboardConteudo() {
                 badge={mktRoas != null ? (mktRoas >= 4 ? '↑ acima da meta' : mktRoas >= 2 ? '↔ na média' : '↓ abaixo da meta') : undefined}
                 badgeColor={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : undefined}
                 sub={mktRevenue > 0
-                  ? `${fmtMoney(mktRevenue)} receita${mktBioRevenue > 0 ? ` (${fmtMoney(mktBioRevenue)} do link da bio)` : ''} / ${fmtMoney(mktSpend)} gasto${utmCovPct != null ? ` · cobre ${fmtPct1(utmCovPct)} dos leads` : ''}`
+                  ? `${fmtMoney(mktRevenue)} receita${mktBioRevenue > 0 ? ` (${fmtMoney(mktBioRevenue)} do link da bio)` : ''} / ${fmtMoney(mktSpend)} gasto${mktInformedRevenue > 0 ? ` · ${fmtMoney(mktInformedRevenue)} com origem informada pelo vendedor` : ''}${utmCovPct != null ? ` · cobre ${fmtPct1(utmCovPct)} dos leads` : ''}`
                   : 'Sem receitas fechadas'}
                 accent={mktRoas != null ? (mktRoas >= 4 ? 'var(--badge-success-text)' : mktRoas >= 2 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)') : 'var(--text-muted)'}
-                info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas do link da bio contam como Meta, porque há campanhas que levam ao perfil. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro."
+                info="Receita das vendas com origem identificada em canal pago (UTM Meta/Google) ÷ gasto em anúncios. Vendas do link da bio contam como Meta, porque há campanhas que levam ao perfil. Vendas sem origem (WhatsApp, orgânico) ficam de fora — não é o retorno do negócio inteiro. 'Origem informada pelo vendedor' é a parte da receita em que alguém escolheu ou trocou a origem no CRM à mão: conta no ROAS, mas não foi medida pelo anúncio."
               />
             )}
             {kpisFundo.includes('cac') && (
