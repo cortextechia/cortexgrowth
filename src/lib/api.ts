@@ -289,6 +289,28 @@ class ApiService {
     return response.data;
   }
 
+  // ─── Central de ajuda — "Este artigo ajudou?" (voto da própria pessoa) ─
+  async getHelpFeedback(articleId: string): Promise<{ success: boolean; data: { helpful: boolean; comment: string | null } | null }> {
+    const response = await this.client.get(`/help/feedback/${encodeURIComponent(articleId)}`);
+    return response.data;
+  }
+
+  async putHelpFeedback(articleId: string, helpful: boolean, comment?: string): Promise<{ success: boolean; data: { helpful: boolean; comment: string | null } }> {
+    const response = await this.client.put(`/help/feedback/${encodeURIComponent(articleId)}`, { helpful, comment: comment ?? null });
+    return response.data;
+  }
+
+  async getHelpFeedbackSummary(): Promise<{
+    success: boolean;
+    data: {
+      articles: { articleId: string; yes: number; no: number }[];
+      comments: { articleId: string; comment: string; updatedAt: string; userName: string; organizationName: string }[];
+    };
+  }> {
+    const response = await this.client.get('/help/feedback-summary');
+    return response.data;
+  }
+
   // ─── Notificação no celular (PWA) — inscrição do aparelho do próprio usuário ─
   async getPushConfig(): Promise<{ success: boolean; data: { enabled: boolean; publicKey: string | null; devices: number } }> {
     const response = await this.client.get('/push/config');
