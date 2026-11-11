@@ -492,9 +492,9 @@ export default function CromalexLanding({ fontClass }: { fontClass: string }) {
             <a href="#duvidas" className="cx-link no-underline">Dúvidas</a>
           </div>
           <div className="flex items-center gap-2">
-            <BotaoTema />
-            <Link href="/auth/login" className="cx-link hidden rounded-xl px-4 py-2.5 text-sm font-semibold no-underline sm:inline-block">Entrar</Link>
-            <a href="#precos" className="cx-btn-lime rounded-xl px-[18px] py-2.5 text-sm font-bold no-underline">Assinar</a>
+            <span className="hidden sm:inline-flex"><BotaoTema /></span>
+            <Link href="/auth/login" className="cx-link inline-block rounded-xl px-3 py-2.5 text-sm font-semibold no-underline sm:px-4">Entrar</Link>
+            <a href="#precos" className="cx-btn-lime rounded-xl px-3.5 py-2.5 text-sm font-bold no-underline sm:px-[18px]">Assinar</a>
           </div>
         </div>
       </nav>
