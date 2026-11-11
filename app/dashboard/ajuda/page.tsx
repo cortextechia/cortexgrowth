@@ -15,6 +15,8 @@ import { usePlano } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import { ARTIGOS, MODULOS, type Artigo, type Bloco, type Modulo } from './artigos';
+import { DEMOS } from './demos';
+import { Ilustracao } from './ilustracoes';
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -266,6 +268,7 @@ function ArtigoView({ artigo, temGrowth, ehGestor, anterior, proximo, doModulo, 
   const { feitos, marcar } = useFeitos();
   const modulo = MODULOS.find((m) => m.key === artigo.modulo)!.label;
   const blocos = artigo.blocos.filter((b) => temGrowth || !b.soGrowth);
+  const Demo = DEMOS[artigo.id];
 
   return (
     <div className="grid gap-8 lg:grid-cols-[240px_1fr] items-start">
@@ -309,6 +312,8 @@ function ArtigoView({ artigo, temGrowth, ehGestor, anterior, proximo, doModulo, 
             Isto é feito pelo gestor da empresa. Se precisar, peça para ele.
           </p>
         )}
+
+        {Demo ? <Demo /> : <Ilustracao id={artigo.id} />}
 
         {blocos.map((b, i) => (
           <BlocoView key={i} bloco={b} chave={`${artigo.id}:${artigo.blocos.indexOf(b)}`} feitos={feitos} onFeito={marcar} />
@@ -543,6 +548,7 @@ export default function AjudaPage() {
               <button key={a.id} onClick={() => abrir(a.id)} className="ui-card text-left flex flex-col gap-2.5 transition-transform hover:-translate-y-0.5">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="eyebrow" style={{ color: 'var(--text-secondary)' }}>{labelModulo(a.modulo)}</span>
+                  {DEMOS[a.id] && <span className="ui-badge ui-badge-tint">COM DEMONSTRAÇÃO</span>}
                   {a.soGestor && <span className="ui-chip">GESTOR</span>}
                 </span>
                 <span className="text-lg font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>{a.titulo}</span>

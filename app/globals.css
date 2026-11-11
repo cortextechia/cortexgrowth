@@ -358,3 +358,10 @@ input:-webkit-autofill { -webkit-text-fill-color: var(--text-primary); -webkit-b
   .cx-barra-passo { display: none; }
   .cx-spot { transition: none; }
 }
+
+/* Central de ajuda — demonstrações (11/11/2026) */
+.ajuda-entra { animation: ajuda-entra 0.45s ease both; }
+@keyframes ajuda-entra { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+.ajuda-arrasta { animation: ajuda-arrasta 1.6s ease-in-out infinite alternate; }
+@keyframes ajuda-arrasta { from { transform: translate(0, 0) rotate(0); } to { transform: translate(0, 26px) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) { .ajuda-entra, .ajuda-arrasta { animation: none; } }
