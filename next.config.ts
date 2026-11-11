@@ -15,6 +15,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // O manual estático do CRM virou a Central de ajuda (10/11/2026). Link antigo salvo em
+  // favorito ou mensagem continua funcionando.
+  async redirects() {
+    return [{ source: "/manual-crm.html", destination: "/dashboard/ajuda", permanent: false }];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

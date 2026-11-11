@@ -1258,7 +1258,7 @@ export default function CrmPage() {
                   { label: 'Motivos de descarte (lead)', onClick: () => setShowDiscardReasonsEditor(true) },
                 ] : []),
                 { label: 'Contatos (lista completa)', onClick: () => { window.location.href = '/dashboard/crm/contatos'; } },
-                { label: 'Manual do CRM', onClick: () => { window.open('/manual-crm.html', '_blank', 'noopener'); } },
+                { label: 'Ajuda do CRM', onClick: () => { window.location.href = '/dashboard/ajuda#crm-como-funciona'; } },
               ]}
             />
             <button onClick={() => setShowNewClient(true)} className="ui-btn ui-btn-primary ui-btn-sm">+ Novo</button>
@@ -1343,13 +1343,11 @@ export default function CrmPage() {
         >
           + Novo cliente
         </button>
-        {/* Manual do CRM — guia de uso completo (serve de /public, vai junto no deploy) */}
+        {/* Ajuda do CRM — Central de ajuda (substitui o /manual-crm.html em 10/11/2026) */}
         <a
-          href="/manual-crm.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Manual do CRM — dúvidas e como usar"
-          aria-label="Abrir o manual do CRM"
+          href="/dashboard/ajuda#crm-como-funciona"
+          title="Ajuda do CRM — dúvidas e como usar"
+          aria-label="Abrir a ajuda do CRM"
           className="w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center shrink-0"
           style={{ ...card, color: 'var(--text-muted)' }}
         >
