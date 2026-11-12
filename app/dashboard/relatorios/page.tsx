@@ -752,9 +752,35 @@ function varKind(key: string, group?: TemplateVar['group']): VarKind {
   return 'info';
 }
 
-const KIND_ICON: Record<Exclude<VarKind, 'meta' | 'google'>, Exclude<IconName, 'spinner'>> = {
-  money: 'wallet', people: 'group', chart: 'pulse', info: 'calendar',
-};
+// Ícone fino das variáveis gerais: um desenho por tipo de número (traço 1.7)
+const FINE_ICON = {
+  money:    'M12 3v18M16.5 7.5c0-1.7-2-3-4.5-3s-4.5 1.3-4.5 3 2 2.6 4.5 3 4.5 1.4 4.5 3.2-2 3.3-4.5 3.3-4.5-1.4-4.5-3.1',
+  person:   'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4.5 20.5a7.5 7.5 0 0 1 15 0',
+  target:   'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM12 12h.01',
+  bag:      'M5 8h14l-1 12H6L5 8ZM9 8V6.5a3 3 0 0 1 6 0V8',
+  pct:      'M19 5 5 19M7 9.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM17 19.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  trend:    'M3 17l6-6 4 4 8-8M15 7h6v6',
+  delta:    'M12 4 3 20h18L12 4Z',
+  eye:      'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12ZM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  cursor:   'M5 3l14 7-6 2-2 6L5 3Z',
+  building: 'M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3',
+  calendar: 'M4 8h16M8 3v4M16 3v4M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z',
+} as const;
+
+/** Pela chave; a ordem importa ("variacao_investimento" é delta, não dinheiro). Chave desconhecida cai no calendário. */
+function fineIcon(key: string): keyof typeof FINE_ICON {
+  if (/variacao/.test(key)) return 'delta';
+  if (/ctr|conversao/.test(key)) return 'pct';
+  if (/roas/.test(key)) return 'trend';
+  if (/vendas/.test(key)) return 'bag';
+  if (/impress|alcance/.test(key)) return 'eye';
+  if (/clique/.test(key)) return 'cursor';
+  if (/oportunidade/.test(key)) return 'target';
+  if (/leads|contatos|conversas|visitas/.test(key)) return 'person';
+  if (/investimento|receita|cpl|cpc|cpm|custo|ticket/.test(key)) return 'money';
+  if (/empresa/.test(key)) return 'building';
+  return 'calendar';
+}
 
 // Mesmas marcas da tela de Integrações (o "f" da Meta e o G do Google)
 const META_SVG = '<svg width="14" height="14" viewBox="0 0 36 36" aria-hidden="true"><path d="M18 3C9.716 3 3 9.716 3 18s6.716 15 15 15 15-6.716 15-15S26.284 3 18 3z" fill="#1877F2"/><path d="M22.162 11H20.05c-.808 0-1.703.338-2.29 1.157-.547.768-.66 1.703-.66 2.546v1.547H15v2.75h2.1V25h2.9v-6h2.1l.3-2.75h-2.4v-1.375c0-.792.22-1.125.9-1.125h1.262V11z" fill="#fff"/></svg>';
@@ -764,17 +790,20 @@ function glyphSvg(key: string, group?: TemplateVar['group']): string {
   const k = varKind(key, group);
   if (k === 'meta') return META_SVG;
   if (k === 'google') return GOOGLE_SVG;
-  return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[KIND_ICON[k]]}"/></svg>`;
+  return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--text-secondary)"><path d="${FINE_ICON[fineIcon(key)]}"/></svg>`;
 }
 
-/** Cor do chip por origem do número. Texto sempre em cor de leitura (a cor vai no fundo/borda). */
-function chipStyle(key: string, group?: TemplateVar['group']): string {
-  const base = 'display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;margin:0 1px;border-radius:7px;'
-    + 'font:600 12px/1.75 var(--font-sans),system-ui,sans-serif;white-space:nowrap;user-select:none;cursor:default;vertical-align:baseline;';
+/** Faixa à esquerda pela origem do número: geral = --accent, Meta = azul da marca, Google = grafite. */
+function groupStripe(key: string, group?: TemplateVar['group']): string {
   const k = varKind(key, group);
-  if (k === 'meta') return base + 'background:color-mix(in srgb,#1877F2 13%,transparent);border:1px solid color-mix(in srgb,#1877F2 40%,transparent);color:var(--text-primary);';
-  if (k === 'google') return base + 'background:var(--bg-elevated);border:1px solid var(--border-md);color:var(--text-primary);';
-  return base + 'background:var(--tint-bg);border:1px solid var(--highlight-border);color:var(--tint-ink);';
+  return k === 'meta' ? '#1877F2' : k === 'google' ? 'var(--graphite)' : 'var(--accent)';
+}
+
+/** Chip cinza igual para todos; a origem vai só na faixa lateral (o texto fica na cor de leitura). */
+function chipStyle(key: string, group?: TemplateVar['group']): string {
+  return 'display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;margin:0 1px;border-radius:5px;'
+    + 'font:600 12px/1.75 var(--font-sans),system-ui,sans-serif;white-space:nowrap;user-select:none;cursor:default;vertical-align:baseline;'
+    + `background:var(--bg-elevated);border:1px solid var(--border-md);border-left:3px solid ${groupStripe(key, group)};color:var(--text-primary);`;
 }
 
 const VAR_GROUP_LABEL: Record<'geral' | 'meta' | 'google', string> = { geral: 'Geral · Meta + Google', meta: 'Meta Ads', google: 'Google Ads' };
@@ -852,8 +881,8 @@ function VarMenu({ items, active, onPick, onHover, header }: {
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
                 style={{ backgroundColor: i === active ? 'var(--bg-elevated)' : 'transparent' }}>
                 <span className="inline-flex items-center justify-center shrink-0"
-                  style={{ width: 24, height: 24, borderRadius: 7, color: 'var(--tint-ink)',
-                    backgroundColor: g === 'geral' ? 'var(--tint-bg)' : 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  style={{ width: 24, height: 24, borderRadius: 6, color: 'var(--text-secondary)', backgroundColor: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-md)', borderLeft: `3px solid ${groupStripe(v.key, v.group)}` }}>
                   <VarGlyph v={v} />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -1284,8 +1313,11 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
                     return (
                       <button key={key} type="button" aria-pressed={on}
                         onClick={() => onChange({ ...config, [key]: !on })}
-                        className={`ui-chip !text-[12px] !px-3 !py-1.5 ${on ? 'ui-chip-on' : ''}`}>
-                        {on && <Icon name="check" size={12} />}{label}
+                        className="ui-chip !text-[12px] !px-3 !py-1.5"
+                        style={on
+                          ? { borderRadius: 8, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', boxShadow: 'inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-md)' }
+                          : { borderRadius: 8, color: 'var(--graphite)', boxShadow: 'inset 0 0 0 1px var(--border-md)' }}>
+                        {label}
                       </button>
                     );
                   })}
