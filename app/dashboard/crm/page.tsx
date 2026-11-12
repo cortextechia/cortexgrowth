@@ -1967,8 +1967,16 @@ export default function CrmPage() {
             if (!detail) return;
             try {
               await apiService.transferCrmResponsible(detail.id, responsibleId);
-              showToast('success', 'Responsável atualizado.');
-              await refreshDetail();
+              if (isAdmin) {
+                showToast('success', 'Responsável atualizado.');
+                await refreshDetail();
+              } else {
+                // O vendedor só vê os próprios cards: passado adiante, o card sai da tela dele.
+                const nome = orgUsers.find((u) => u.id === responsibleId)?.name;
+                showToast('success', nome ? `Lead passado para ${nome}.` : 'Lead transferido.');
+                closeClient();
+                await loadAll(searchRef.current.trim() || undefined);
+              }
             } catch (err) { showToast('error', apiErrorMsg(err, 'Erro ao transferir responsável.')); }
           }}
           onDeleteSale={async (saleId) => {
@@ -4043,7 +4051,20 @@ function ClientDrawer(props: {
                     ]}
                   />
                 ) : (
-                  <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{detail.responsible?.name ?? 'Não atribuído'}</span>
+                  // Vendedor passa o próprio lead adiante (pedido do Ruan, 12/11): só para
+                  // alguém ativo, e nunca para "ninguém" — o backend recusa os dois.
+                  <Dropdown
+                    className="w-fit min-w-[180px]"
+                    value={detail.responsibleId ?? ''}
+                    onOpen={props.onLoadUsers}
+                    onChange={(v) => { if (v && v !== detail.responsibleId) props.onTransfer(v); }}
+                    options={[
+                      ...(detail.responsible && !orgUsers.some((u) => u.id === detail.responsible!.id)
+                        ? [{ value: detail.responsible.id, label: detail.responsible.name }]
+                        : []),
+                      ...orgUsers.filter((u) => u.status === 'ACTIVE').map((u) => ({ value: u.id, label: u.name })),
+                    ]}
+                  />
                 )}
               </div>
 
