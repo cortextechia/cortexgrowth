@@ -1054,6 +1054,9 @@ export interface CrmSale {
   /** Venda montada por produto. Com itens, value = Σ itens − discount. */
   items?: CrmSaleItem[];
   discount?: number;
+  /** Quem fechou a venda (responsável na hora). null = venda antiga, sem registro. Só no detalhe do card. */
+  sellerId?: string | null;
+  sellerName?: string | null;
 }
 
 /** Catálogo de produtos do CRM (pedido do Ruan 28/10/2026). */

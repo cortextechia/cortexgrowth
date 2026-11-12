@@ -4285,6 +4285,13 @@ function ClientDrawer(props: {
                       )}
                     </div>
 
+                    {/* Quem fechou: a receita é do card, mas a venda segue sendo de quem fechou (Ruan, 12/11) */}
+                    {s.status !== 'OPEN' && s.sellerName && (
+                      <div className="text-[11px] mt-1 ml-1" style={{ color: 'var(--text-secondary)' }}>
+                        {s.status === 'WON' ? 'Vendida por' : 'Perdida por'} {s.sellerName}
+                      </div>
+                    )}
+
                     {(s.segments?.length ?? 0) > 0 && (
                       <div className="text-[11px] mt-1.5 ml-1" style={{ color: 'var(--text-muted)' }}>
                         ↳ {s.segments!.map((seg) => `${seg.name} ${fmtMoney(seg.value)}`).join(' · ')}
