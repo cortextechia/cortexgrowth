@@ -738,16 +738,17 @@ function WaText({ text }: { text: string }) {
 // O que é salvo continua sendo texto puro com {chave} (backend, validação e prévia não mudaram).
 // O editor só desenha cada {chave} conhecida como um chip e devolve o texto ao digitar.
 
-type TemplateVar = { key: string; label: string; value: string };
+/** `group` e `legacy` vêm do backend (`REPORT_TEMPLATE_VARIABLES`); a chave só é lida se faltarem. */
+type TemplateVar = { key: string; label: string; value: string; group?: 'geral' | 'meta' | 'google'; legacy?: boolean };
 type VarKind = 'meta' | 'google' | 'money' | 'people' | 'chart' | 'info';
 
-/** Plataforma pela chave (investimento_meta, receita_meta, investimento_google…); o resto, pelo tipo do número. */
-function varKind(key: string): VarKind {
-  if (/(^|_)meta($|_)/.test(key)) return 'meta';
-  if (/(^|_)google($|_)/.test(key)) return 'google';
-  if (/investimento|receita|cpl|vendas|ticket|custo/.test(key)) return 'money';
-  if (/leads|contatos|oportunidades|conversas/.test(key)) return 'people';
-  if (/impress|clique|ctr|conversao|roas|alcance|cpc/.test(key)) return 'chart';
+/** Plataforma pelo grupo do backend (fallback: sufixo da chave); nas gerais, ícone pelo tipo do número. */
+function varKind(key: string, group?: TemplateVar['group']): VarKind {
+  if (group === 'meta' || (!group && /(^|_)meta($|_)/.test(key))) return 'meta';
+  if (group === 'google' || (!group && /(^|_)google($|_)/.test(key))) return 'google';
+  if (/investimento|receita|cpl|cpc|cpm|custo|ticket|vendas/.test(key)) return 'money';
+  if (/leads|contatos|oportunidades|conversas|conversoes|visitas/.test(key)) return 'people';
+  if (/impress|clique|ctr|conversao|roas|alcance|variacao/.test(key)) return 'chart';
   return 'info';
 }
 
@@ -759,39 +760,41 @@ const KIND_ICON: Record<Exclude<VarKind, 'meta' | 'google'>, Exclude<IconName, '
 const META_SVG = '<svg width="14" height="14" viewBox="0 0 36 36" aria-hidden="true"><path d="M18 3C9.716 3 3 9.716 3 18s6.716 15 15 15 15-6.716 15-15S26.284 3 18 3z" fill="#1877F2"/><path d="M22.162 11H20.05c-.808 0-1.703.338-2.29 1.157-.547.768-.66 1.703-.66 2.546v1.547H15v2.75h2.1V25h2.9v-6h2.1l.3-2.75h-2.4v-1.375c0-.792.22-1.125.9-1.125h1.262V11z" fill="#fff"/></svg>';
 const GOOGLE_SVG = '<svg width="13" height="13" viewBox="0 0 36 36" aria-hidden="true"><path d="M33.12 18.37c0-1.16-.1-2.27-.29-3.34H18v6.32h8.49a7.26 7.26 0 01-3.15 4.76v3.95h5.1c2.99-2.75 4.68-6.8 4.68-11.69z" fill="#4285F4"/><path d="M18 34c4.26 0 7.83-1.41 10.44-3.84l-5.1-3.95c-1.41.95-3.22 1.5-5.34 1.5-4.11 0-7.59-2.77-8.83-6.5H3.9v4.08A15.98 15.98 0 0018 34z" fill="#34A853"/><path d="M9.17 21.21A9.64 9.64 0 018.67 18c0-1.11.19-2.19.5-3.21V10.71H3.9A15.98 15.98 0 002 18c0 2.58.62 5.02 1.9 7.29l5.27-4.08z" fill="#FBBC05"/><path d="M18 8.29c2.32 0 4.4.8 6.04 2.37l4.53-4.53A15.94 15.94 0 0018 2 15.98 15.98 0 003.9 10.71l5.27 4.08C10.41 11.06 13.89 8.29 18 8.29z" fill="#EA4335"/></svg>';
 
-function glyphSvg(key: string): string {
-  const k = varKind(key);
+function glyphSvg(key: string, group?: TemplateVar['group']): string {
+  const k = varKind(key, group);
   if (k === 'meta') return META_SVG;
   if (k === 'google') return GOOGLE_SVG;
   return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[KIND_ICON[k]]}"/></svg>`;
 }
 
 /** Cor do chip por origem do número. Texto sempre em cor de leitura (a cor vai no fundo/borda). */
-function chipStyle(key: string): string {
+function chipStyle(key: string, group?: TemplateVar['group']): string {
   const base = 'display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;margin:0 1px;border-radius:7px;'
     + 'font:600 12px/1.75 var(--font-sans),system-ui,sans-serif;white-space:nowrap;user-select:none;cursor:default;vertical-align:baseline;';
-  const k = varKind(key);
+  const k = varKind(key, group);
   if (k === 'meta') return base + 'background:color-mix(in srgb,#1877F2 13%,transparent);border:1px solid color-mix(in srgb,#1877F2 40%,transparent);color:var(--text-primary);';
   if (k === 'google') return base + 'background:var(--bg-elevated);border:1px solid var(--border-md);color:var(--text-primary);';
   return base + 'background:var(--tint-bg);border:1px solid var(--highlight-border);color:var(--tint-ink);';
 }
 
 const VAR_GROUP_LABEL: Record<'geral' | 'meta' | 'google', string> = { geral: 'Geral · Meta + Google', meta: 'Meta Ads', google: 'Google Ads' };
-const varGroup = (key: string): 'geral' | 'meta' | 'google' => {
-  const k = varKind(key);
+const varGroup = (v: Pick<TemplateVar, 'key' | 'group'>): 'geral' | 'meta' | 'google' => {
+  const k = varKind(v.key, v.group);
   return k === 'meta' || k === 'google' ? k : 'geral';
 };
 const normTxt = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
 function filterVars(vars: TemplateVar[], query: string): TemplateVar[] {
   const q = normTxt(query.trim());
+  // Chave antiga ({roas}, {cpl}) segue valendo no texto, mas não é oferecida
+  const ofertadas = vars.filter((v) => !v.legacy);
   const list = q
-    ? vars.filter((v) => normTxt(v.label).includes(q) || v.key.includes(q.replace(/\s+/g, '_')))
-    : vars;
+    ? ofertadas.filter((v) => normTxt(v.label).includes(q) || v.key.includes(q.replace(/\s+/g, '_')))
+    : ofertadas;
   // Ordem estável por grupo (Geral, Meta, Google); quem começa com o termo vem antes dentro do grupo
   const ordem = { geral: 0, meta: 1, google: 2 } as const;
   return [...list].sort((a, b) => {
-    const g = ordem[varGroup(a.key)] - ordem[varGroup(b.key)];
+    const g = ordem[varGroup(a)] - ordem[varGroup(b)];
     if (g !== 0) return g;
     if (!q) return 0;
     const sa = normTxt(a.label).startsWith(q) || a.key.startsWith(q) ? 0 : 1;
@@ -800,8 +803,21 @@ function filterVars(vars: TemplateVar[], query: string): TemplateVar[] {
   });
 }
 
-function VarGlyph({ k }: { k: string }) {
-  return <span className="inline-flex shrink-0" dangerouslySetInnerHTML={{ __html: glyphSvg(k) }} />;
+/** Com termo digitado, o destaque começa em quem COMEÇA com ele ("/conversa" → Conversas iniciadas,
+ *  não Taxa de conversão, que só vem antes por ser do grupo Geral). */
+function bestIndex(items: TemplateVar[], query: string): number {
+  const q = normTxt(query.trim());
+  if (!q) return 0;
+  // Nome primeiro (com "_" valendo espaço: "/roas_g" → "ROAS Google"), chave só depois —
+  // pela chave, "conversa" casaria com `conversao` e "roas_g" com `roas_geral`.
+  const porNome = items.findIndex((v) => normTxt(v.label).startsWith(q.replace(/_/g, ' ')));
+  if (porNome >= 0) return porNome;
+  const porChave = items.findIndex((v) => v.key.startsWith(q.replace(/ +/g, '_')));
+  return porChave >= 0 ? porChave : 0;
+}
+
+function VarGlyph({ v }: { v: TemplateVar }) {
+  return <span className="inline-flex shrink-0" dangerouslySetInnerHTML={{ __html: glyphSvg(v.key, v.group) }} />;
 }
 
 /** Lista de variáveis agrupada — usada no "/" e no botão "Inserir variável". */
@@ -813,7 +829,7 @@ function VarMenu({ items, active, onPick, onHover, header }: {
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active]);
   // Cabeçalho do grupo na primeira variável de cada grupo
-  const heads = items.map((v, i) => i === 0 || varGroup(v.key) !== varGroup(items[i - 1]!.key));
+  const heads = items.map((v, i) => i === 0 || varGroup(v) !== varGroup(items[i - 1]!));
   return (
     <div className="flex flex-col" style={{
       width: 300, maxHeight: 320, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', borderRadius: 14,
@@ -823,7 +839,7 @@ function VarMenu({ items, active, onPick, onHover, header }: {
       <div ref={listRef} className="overflow-y-auto py-1" role="listbox">
         {items.length === 0 && <p className="text-xs px-3 py-3" style={{ color: 'var(--text-secondary)' }}>Nenhuma variável com esse nome.</p>}
         {items.map((v, i) => {
-          const g = varGroup(v.key);
+          const g = varGroup(v);
           const showHead = heads[i];
           return (
             <div key={v.key}>
@@ -838,7 +854,7 @@ function VarMenu({ items, active, onPick, onHover, header }: {
                 <span className="inline-flex items-center justify-center shrink-0"
                   style={{ width: 24, height: 24, borderRadius: 7, color: 'var(--tint-ink)',
                     backgroundColor: g === 'geral' ? 'var(--tint-bg)' : 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                  <VarGlyph k={v.key} />
+                  <VarGlyph v={v} />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{v.label}</span>
@@ -854,31 +870,31 @@ function VarMenu({ items, active, onPick, onHover, header }: {
   );
 }
 
-function makeChip(key: string, label: string): HTMLSpanElement {
+function makeChip(v: TemplateVar): HTMLSpanElement {
   const s = document.createElement('span');
   s.contentEditable = 'false';
-  s.dataset.var = key;
-  s.title = `{${key}}`;
-  s.style.cssText = chipStyle(key);
-  s.innerHTML = glyphSvg(key);
+  s.dataset.var = v.key;
+  s.title = `{${v.key}}`;
+  s.style.cssText = chipStyle(v.key, v.group);
+  s.innerHTML = glyphSvg(v.key, v.group);
   const t = document.createElement('span');
-  t.textContent = label;
+  t.textContent = v.label;
   s.appendChild(t);
   return s;
 }
 
 /** Texto → nós (chips para variável conhecida, <br> para quebra de linha). */
-function textToNodes(text: string, labels: Map<string, string>): Node[] {
+function textToNodes(text: string, labels: Map<string, TemplateVar>): Node[] {
   const nodes: Node[] = [];
   text.split('\n').forEach((line, i) => {
     if (i > 0) nodes.push(document.createElement('br'));
     let last = 0;
     for (const m of line.matchAll(TEMPLATE_VAR_RE)) {
       const key = m[1]!;
-      const label = labels.get(key);
-      if (!label) continue; // variável desconhecida fica como texto (o aviso abaixo do campo aponta)
+      const known = labels.get(key);
+      if (!known) continue; // variável desconhecida fica como texto (o aviso abaixo do campo aponta)
       if (m.index! > last) nodes.push(document.createTextNode(line.slice(last, m.index)));
-      nodes.push(makeChip(key, label));
+      nodes.push(makeChip(known));
       last = m.index! + m[0].length;
     }
     if (last < line.length) nodes.push(document.createTextNode(line.slice(last)));
@@ -912,7 +928,7 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
   const rootRef = useRef<HTMLDivElement>(null);
   const lastText = useRef<string | null>(null);
   const savedRange = useRef<Range | null>(null);
-  const labels = useMemo(() => new Map(vars.map((v) => [v.key, v.label])), [vars]);
+  const labels = useMemo(() => new Map(vars.map((v) => [v.key, v])), [vars]);
   const labelsKey = vars.map((v) => v.key).join(',');
 
   // Menu do "/": posição na tela + termo digitado depois da barra
@@ -1009,7 +1025,7 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
     return end;
   };
 
-  const chipWithSpace = (v: TemplateVar) => [makeChip(v.key, v.label), document.createTextNode(' ')];
+  const chipWithSpace = (v: TemplateVar) => [makeChip(v), document.createTextNode(' ')];
 
   /** Termo depois de uma "/" logo antes do cursor (início de linha, depois de espaço ou parêntese). */
   const readSlash = (): { node: Text; start: number; query: string } | null => {
@@ -1033,7 +1049,7 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
     // Caret em linha vazia não tem retângulo: cai no canto do campo
     const x = rect.left || box.left + 12;
     const y = (rect.bottom || box.top + 28) + 6;
-    if (!slash || slash.query !== s.query) setActive(0);
+    if (!slash || slash.query !== s.query) setActive(bestIndex(filterVars(vars, s.query), s.query));
     setSlash({ x: Math.min(x, window.innerWidth - 316), y: Math.min(y, window.innerHeight - 330), query: s.query });
   };
 
@@ -1079,7 +1095,10 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
     if (text && sel && sel.rangeCount) insertNodes(textToNodes(text, labels), sel.getRangeAt(0));
   };
 
-  const pickerItems = filterVars(vars, pickerQuery);
+  // Abas do menu do botão: com 48 variáveis, achar as da Meta/Google sem rolar a lista inteira
+  const [pickerGroup, setPickerGroup] = useState<'todas' | 'geral' | 'meta' | 'google'>('todas');
+  const doGrupo = (list: TemplateVar[]) => (pickerGroup === 'todas' ? list : list.filter((v) => varGroup(v) === pickerGroup));
+  const pickerItems = doGrupo(filterVars(vars, pickerQuery));
   const [pickerActive, setPickerActive] = useState(0);
 
   return (
@@ -1095,7 +1114,7 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
               const MENU_H = 380; // busca + lista
               const y = r.bottom + 6 + MENU_H > window.innerHeight ? Math.max(8, r.top - 6 - MENU_H) : r.bottom + 6;
               setPicker({ x: Math.max(8, Math.min(r.right - 300, window.innerWidth - 308)), y });
-              setPickerQuery(''); setPickerActive(0);
+              setPickerQuery(''); setPickerActive(0); setPickerGroup('todas');
             }}
             disabled={vars.length === 0} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 11px', fontSize: 12 }}
             aria-expanded={!!picker} aria-haspopup="listbox">
@@ -1107,7 +1126,7 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
                 header={
                   <div className="p-2" style={{ borderBottom: '1px solid var(--border)' }}>
                     <input autoFocus value={pickerQuery} placeholder="Buscar variável..."
-                      onChange={(e) => { setPickerQuery(e.target.value); setPickerActive(0); }}
+                      onChange={(e) => { setPickerQuery(e.target.value); setPickerActive(bestIndex(doGrupo(filterVars(vars, e.target.value)), e.target.value)); }}
                       onKeyDown={(e) => {
                         if (e.key === 'ArrowDown') { e.preventDefault(); setPickerActive((a) => Math.min(a + 1, Math.max(pickerItems.length - 1, 0))); }
                         if (e.key === 'ArrowUp') { e.preventDefault(); setPickerActive((a) => Math.max(a - 1, 0)); }
@@ -1115,6 +1134,19 @@ function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }
                         if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPicker(null); }
                       }}
                       style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }} />
+                    <div className="ui-seg mt-2" role="group" aria-label="Grupo de variáveis" style={{ display: 'flex', padding: 3 }}>
+                      {(['todas', 'geral', 'meta', 'google'] as const).map((g) => (
+                        <button key={g} type="button" aria-pressed={pickerGroup === g}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setPickerGroup(g); setPickerActive(0); }}
+                          className="inline-flex items-center justify-center gap-1"
+                          style={{ flex: 1, padding: '5px 6px', fontSize: 11.5 }}>
+                          {g === 'meta' && <span className="inline-flex" dangerouslySetInnerHTML={{ __html: META_SVG }} />}
+                          {g === 'google' && <span className="inline-flex" dangerouslySetInnerHTML={{ __html: GOOGLE_SVG }} />}
+                          {g === 'todas' ? 'Todas' : g === 'geral' ? 'Geral' : g === 'meta' ? 'Meta' : 'Google'}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 } />
             </div>
@@ -1172,7 +1204,7 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
   onChange: (config: ReportConfig) => void;
   wide?: boolean;
 }) {
-  const [meta, setMeta] = useState<{ preset: string; variables: { key: string; label: string; value: string }[] } | null>(null);
+  const [meta, setMeta] = useState<{ preset: string; variables: TemplateVar[] } | null>(null);
   const [stdPreview, setStdPreview] = useState<string | null>(null);
   // Texto digitado sobrevive à ida e volta entre "padrão" e "personalizado"
   const lastCustom = useRef<string | null>(null);

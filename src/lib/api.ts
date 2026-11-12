@@ -874,7 +874,7 @@ class ApiService {
   }
 
   /** Variáveis da mensagem personalizada (com o valor atual de cada uma) + texto pronto. */
-  async getReportMessageTemplate(frequency: string): Promise<{ success: boolean; data: { preset: string; variables: { key: string; label: string; value: string }[] } }> {
+  async getReportMessageTemplate(frequency: string): Promise<{ success: boolean; data: { preset: string; variables: { key: string; label: string; value: string; group?: 'geral' | 'meta' | 'google'; legacy?: boolean }[] } }> {
     const response = await this.client.get('/report-schedules/message-template', { params: { frequency } });
     return response.data;
   }
