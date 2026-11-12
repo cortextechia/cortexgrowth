@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAuth } from '@/context/AuthContext';
@@ -9,36 +9,150 @@ import { usePlano } from '@/hooks/useApi';
 import { IconeCadeado } from '@/components/RecursoBloqueado';
 import type { ReportSchedule, ReportConfig, ChannelType, ReportFrequency, AlertConfig, AnomalyRuleId } from '@/types';
 
+// ─── Ícones (traço fino, herdam a cor do texto) ───────────────────────────────
+
+type IconName = 'telegram' | 'whatsapp' | 'plus' | 'send' | 'edit' | 'trash' | 'qr' | 'check' | 'close' | 'clock'
+  | 'calendar' | 'bell' | 'wallet' | 'pulse' | 'moon' | 'chat' | 'list' | 'zap' | 'spinner' | 'alert' | 'group' | 'user';
+
+const ICON_PATHS: Record<Exclude<IconName, 'spinner'>, string> = {
+  telegram: 'M21.5 4.5 2.8 11.7c-.9.4-.9 1.6.1 1.9l4.6 1.4 1.8 5.6c.2.7 1.1.9 1.6.4l2.6-2.4 4.7 3.5c.6.4 1.4.1 1.6-.6L22.9 5.8c.2-.9-.6-1.6-1.4-1.3ZM9.5 14.6l8.3-7.2-6.6 8.4',
+  whatsapp: 'M3.5 20.5 4.8 16A8.5 8.5 0 1 1 8 19.2L3.5 20.5Zm5.6-12.3c-.3 1.6.5 3.4 2 4.9s3.3 2.3 4.9 2l.8-1.6-2-1.1-1 .9a5 5 0 0 1-2.6-2.6l.9-1-1.1-2-1.9.5Z',
+  plus: 'M12 5v14M5 12h14',
+  send: 'M5 12h11M12 5l7 7-7 7',
+  edit: 'M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4',
+  trash: 'M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
+  qr: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h2v2h-2v-2Zm4 0h2v2h-2v-2Zm-4 4h2v2h-2v-2Zm4 0h2v2h-2v-2Z',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  close: 'M6 6l12 12M18 6 6 18',
+  clock: 'M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  calendar: 'M4 8h16M8 3v4M16 3v4M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z',
+  bell: 'M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4h4',
+  wallet: 'M4 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a1 1 0 0 1-1-1V7Zm0 0 11-3v3M16 13.5h.01',
+  pulse: 'M3 12h4l2-5 4 10 2-5h6',
+  moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z',
+  chat: 'M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 3V6a1 1 0 0 1 1-1Z',
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
+  zap: 'M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z',
+  alert: 'M12 9v4M12 16.5h.01M10.3 4.2 2.7 17.5A2 2 0 0 0 4.4 20.5h15.2a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z',
+  group: 'M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-6 9a6 6 0 0 1 12 0M16 5.2a3 3 0 0 1 0 5.6M18.5 20a5.5 5.5 0 0 0-3-4.9',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0',
+};
+
+function Icon({ name, size = 16, className = '' }: { name: IconName; size?: number; className?: string }) {
+  if (name === 'spinner') {
+    return (
+      <svg className={`animate-spin ${className}`} width={size} height={size} fill="none" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  return (
+    <svg className={className} width={size} height={size} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
+// ─── Peças visuais locais ─────────────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+  backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)',
+  borderRadius: 10, padding: '9px 12px', width: '100%', fontSize: 13, outline: 'none',
+};
+const labelStyle: React.CSSProperties = {
+  color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, marginBottom: 6, display: 'block',
+};
+
+/** Quadradinho com o ícone — marca o canal/regra sem depender de emoji. */
+function IconTile({ name, tone = 'neutral', size = 36 }: { name: IconName; tone?: 'neutral' | 'lime' | 'tg' | 'wa' | 'warn'; size?: number }) {
+  const tones = {
+    neutral: { background: 'var(--bg-elevated)', color: 'var(--text-secondary)', border: '1px solid var(--border)' },
+    lime:    { background: 'var(--tint-bg)', color: 'var(--tint-ink)', border: '1px solid var(--highlight-border)' },
+    tg:      { background: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' },
+    wa:      { background: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--border)' },
+    warn:    { background: 'var(--badge-warn-bg)', color: 'var(--badge-warn-text)', border: '1px solid var(--border)' },
+  }[tone];
+  return (
+    <span className="inline-flex items-center justify-center shrink-0" style={{ width: size, height: size, borderRadius: 10, ...tones }}>
+      <Icon name={name} size={Math.round(size * 0.5)} />
+    </span>
+  );
+}
+
+/** Ponto de status com halo — verde ok, vermelho falha, cinza neutro. */
+function StatusDot({ tone }: { tone: 'ok' | 'err' | 'idle' | 'warn' }) {
+  const cor = { ok: 'var(--badge-success-text)', err: 'var(--badge-error-text)', warn: 'var(--badge-warn-text)', idle: 'var(--border-control)' }[tone];
+  return <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: cor, boxShadow: `0 0 0 3px color-mix(in srgb, ${cor} 22%, transparent)` }} />;
+}
+
+function SectionHead({ eyebrow, title, sub, right }: { eyebrow: string; title: string; sub?: string; right?: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+      <div className="min-w-0">
+        <span className="eyebrow" style={{ color: 'var(--text-secondary)' }}>{eyebrow}</span>
+        <h2 className="ui-h2 mt-1">{title}</h2>
+        {sub && <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+// Pilha dos modais abertos: o Esc fecha só o de cima (o QR abre por cima do "Novo agendamento").
+const modalStack: symbol[] = [];
+
+function Modal({ title, sub, onClose, children, footer, width = 560, z = 50 }: {
+  title: string; sub?: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; width?: number; z?: number;
+}) {
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const id = Symbol('modal');
+    modalStack.push(id);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === id) closeRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      modalStack.splice(modalStack.indexOf(id), 1);
+    };
+  }, []);
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: z, backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(3px)' }}
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="w-full flex flex-col"
+        style={{ maxWidth: width, maxHeight: '90vh', backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', borderRadius: 20, boxShadow: '0 24px 60px rgba(0,0,0,0.35)' }}>
+        <div className="flex items-start justify-between gap-3 px-6 pt-5 pb-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="min-w-0">
+            <p className="text-base font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>{title}</p>
+            {sub && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-secondary)' }}>{sub}</p>}
+          </div>
+          <button onClick={onClose} aria-label="Fechar" className="p-1.5 rounded-lg" style={{ color: 'var(--text-secondary)' }}>
+            <Icon name="close" />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-6 py-5">{children}</div>
+        {footer && <div className="flex gap-2 px-6 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
 // ─── WhatsApp status badge ────────────────────────────────────────────────────
 
 type WaStatus = 'loading' | 'connected' | 'disconnected';
 
 function WhatsAppStatusBadge({ status, phone }: { status: WaStatus; phone: string }) {
   if (status === 'loading') return (
-    <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
-      Verificando...
-    </span>
+    <span className="ui-chip"><Icon name="spinner" size={11} /> verificando</span>
   );
-
   if (status === 'connected') return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
-      style={{ backgroundColor: 'var(--badge-success-bg)', color: 'var(--text-primary)' }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--badge-success-text)' }} />
-      Conectado{phone ? ` · ${phone}` : ''}
-    </span>
+    <span className="ui-chip" style={{ color: 'var(--text-primary)' }}><StatusDot tone="ok" /> conectado{phone ? ` · ${phone}` : ''}</span>
   );
-
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs"
-      style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--text-primary)' }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: 'var(--badge-error-text)' }} />
-      Desconectado
-    </span>
-  );
+  return <span className="ui-chip"><StatusDot tone="err" /> desconectado</span>;
 }
 
 /** Status do WhatsApp de relatórios da org (um número por empresa). */
@@ -103,57 +217,107 @@ function ReportWaQrModal({ onConnected, onClose }: { onConnected: () => void; on
   }, [phase, onConnected]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
-      <div className="w-full max-w-sm rounded-2xl p-6 text-center space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conectar WhatsApp de relatórios</p>
-          <button onClick={onClose} aria-label="Fechar" style={{ color: 'var(--text-secondary)' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
+    <Modal title="Conectar WhatsApp de relatórios" onClose={onClose} width={400} z={60}>
+      <div className="text-center space-y-4">
         {phase === 'loading' && (
-          <p className="text-xs py-12" style={{ color: 'var(--text-secondary)' }}>Gerando QR code...</p>
+          <div className="py-12 flex flex-col items-center gap-3" style={{ color: 'var(--text-secondary)' }}>
+            <Icon name="spinner" size={22} />
+            <p className="text-xs">Gerando QR code...</p>
+          </div>
         )}
 
         {phase === 'qr' && qr && (
           <>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              No celular que está nos grupos: WhatsApp → <strong>Dispositivos conectados</strong> → <strong>Conectar dispositivo</strong> e escaneie.
+              No celular que está nos grupos: WhatsApp → <strong style={{ color: 'var(--text-primary)' }}>Dispositivos conectados</strong> → <strong style={{ color: 'var(--text-primary)' }}>Conectar dispositivo</strong> e escaneie.
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={qr.startsWith('data:') ? qr : `data:image/png;base64,${qr}`}
               alt="QR code do WhatsApp"
-              className="mx-auto rounded-lg"
-              style={{ width: 240, height: 240, backgroundColor: '#fff', padding: 8 }}
+              className="mx-auto"
+              style={{ width: 240, height: 240, backgroundColor: '#fff', padding: 10, borderRadius: 14 }}
             />
+            <p className="eyebrow inline-flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+              <StatusDot tone="warn" /> AGUARDANDO LEITURA · O QR RENOVA SOZINHO
+            </p>
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              O QR renova sozinho. Este número só envia relatórios — as conversas dele não entram no CRM.
+              Este número só envia relatórios. As conversas dele não entram no CRM.
             </p>
           </>
         )}
 
         {phase === 'connected' && (
-          <p className="text-sm font-medium py-12" style={{ color: 'var(--badge-success-text)' }}>✓ WhatsApp conectado!</p>
+          <div className="py-10 flex flex-col items-center gap-3">
+            <IconTile name="check" tone="wa" size={48} />
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>WhatsApp conectado</p>
+          </div>
         )}
 
         {phase === 'error' && (
           <div className="py-8 flex flex-col items-center gap-3">
             <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Não foi possível gerar o QR code.</p>
-            <button onClick={() => { setPhase('loading'); void gerar(); }} className="text-xs px-4 py-2 rounded-lg font-medium text-[var(--on-accent)]"
-              style={{ backgroundColor: 'var(--accent-fill)' }}>
-              Tentar de novo
-            </button>
+            <button onClick={() => { setPhase('loading'); void gerar(); }} className="ui-btn ui-btn-primary ui-btn-sm">Tentar de novo</button>
           </div>
         )}
+      </div>
+    </Modal>
+  );
+}
+
+/** Passos numerados em mono (no lugar da lista com números do navegador). */
+function Steps({ items }: { items: React.ReactNode[] }) {
+  return (
+    <ol className="space-y-2">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-2.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          <span className="eyebrow shrink-0" style={{ color: 'var(--text-secondary)', fontSize: 11, paddingTop: 1 }}>{String(i + 1).padStart(2, '0')}</span>
+          <span>{it}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// Card do canal Telegram: passos + registrar o webhook do bot
+function TelegramChannelCard({ showToast }: { showToast: (msg: string, ok?: boolean) => void }) {
+  const [registering, setRegistering] = useState(false);
+  const handleRegister = async () => {
+    setRegistering(true);
+    try {
+      const { message } = await apiService.registerTelegramWebhook();
+      showToast(message, true);
+    } catch {
+      showToast('Erro ao registrar webhook. Verifique BACKEND_URL no Render.', false);
+    } finally { setRegistering(false); }
+  };
+
+  return (
+    <div className="ui-card flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <IconTile name="telegram" tone="tg" />
+        <div className="min-w-0">
+          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Telegram</p>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Bot da plataforma no grupo do cliente</p>
+        </div>
+      </div>
+      <Steps items={[
+        <>Registre o webhook <strong style={{ color: 'var(--text-primary)' }}>uma vez só</strong></>,
+        <>Adicione <code className="eyebrow" style={{ fontSize: 12 }}>@CortexGrowthBot</code> ao grupo</>,
+        <>No agendamento, conecte o chat pelo QR Code</>,
+      ]} />
+      <div className="mt-auto">
+        <button onClick={handleRegister} disabled={registering} className="ui-btn ui-btn-secondary ui-btn-sm">
+          {registering ? <Icon name="spinner" size={14} /> : <Icon name="zap" size={14} />}
+          {registering ? 'Registrando...' : 'Registrar webhook'}
+        </button>
       </div>
     </div>
   );
 }
 
-// Bloco "WhatsApp" das instruções: status + conectar/desconectar o número da empresa
-function ReportWhatsappPanel({ showToast, refreshSignal }: { showToast: (msg: string, ok?: boolean) => void; refreshSignal: boolean }) {
+// Card do canal WhatsApp: status + conectar/desconectar o número da empresa
+function WhatsappChannelCard({ showToast, refreshSignal }: { showToast: (msg: string, ok?: boolean) => void; refreshSignal: boolean }) {
   const { status, phone, refresh, setStatus } = useReportWaStatus();
   const [showQr, setShowQr] = useState(false);
   const [working, setWorking] = useState(false);
@@ -172,29 +336,27 @@ function ReportWhatsappPanel({ showToast, refreshSignal }: { showToast: (msg: st
   };
 
   return (
-    <div>
-      <div className="flex items-center gap-2 mb-1">
-        <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>📱 WhatsApp</p>
+    <div className="ui-card flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <IconTile name="whatsapp" tone="wa" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>WhatsApp</p>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Um número da empresa envia tudo</p>
+        </div>
         <WhatsAppStatusBadge status={status} phone={phone} />
       </div>
-      <ol className="space-y-0.5 list-decimal list-inside mb-2" style={{ color: 'var(--text-secondary)' }}>
-        <li>Conecte <strong style={{ color: 'var(--text-primary)' }}>um número da empresa</strong> pelo QR Code (uma vez só)</li>
-        <li>Ao criar um agendamento, escolha o grupo na lista ou informe um número</li>
-        <li>Esse número envia todos os relatórios por WhatsApp desta empresa</li>
-      </ol>
-      {status === 'connected' ? (
-        <button onClick={handleDisconnect} disabled={working}
-          className="text-xs px-3 py-1.5 rounded-lg"
-          style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', opacity: working ? 0.6 : 1 }}>
-          Desconectar
-        </button>
-      ) : status === 'disconnected' ? (
-        <button onClick={() => setShowQr(true)}
-          className="text-xs px-3 py-1.5 rounded-lg font-medium text-[var(--on-accent)]"
-          style={{ backgroundColor: 'var(--accent-fill)' }}>
-          Conectar via QR Code
-        </button>
-      ) : null}
+      <Steps items={[
+        <>Conecte <strong style={{ color: 'var(--text-primary)' }}>um número da empresa</strong> pelo QR Code</>,
+        <>No agendamento, escolha o grupo na lista ou informe um número</>,
+        <>Esse número envia os relatórios e os alertas desta empresa</>,
+      ]} />
+      <div className="mt-auto">
+        {status === 'connected' ? (
+          <button onClick={handleDisconnect} disabled={working} className="ui-btn ui-btn-danger ui-btn-sm">Desconectar</button>
+        ) : status === 'disconnected' ? (
+          <button onClick={() => setShowQr(true)} className="ui-btn ui-btn-primary ui-btn-sm"><Icon name="qr" size={14} /> Conectar via QR Code</button>
+        ) : null}
+      </div>
       {showQr && (
         <ReportWaQrModal
           onConnected={() => { setShowQr(false); void refresh(); showToast('WhatsApp de relatórios conectado.'); }}
@@ -206,12 +368,10 @@ function ReportWhatsappPanel({ showToast, refreshSignal }: { showToast: (msg: st
 }
 
 // Destino do agendamento por WhatsApp: grupo da lista (padrão) ou número avulso
-function WhatsappDestination({ destination, destinationName, onChange, inputStyle, labelStyle }: {
+function WhatsappDestination({ destination, destinationName, onChange }: {
   destination: string;
   destinationName: string;
   onChange: (destination: string, destinationName: string) => void;
-  inputStyle: React.CSSProperties;
-  labelStyle: React.CSSProperties;
 }) {
   const { status, refresh } = useReportWaStatus();
   const [showQr, setShowQr] = useState(false);
@@ -233,7 +393,7 @@ function WhatsappDestination({ destination, destinationName, onChange, inputStyl
   }, [status, mode, loadGroups]);
 
   if (status === 'loading') {
-    return <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Verificando o WhatsApp da empresa...</p>;
+    return <p className="text-xs inline-flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}><Icon name="spinner" size={12} /> Verificando o WhatsApp da empresa...</p>;
   }
 
   if (status === 'disconnected') {
@@ -241,9 +401,9 @@ function WhatsappDestination({ destination, destinationName, onChange, inputStyl
       <div className="space-y-2">
         <span style={labelStyle}>WhatsApp de relatórios da empresa</span>
         <button onClick={() => setShowQr(true)}
-          className="w-full py-3 rounded-lg text-xs font-medium"
-          style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px dashed var(--accent)' }}>
-          Conectar via QR Code
+          className="w-full flex items-center justify-center gap-2 py-4 text-xs font-semibold"
+          style={{ borderRadius: 12, backgroundColor: 'var(--highlight)', color: 'var(--accent)', border: '1px dashed var(--accent-line)' }}>
+          <Icon name="qr" size={15} /> Conectar via QR Code
         </button>
         <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
           Conecte o número que está no grupo. Depois é só escolher o grupo na lista.
@@ -264,55 +424,54 @@ function WhatsappDestination({ destination, destinationName, onChange, inputStyl
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span style={{ ...labelStyle, marginBottom: 0 }}>{mode === 'group' ? 'Grupo do WhatsApp' : 'Número do WhatsApp'}</span>
-        <button
-          onClick={() => { setMode(mode === 'group' ? 'number' : 'group'); onChange('', ''); }}
-          className="text-xs"
-          style={{ color: 'var(--accent)' }}
-        >
-          {mode === 'group' ? 'Enviar para um número' : 'Escolher um grupo'}
-        </button>
+      <div className="flex items-center justify-between gap-2">
+        <span style={{ ...labelStyle, marginBottom: 0 }}>Enviar para</span>
+        <div className="ui-seg" role="group" aria-label="Tipo de destino">
+          <button aria-pressed={mode === 'group'} onClick={() => { if (mode !== 'group') { setMode('group'); onChange('', ''); } }}>Grupo</button>
+          <button aria-pressed={mode === 'number'} onClick={() => { if (mode !== 'number') { setMode('number'); onChange('', ''); } }}>Número</button>
+        </div>
       </div>
 
       {mode === 'group' && isGroup && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'var(--badge-success-bg)' }}>
-          <span className="text-xs flex-1 truncate" style={{ color: 'var(--text-primary)' }}><span style={{ color: 'var(--badge-success-text)' }}>✓</span> {destinationName}</span>
-          <button onClick={() => onChange('', '')} className="text-xs" style={{ color: 'var(--text-secondary)' }}>Trocar</button>
+        <div className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 12, backgroundColor: 'var(--highlight)', border: '1px solid var(--highlight-border)' }}>
+          <IconTile name="group" tone="lime" size={28} />
+          <span className="text-xs font-semibold flex-1 truncate" style={{ color: 'var(--text-primary)' }}>{destinationName}</span>
+          <button onClick={() => onChange('', '')} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>Trocar</button>
         </div>
       )}
 
       {mode === 'group' && !isGroup && (
         <>
           {groups === null && !groupsError && (
-            <p className="text-xs py-3" style={{ color: 'var(--text-secondary)' }}>Carregando os grupos... (pode levar alguns segundos)</p>
+            <p className="text-xs py-3 inline-flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}><Icon name="spinner" size={12} /> Carregando os grupos... (pode levar alguns segundos)</p>
           )}
           {groupsError && (
             <div className="flex items-center gap-3">
               <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>Não foi possível listar os grupos.</p>
-              <button onClick={() => void loadGroups()} className="text-xs" style={{ color: 'var(--accent)' }}>Tentar de novo</button>
+              <button onClick={() => void loadGroups()} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>Tentar de novo</button>
             </div>
           )}
           {groups !== null && groups.length === 0 && (
             <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Este número não participa de nenhum grupo.</p>
           )}
           {groups !== null && groups.length > 0 && (
-            <>
-              <input style={inputStyle} placeholder={`Buscar entre ${groups.length} grupos`} value={search} onChange={(e) => setSearch(e.target.value)} />
-              <div className="rounded-lg overflow-y-auto" style={{ maxHeight: 180, border: '1px solid var(--border)' }}>
+            <div className="ui-inset overflow-hidden">
+              <input style={{ ...inputStyle, border: 0, borderBottom: '1px solid var(--border)', borderRadius: 0, backgroundColor: 'transparent' }}
+                placeholder={`Buscar entre ${groups.length} grupos`} value={search} onChange={(e) => setSearch(e.target.value)} />
+              <div className="overflow-y-auto" style={{ maxHeight: 190 }}>
                 {filtrados.length === 0 && (
                   <p className="text-xs px-3 py-3" style={{ color: 'var(--text-secondary)' }}>Nenhum grupo com esse nome.</p>
                 )}
                 {filtrados.slice(0, 100).map((g) => (
                   <button key={g.id} onClick={() => onChange(g.id, g.name)}
-                    className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2"
+                    className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-[var(--bg-elevated)]"
                     style={{ color: 'var(--text-primary)', borderBottom: '1px solid var(--border)' }}>
                     <span className="truncate">{g.name}</span>
-                    {g.size != null && <span className="shrink-0" style={{ color: 'var(--text-secondary)' }}>{g.size} pessoas</span>}
+                    {g.size != null && <span className="eyebrow shrink-0" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{g.size} pessoas</span>}
                   </button>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </>
       )}
@@ -335,17 +494,16 @@ const FREQ_LABELS: Record<ReportFrequency, string> = {
 };
 const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const pad2 = (n: number) => String(n).padStart(2, '0');
 
 function describeSchedule(s: ReportSchedule): string {
-  const h = `${String(s.hour).padStart(2, '0')}:00`;
+  const h = `${pad2(s.hour)}:00`;
   if (s.frequency === 'DAILY') return `Todo dia às ${h}`;
   if (s.frequency === 'WEEKLY') return `Toda ${DAY_NAMES[s.dayOfWeek ?? 1]} às ${h}`;
   if (s.frequency === 'BIWEEKLY') return `Dias ${s.dayOfMonth} e ${Math.min((s.dayOfMonth ?? 1) + 15, 28)} às ${h}`;
   if (s.frequency === 'MONTHLY') return `Dia ${s.dayOfMonth} de cada mês às ${h}`;
   return h;
 }
-
-const card = { backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' };
 
 const DEFAULT_REPORT_CONFIG: ReportConfig = {
   includeSpend: true,
@@ -394,6 +552,69 @@ function runsOnDay(s: ReportSchedule, d: Date): boolean {
   }
 }
 
+/** Próximo envio de um agendamento ativo (até 62 dias à frente), pela mesma regra do calendário. */
+function nextRun(s: ReportSchedule, now: Date): Date | null {
+  if (!s.isActive) return null;
+  for (let i = 0; i <= 62; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, s.hour, 0, 0, 0);
+    if (d > now && runsOnDay(s, d)) return d;
+  }
+  return null;
+}
+
+function fmtWhen(d: Date, now: Date): string {
+  const hoje = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dia = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diff = Math.round((dia.getTime() - hoje.getTime()) / 86_400_000);
+  const hora = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  if (diff === 0) return `Hoje, ${hora}`;
+  if (diff === 1) return `Amanhã, ${hora}`;
+  if (diff === -1) return `Ontem, ${hora}`;
+  return `${DAY_NAMES[d.getDay()]} ${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}, ${hora}`;
+}
+
+// ─── Faixa de números do topo ─────────────────────────────────────────────────
+
+function StatStrip({ schedules }: { schedules: ReportSchedule[] }) {
+  const now = new Date();
+  const ativos = schedules.filter((s) => s.isActive).length;
+  const proximos = schedules
+    .map((s) => ({ s, at: nextRun(s, now) }))
+    .filter((x): x is { s: ReportSchedule; at: Date } => x.at !== null)
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+  const proximo = proximos[0];
+  const logs = schedules.flatMap((s) => s.logs.slice(0, 1).map((l) => ({ ...l, name: s.destinationName })))
+    .sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+  const ultimo = logs[0];
+  const falhando = schedules.filter((s) => s.logs[0]?.status === 'FAILED').length;
+
+  const tile = (eyebrow: string, value: React.ReactNode, foot: React.ReactNode, icon: IconName) => (
+    <div className="ui-card flex items-start gap-3" style={{ padding: 18 }}>
+      <IconTile name={icon} />
+      <div className="min-w-0">
+        <span className="eyebrow" style={{ color: 'var(--text-secondary)' }}>{eyebrow}</span>
+        <div className="ui-big mt-1" style={{ fontSize: 22 }}>{value}</div>
+        <div className="text-xs mt-1 truncate" style={{ color: 'var(--text-secondary)' }}>{foot}</div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {tile('AGENDAMENTOS', <>{ativos}<span style={{ color: 'var(--text-secondary)', fontSize: 16 }}> / {schedules.length}</span></>,
+        ativos === schedules.length ? 'todos ativos' : `${schedules.length - ativos} pausado${schedules.length - ativos > 1 ? 's' : ''}`, 'list')}
+      {tile('PRÓXIMO ENVIO', proximo ? fmtWhen(proximo.at, now) : '—',
+        proximo ? proximo.s.destinationName : 'nenhum agendamento ativo', 'clock')}
+      {tile('ÚLTIMO ENVIO', ultimo ? fmtWhen(new Date(ultimo.sentAt), now) : '—',
+        ultimo
+          ? <span className="inline-flex items-center gap-1.5"><StatusDot tone={ultimo.status === 'SUCCESS' ? 'ok' : 'err'} />
+              {ultimo.status === 'SUCCESS' ? 'entregue' : 'falhou'} · {ultimo.name}
+              {falhando > 0 && ultimo.status === 'SUCCESS' ? ` · ${falhando} com falha` : ''}</span>
+          : 'nenhum envio ainda', 'send')}
+    </div>
+  );
+}
+
 // ─── Calendário dos envios ────────────────────────────────────────────────────
 
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -408,64 +629,69 @@ function ScheduleCalendar({ schedules }: { schedules: ReportSchedule[] }) {
   const days = Array.from({ length: 42 }, (_, i) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + i));
   const ordered = [...schedules].sort((a, b) => a.hour - b.hour);
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const navBtn = { color: 'var(--text-secondary)', border: '1px solid var(--border)' };
 
   return (
-    <div className="rounded-xl p-4" style={card}>
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-          {MONTH_NAMES[month.getMonth()]} de {month.getFullYear()}
+    <div className="ui-card">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <p className="text-sm font-bold" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>
+          {MONTH_NAMES[month.getMonth()]} <span style={{ color: 'var(--text-secondary)' }}>{month.getFullYear()}</span>
         </p>
-        <div className="flex items-center gap-1.5">
-          <button onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))} className="text-xs px-3 py-1 rounded-lg" style={navBtn}>Hoje</button>
-          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mês anterior" className="text-xs px-2.5 py-1 rounded-lg" style={navBtn}>‹</button>
-          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Próximo mês" className="text-xs px-2.5 py-1 rounded-lg" style={navBtn}>›</button>
+        <div className="ui-seg" role="group" aria-label="Navegar meses">
+          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} aria-label="Mês anterior">‹</button>
+          <button onClick={() => setMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>Hoje</button>
+          <button onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} aria-label="Próximo mês">›</button>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <div style={{ minWidth: 640 }}>
-          <div className="grid grid-cols-7">
+          <div className="grid grid-cols-7 mb-1.5">
             {DAY_NAMES.map((d) => (
-              <div key={d} className="text-[11px] font-medium text-center pb-1.5" style={{ color: 'var(--text-secondary)' }}>{d}</div>
+              <div key={d} className="eyebrow text-center" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{d.toUpperCase()}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7" style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }}>
+          <div className="grid grid-cols-7 gap-1">
             {days.map((d) => {
               const inMonth = d.getMonth() === month.getMonth();
               const isToday = sameDay(d, today);
               const events = ordered.filter((s) => runsOnDay(s, d));
               return (
-                <div key={d.toISOString()} className="p-1 space-y-0.5"
-                  style={{ minHeight: 86, borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', opacity: inMonth ? 1 : 0.4 }}>
-                  <div className="flex justify-center">
-                    <span className="text-[11px] flex items-center justify-center rounded-full"
-                      style={{ width: 20, height: 20, ...(isToday ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', fontWeight: 700 } : { color: 'var(--text-secondary)' }) }}>
-                      {d.getDate()}
+                <div key={d.toISOString()} className="p-1.5 space-y-1"
+                  style={{
+                    minHeight: 88, borderRadius: 10,
+                    backgroundColor: isToday ? 'var(--highlight)' : 'var(--bg-base)',
+                    border: `1px solid ${isToday ? 'var(--highlight-border)' : 'var(--border)'}`,
+                    opacity: inMonth ? 1 : 0.4,
+                  }}>
+                  <div className="flex">
+                    <span className="eyebrow flex items-center justify-center rounded-md"
+                      style={{ minWidth: 22, height: 20, fontSize: 11, ...(isToday ? { backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', fontWeight: 700 } : { color: 'var(--text-secondary)' }) }}>
+                      {pad2(d.getDate())}
                     </span>
                   </div>
                   {events.slice(0, MAX_CHIPS_PER_DAY).map((s) => {
                     const wa = s.channelType === 'WHATSAPP';
-                    const hora = `${String(s.hour).padStart(2, '0')}:00`;
+                    const hora = `${pad2(s.hour)}:00`;
                     return (
                       <div key={s.id}
                         title={`${hora} · ${s.destinationName} · ${destinationKind(s)} · ${wa ? 'WhatsApp' : 'Telegram'} · ${FREQ_LABELS[s.frequency]}${s.isActive ? '' : ' · pausado'}`}
-                        className="text-[10px] leading-tight px-1.5 py-0.5 rounded truncate"
+                        className="text-[10px] leading-tight px-1.5 py-1 truncate"
                         style={{
+                          borderRadius: 6,
                           // Verde/azul do canal não dá contraste de leitura em letra de 10px:
                           // a cor vai na barra lateral e o texto fica na cor de leitura.
-                          backgroundColor: wa ? 'var(--badge-success-bg)' : 'var(--accent-dim)',
+                          backgroundColor: 'var(--bg-surface)',
                           borderLeft: `3px solid ${wa ? 'var(--badge-success-text)' : 'var(--accent)'}`,
                           color: 'var(--text-primary)',
                           ...(s.isActive ? {} : { opacity: 0.6, textDecoration: 'line-through' }),
                         }}>
-                        <strong>{hora}</strong> {s.destinationName}
+                        <strong style={{ fontFamily: 'var(--font-mono-cx), ui-monospace, monospace' }}>{hora}</strong> {s.destinationName}
                       </div>
                     );
                   })}
                   {events.length > MAX_CHIPS_PER_DAY && (
                     <div className="text-[10px] px-1.5" style={{ color: 'var(--text-secondary)' }}
-                      title={events.slice(MAX_CHIPS_PER_DAY).map((s) => `${String(s.hour).padStart(2, '0')}:00 ${s.destinationName}`).join('\n')}>
+                      title={events.slice(MAX_CHIPS_PER_DAY).map((s) => `${pad2(s.hour)}:00 ${s.destinationName}`).join('\n')}>
                       +{events.length - MAX_CHIPS_PER_DAY} mais
                     </div>
                   )}
@@ -476,9 +702,9 @@ function ScheduleCalendar({ schedules }: { schedules: ReportSchedule[] }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 mt-3 text-[11px] flex-wrap" style={{ color: 'var(--text-secondary)' }}>
-        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: 'var(--accent)' }} /> Telegram</span>
-        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: 'var(--badge-success-text)' }} /> WhatsApp</span>
+      <div className="flex items-center gap-4 mt-4 text-[11px] flex-wrap" style={{ color: 'var(--text-secondary)' }}>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--accent)' }} /> Telegram</span>
+        <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: 'var(--badge-success-text)' }} /> WhatsApp</span>
         <span><span style={{ textDecoration: 'line-through' }}>riscado</span> = agendamento pausado</span>
       </div>
     </div>
@@ -578,48 +804,42 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
     onChange({ ...config, template: meta.preset });
   };
 
-  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
-  const labelStyle = { color: 'var(--text-secondary)', fontSize: 12, marginBottom: 4, display: 'block' as const };
-  const modeBtn = (active: boolean) => ({
-    backgroundColor: active ? 'var(--accent-dim)' : 'transparent',
-    color: active ? 'var(--accent)' : 'var(--text-secondary)',
-    border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-  });
-
   return (
-    <div className="space-y-3">
-      <div>
-        <span style={labelStyle}>Mensagem do relatório</span>
-        <div className="flex gap-2">
-          <button onClick={() => setMode(false)} className="flex-1 py-2 rounded-lg text-xs font-medium" style={modeBtn(!custom)}>Modelo padrão</button>
-          <button onClick={() => setMode(true)} disabled={!meta && !custom} className="flex-1 py-2 rounded-lg text-xs font-medium disabled:opacity-60" style={modeBtn(custom)}>{!meta && !custom ? 'Texto personalizado (carregando...)' : 'Texto personalizado'}</button>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span style={{ ...labelStyle, marginBottom: 0 }}>Mensagem do relatório</span>
+        <div className="ui-seg" role="group" aria-label="Tipo de mensagem">
+          <button aria-pressed={!custom} onClick={() => setMode(false)}>Modelo padrão</button>
+          <button aria-pressed={custom} onClick={() => setMode(true)} disabled={!meta && !custom}
+            style={!meta && !custom ? { opacity: 0.6, cursor: 'wait' } : undefined}>
+            {!meta && !custom ? 'Carregando...' : 'Texto personalizado'}
+          </button>
         </div>
       </div>
 
-      <div className={wide ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-3'}>
-        <div className="space-y-3 min-w-0">
+      <div className={wide ? 'grid grid-cols-1 md:grid-cols-2 gap-5' : 'space-y-4'}>
+        <div className="space-y-4 min-w-0">
           {!custom && (
             <>
               <div>
                 <span style={labelStyle}>Campos incluídos</span>
-                <div className="grid grid-cols-2 gap-1.5 mt-1">
-                  {CONFIG_FIELD_LABELS.map(({ key, label }) => (
-                    <label key={key} className="flex items-center gap-2 text-xs cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={!!config[key]}
-                        onChange={(e) => onChange({ ...config, [key]: e.target.checked })}
-                        style={{ accentColor: 'var(--accent)', width: 13, height: 13 }}
-                      />
-                      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                    </label>
-                  ))}
+                <div className="flex flex-wrap gap-1.5">
+                  {CONFIG_FIELD_LABELS.map(({ key, label }) => {
+                    const on = !!config[key];
+                    return (
+                      <button key={key} type="button" aria-pressed={on}
+                        onClick={() => onChange({ ...config, [key]: !on })}
+                        className={`ui-chip !text-[12px] !px-3 !py-1.5 ${on ? 'ui-chip-on' : ''}`}>
+                        {on && <Icon name="check" size={12} />}{label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div>
                 <span style={labelStyle}>Observações (opcional)</span>
                 <textarea
-                  style={{ ...inputStyle, minHeight: 56, resize: 'vertical' as const }}
+                  style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }}
                   placeholder="Texto extra ao final do relatório..."
                   maxLength={300}
                   value={config.notes ?? ''}
@@ -632,21 +852,21 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
           {custom && (
             <>
               <div>
-                <div className="flex items-center justify-between">
-                  <span style={labelStyle}>Seu texto</span>
-                  <button onClick={usePreset} disabled={!meta} className="text-xs mb-1 disabled:opacity-60" style={{ color: 'var(--accent)' }}>Usar texto pronto</button>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span style={{ ...labelStyle, marginBottom: 0 }}>Seu texto</span>
+                  <button onClick={usePreset} disabled={!meta} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '4px 10px', fontSize: 12 }}>Usar texto pronto</button>
                 </div>
                 <textarea
                   ref={taRef}
-                  style={{ ...inputStyle, minHeight: wide ? 240 : 170, resize: 'vertical' as const, lineHeight: 1.5 }}
+                  style={{ ...inputStyle, minHeight: wide ? 240 : 170, resize: 'vertical', lineHeight: 1.55, fontFamily: 'var(--font-mono-cx), ui-monospace, monospace', fontSize: 12.5 }}
                   placeholder="Escreva a mensagem e clique nas variáveis abaixo para encaixar os números."
                   maxLength={TEMPLATE_MAX}
                   value={template}
                   onChange={(e) => onChange({ ...config, template: e.target.value })}
                 />
-                <div className="flex items-center justify-between text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
-                  <span>*negrito* · _itálico_</span>
-                  <span>{template.length} / {TEMPLATE_MAX}</span>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>*NEGRITO* · _ITÁLICO_</span>
+                  <span className="eyebrow" style={{ color: template.length > TEMPLATE_MAX * 0.9 ? 'var(--badge-warn-text)' : 'var(--text-secondary)', fontSize: 11 }}>{template.length} / {TEMPLATE_MAX}</span>
                 </div>
               </div>
 
@@ -656,18 +876,17 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
                 </p>
               )}
               {custom && !template.trim() && (
-                <p className="text-xs" style={{ color: 'var(--badge-warn-text)' }}>O texto está vazio.</p>
+                <p className="text-xs inline-flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><StatusDot tone="warn" /> O texto está vazio.</p>
               )}
 
               <div>
                 <span style={labelStyle}>Variáveis — clique para inserir onde está o cursor</span>
                 <div className="flex flex-wrap gap-1.5">
                   {(meta?.variables ?? []).map((v) => (
-                    <button key={v.key} onClick={() => insertVar(v.key)}
+                    <button key={v.key} type="button" onClick={() => insertVar(v.key)}
                       title={`{${v.key}} — hoje: ${v.value}`}
-                      className="text-[11px] px-2 py-1 rounded-md"
-                      style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}>
-                      {v.label}
+                      className="ui-chip !text-[11.5px] !px-2.5 !py-1 hover:!text-[var(--text-primary)]">
+                      <span style={{ color: 'var(--accent)' }}>{'{'}</span>{v.label}<span style={{ color: 'var(--accent)' }}>{'}'}</span>
                     </button>
                   ))}
                 </div>
@@ -678,17 +897,21 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
 
         <div className="min-w-0">
           <span style={labelStyle}>Prévia com os números de hoje</span>
-          <div className="rounded-lg p-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-            <div className="rounded-lg px-3 py-2 text-xs overflow-y-auto"
-              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)', lineHeight: 1.45, maxHeight: wide ? 380 : 240, wordBreak: 'break-word', borderTopLeftRadius: 2 }}>
+          <div className="ui-inset p-3">
+            <div className="flex items-center gap-2 mb-2.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--badge-success-text)' }} />
+              <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>COMO CHEGA NO GRUPO</span>
+            </div>
+            <div className="px-3.5 py-2.5 text-xs overflow-y-auto"
+              style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)', lineHeight: 1.5, maxHeight: wide ? 380 : 240, wordBreak: 'break-word', borderRadius: 14, borderTopLeftRadius: 4 }}>
               {previewText === null
-                ? <span style={{ color: 'var(--text-secondary)' }}>Gerando prévia...</span>
+                ? <span className="inline-flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}><Icon name="spinner" size={12} /> Gerando prévia...</span>
                 : previewText.trim()
                   ? <WaText text={previewText} />
                   : <span style={{ color: 'var(--text-secondary)' }}>A mensagem aparece aqui.</span>}
             </div>
           </div>
-          <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+          <p className="text-[11px] mt-1.5" style={{ color: 'var(--text-secondary)' }}>
             Os números são recalculados a cada envio. “—” aparece quando a empresa não tem aquele dado.
           </p>
         </div>
@@ -709,11 +932,13 @@ function TelegramQRModal({ onConnected, onClose }: {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    if (phase !== 'loading') return;
     apiService.createTelegramInvite()
       .then(({ data }) => { setToken(data.token); setDeepLink(data.deepLink); setPhase('ready'); })
       .catch(() => setPhase('error'));
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, []);
+  }, [phase]);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
   useEffect(() => {
     if (phase !== 'ready' || !token) return;
@@ -732,73 +957,53 @@ function TelegramQRModal({ onConnected, onClose }: {
   }, [phase, token, onConnected]);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.85)' }}>
-      <div className="w-full max-w-sm rounded-2xl p-6 text-center space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)' }}>
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conectar Telegram</p>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
+    <Modal title="Conectar Telegram" onClose={onClose} width={400} z={60}>
+      <div className="text-center space-y-4">
         {phase === 'loading' && (
-          <div className="py-10 flex flex-col items-center gap-3">
-            <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
-              <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gerando link seguro...</p>
+          <div className="py-10 flex flex-col items-center gap-3" style={{ color: 'var(--text-secondary)' }}>
+            <Icon name="spinner" size={22} />
+            <p className="text-xs">Gerando link seguro...</p>
           </div>
         )}
 
         {phase === 'ready' && (
           <>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               Escaneie o QR Code com o Telegram para conectar este chat ao agendamento.
             </p>
-            <div className="flex justify-center py-2">
-              <div className="p-3 rounded-xl" style={{ backgroundColor: '#fff' }}>
+            <div className="flex justify-center py-1">
+              <div className="p-3" style={{ backgroundColor: '#fff', borderRadius: 14 }}>
                 <QRCodeSVG value={deepLink} size={180} />
               </div>
             </div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              Ou abra o link diretamente no Telegram:
-            </p>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Ou abra o link direto no Telegram:</p>
             <a href={deepLink} target="_blank" rel="noreferrer"
-              className="block text-xs truncate px-3 py-2 rounded-lg"
-              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}>
+              className="block text-xs truncate px-3 py-2.5 eyebrow"
+              style={{ borderRadius: 10, backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-md)' }}>
               {deepLink}
             </a>
-            <div className="flex items-center gap-2 justify-center pt-1">
-              <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent)' }} />
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Aguardando conexão... (expira em 24h)</p>
-            </div>
+            <p className="eyebrow inline-flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+              <StatusDot tone="warn" /> AGUARDANDO CONEXÃO · EXPIRA EM 24H
+            </p>
           </>
         )}
 
         {phase === 'connected' && (
           <div className="py-8 flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(34,197,94,0.15)' }}>
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="#4ade80" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium" style={{ color: 'var(--badge-success-text)' }}>Conectado com sucesso!</p>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Fechando automaticamente...</p>
+            <IconTile name="check" tone="wa" size={48} />
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Conectado com sucesso</p>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Fechando automaticamente...</p>
           </div>
         )}
 
         {phase === 'error' && (
           <div className="py-8 flex flex-col items-center gap-3">
             <p className="text-sm" style={{ color: 'var(--badge-error-text)' }}>Link expirado ou inválido.</p>
-            <button onClick={() => setPhase('loading')} className="text-xs px-4 py-2 rounded-lg"
-              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)' }}>
-              Gerar novo link
-            </button>
+            <button onClick={() => setPhase('loading')} className="ui-btn ui-btn-primary ui-btn-sm">Gerar novo link</button>
           </div>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -839,154 +1044,138 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
     } catch (err) { setError(errMsg(err, 'Erro ao criar agendamento')); } finally { setLoading(false); }
   };
 
-  const inputStyle = { backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 8, padding: '8px 12px', width: '100%', fontSize: 13 };
-  const labelStyle = { color: 'var(--text-muted)', fontSize: 12, marginBottom: 4, display: 'block' as const };
+  const step = (n: string, title: string) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="eyebrow" style={{ color: 'var(--accent)' }}>{n}</span>
+      <span className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{title}</span>
+    </div>
+  );
+
+  const channelOption = (c: ChannelType) => {
+    const on = channel === c;
+    const tg = c === 'TELEGRAM';
+    return (
+      <button key={c} type="button" aria-pressed={on}
+        onClick={() => { if (!on) { setChannel(c); setDestination(''); setDestinationName(''); } }}
+        className="flex-1 flex items-center gap-3 p-3 text-left transition-colors"
+        style={{
+          borderRadius: 14,
+          backgroundColor: on ? 'var(--highlight)' : 'var(--bg-base)',
+          border: `1px solid ${on ? 'var(--highlight-border)' : 'var(--border)'}`,
+          boxShadow: on ? 'inset 0 0 0 1px var(--accent-line)' : 'none',
+        }}>
+        <IconTile name={tg ? 'telegram' : 'whatsapp'} tone={tg ? 'tg' : 'wa'} size={32} />
+        <span className="min-w-0">
+          <span className="block text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{tg ? 'Telegram' : 'WhatsApp'}</span>
+          <span className="block text-[11px]" style={{ color: 'var(--text-secondary)' }}>{tg ? 'Bot no grupo' : 'Número da empresa'}</span>
+        </span>
+        {on && <span className="ml-auto" style={{ color: 'var(--accent)' }}><Icon name="check" size={16} /></span>}
+      </button>
+    );
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-xl rounded-2xl flex flex-col" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
+    <Modal title="Novo agendamento" sub="Relatório automático com os números do período" onClose={onClose} width={620}
+      footer={<>
+        <button onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm flex-1">Cancelar</button>
+        <button onClick={handleSubmit} disabled={loading} className="ui-btn ui-btn-primary ui-btn-sm flex-1">
+          {loading ? <><Icon name="spinner" size={14} /> Criando...</> : 'Criar agendamento'}
+        </button>
+      </>}>
+      <div className="space-y-6">
+        <section>
+          {step('01', 'Para onde vai')}
+          <div className="flex gap-2 mb-4">{(['TELEGRAM', 'WHATSAPP'] as ChannelType[]).map(channelOption)}</div>
 
-        {/* Header fixo */}
-        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Novo agendamento de relatório</p>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
+          {channel === 'TELEGRAM' && (
+            <div className="space-y-2">
+              <span style={labelStyle}>Chat ou grupo do Telegram</span>
+              {destination ? (
+                <div className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 12, backgroundColor: 'var(--highlight)', border: '1px solid var(--highlight-border)' }}>
+                  <IconTile name="check" tone="lime" size={28} />
+                  <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
+                    <strong>{destinationName}</strong> <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{destination}</span>
+                  </span>
+                  <button onClick={() => { setDestination(''); setDestinationName(''); }} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>Trocar</button>
+                </div>
+              ) : (
+                <button onClick={() => setShowQR(true)}
+                  className="w-full flex items-center justify-center gap-2 py-4 text-xs font-semibold"
+                  style={{ borderRadius: 12, backgroundColor: 'var(--highlight)', color: 'var(--accent)', border: '1px dashed var(--accent-line)' }}>
+                  <Icon name="qr" size={15} /> Conectar via QR Code
+                </button>
+              )}
+              {showQR && (
+                <TelegramQRModal
+                  onConnected={(chatId, chatName) => { setDestination(chatId); setDestinationName(chatName); setShowQR(false); }}
+                  onClose={() => setShowQR(false)}
+                />
+              )}
+            </div>
+          )}
 
-        {/* Conteúdo scrollável */}
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+          {channel === 'WHATSAPP' && (
+            <WhatsappDestination
+              destination={destination}
+              destinationName={destinationName}
+              onChange={(d, n) => { setDestination(d); setDestinationName(n); }}
+            />
+          )}
 
-        {/* Canal */}
-        <div>
-          <span style={labelStyle}>Canal de envio</span>
-          <div className="flex gap-2">
-            {(['TELEGRAM', 'WHATSAPP'] as ChannelType[]).map(c => (
-              <button
-                key={c}
-                onClick={() => { setChannel(c); setDestination(''); setDestinationName(''); }}
-                className="flex-1 py-2 rounded-lg text-xs font-medium transition-all"
-                style={{ backgroundColor: channel === c ? (c === 'TELEGRAM' ? 'var(--accent-line)' : 'rgba(34,197,94,0.15)') : 'rgba(255,255,255,0.04)', color: channel === c ? (c === 'TELEGRAM' ? 'var(--accent)' : '#4ade80') : '#64748b', border: `1px solid ${channel === c ? (c === 'TELEGRAM' ? 'var(--accent-line)' : 'rgba(34,197,94,0.3)') : 'rgba(255,255,255,0.06)'}` }}
-              >
-                {c === 'TELEGRAM' ? '✈️ Telegram' : '📱 WhatsApp'}
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* Nome do destino — só quando não vem automático: Telegram ainda sem chat, ou WhatsApp para número avulso */}
+          {(channel === 'TELEGRAM' ? !destination : destination !== '' && !destination.endsWith('@g.us')) && (
+            <div className="mt-3">
+              <span style={labelStyle}>Nome do destino</span>
+              <input style={inputStyle} placeholder="Ex: Grupo Relatórios Galpão" value={destinationName} onChange={e => setDestinationName(e.target.value)} />
+            </div>
+          )}
+        </section>
 
-        {/* Destino Telegram */}
-        {channel === 'TELEGRAM' && (
-          <div className="space-y-2">
-            <span style={labelStyle}>Chat / Grupo do Telegram</span>
-            {destination ? (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                <span className="text-xs flex-1" style={{ color: 'var(--badge-success-text)' }}>✓ {destinationName} <span style={{ color: 'var(--text-muted)' }}>({destination})</span></span>
-                <button onClick={() => { setDestination(''); setDestinationName(''); }} className="text-xs" style={{ color: 'var(--text-muted)' }}>Trocar</button>
-              </div>
-            ) : (
-              <button onClick={() => setShowQR(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-medium transition-colors"
-                style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)', borderStyle: 'dashed' }}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75z" />
-                </svg>
-                Conectar via QR Code
-              </button>
-            )}
-            {showQR && (
-              <TelegramQRModal
-                onConnected={(chatId, chatName) => { setDestination(chatId); setDestinationName(chatName); setShowQR(false); }}
-                onClose={() => setShowQR(false)}
-              />
-            )}
-          </div>
-        )}
-
-        {/* Destino WhatsApp */}
-        {channel === 'WHATSAPP' && (
-          <WhatsappDestination
-            destination={destination}
-            destinationName={destinationName}
-            onChange={(d, n) => { setDestination(d); setDestinationName(n); }}
-            inputStyle={inputStyle}
-            labelStyle={labelStyle}
-          />
-        )}
-
-        {/* Nome do destino — só quando não vem automático: Telegram ainda sem chat, ou WhatsApp para número avulso */}
-        {(channel === 'TELEGRAM' ? !destination : destination !== '' && !destination.endsWith('@g.us')) && (
-          <div>
-            <span style={labelStyle}>Nome do destino</span>
-            <input style={inputStyle} placeholder="Ex: Grupo Relatórios Galpão" value={destinationName} onChange={e => setDestinationName(e.target.value)} />
-          </div>
-        )}
-
-        {/* Frequência */}
-        <div>
-          <span style={labelStyle}>Frequência</span>
-          <div className="grid grid-cols-2 gap-2">
+        <section>
+          {step('02', 'Quando')}
+          <div className="ui-seg w-full mb-3" role="group" aria-label="Frequência" style={{ display: 'flex' }}>
             {(Object.entries(FREQ_LABELS) as [ReportFrequency, string][]).map(([k, v]) => (
-              <button key={k} onClick={() => setFrequency(k)}
-                className="py-2 rounded-lg text-xs font-medium transition-all"
-                style={{ backgroundColor: frequency === k ? 'var(--accent-line)' : 'rgba(255,255,255,0.04)', color: frequency === k ? 'var(--accent)' : '#64748b', border: `1px solid ${frequency === k ? 'var(--accent-line)' : 'rgba(255,255,255,0.06)'}` }}
-              >
-                {v}
-              </button>
+              <button key={k} aria-pressed={frequency === k} onClick={() => setFrequency(k)} style={{ flex: 1 }}>{v}</button>
             ))}
           </div>
-        </div>
-
-        {/* Opções condicionais */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <span style={labelStyle}>Horário</span>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={hour} onChange={e => setHour(Number(e.target.value))}>
-              {HOURS.map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span style={labelStyle}>Horário</span>
+              <select style={{ ...inputStyle, cursor: 'pointer' }} value={hour} onChange={e => setHour(Number(e.target.value))}>
+                {HOURS.map(h => <option key={h} value={h}>{pad2(h)}:00</option>)}
+              </select>
+            </div>
+            {frequency === 'WEEKLY' && (
+              <div>
+                <span style={labelStyle}>Dia da semana</span>
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}>
+                  {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                </select>
+              </div>
+            )}
+            {(frequency === 'MONTHLY' || frequency === 'BIWEEKLY') && (
+              <div>
+                <span style={labelStyle}>{frequency === 'BIWEEKLY' ? 'Dia inicial' : 'Dia do mês'}</span>
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))}>
+                  {Array.from({ length: 28 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            )}
           </div>
-          {frequency === 'WEEKLY' && (
-            <div>
-              <span style={labelStyle}>Dia da semana</span>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}>
-                {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-              </select>
-            </div>
-          )}
-          {(frequency === 'MONTHLY' || frequency === 'BIWEEKLY') && (
-            <div>
-              <span style={labelStyle}>{frequency === 'BIWEEKLY' ? 'Dia inicial' : 'Dia do mês'}</span>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={dayOfMonth} onChange={e => setDayOfMonth(Number(e.target.value))}>
-                {Array.from({ length: 28 }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-          )}
-        </div>
+        </section>
 
-        <MessageEditor frequency={frequency} config={reportConfig} onChange={setReportConfig} />
+        <section>
+          {step('03', 'O que vai na mensagem')}
+          <MessageEditor frequency={frequency} config={reportConfig} onChange={setReportConfig} />
+        </section>
 
         {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
-
-        </div>{/* fim conteúdo scrollável */}
-
-        {/* Footer fixo */}
-        <div className="flex gap-2 px-6 py-4 shrink-0" style={{ borderTop: '1px solid var(--border)' }}>
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            Cancelar
-          </button>
-          <button onClick={handleSubmit} disabled={loading} className="flex-1 py-2 rounded-lg text-xs font-medium transition-colors"
-            style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: loading ? 0.6 : 1 }}>
-            {loading ? 'Criando...' : 'Criar agendamento'}
-          </button>
-        </div>
-
       </div>
-    </div>
+    </Modal>
   );
 }
 
-// ─── Modal de configuração de campos (para schedules existentes) ───────────────
+// ─── Modal da mensagem (para agendamentos existentes) ──────────────────────────
 
 function ReportConfigModal({ schedule, onClose, onSaved }: {
   schedule: ReportSchedule;
@@ -1007,42 +1196,26 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}>
-      <div className="w-full max-w-3xl rounded-2xl p-6 space-y-5 overflow-y-auto" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', maxHeight: '90vh' }}>
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Mensagem do relatório</p>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{schedule.destinationName} · {destinationKind(schedule)} · {FREQ_LABELS[schedule.frequency]}</p>
-          </div>
-          <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-        </div>
-
-        <MessageEditor frequency={schedule.frequency} config={config} onChange={setConfig} wide />
-
-        {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
-
-        <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'var(--text-muted)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            Cancelar
-          </button>
-          <button onClick={handleSave} disabled={saving} className="flex-1 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)', opacity: saving ? 0.6 : 1 }}>
-            {saving ? 'Salvando...' : 'Salvar mensagem'}
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal title="Mensagem do relatório" width={880}
+      sub={`${schedule.destinationName} · ${destinationKind(schedule)} · ${FREQ_LABELS[schedule.frequency]}`}
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm flex-1">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="ui-btn ui-btn-primary ui-btn-sm flex-1">{saving ? 'Salvando...' : 'Salvar mensagem'}</button>
+      </>}>
+      <MessageEditor frequency={schedule.frequency} config={config} onChange={setConfig} wide />
+      {error && <p className="text-xs mt-3" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
+    </Modal>
   );
 }
 
-// ─── Card de schedule ──────────────────────────────────────────────────────────
+// ─── Card de agendamento ───────────────────────────────────────────────────────
 
 function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
   schedule: ReportSchedule;
   onToggle: () => void;
   onDelete: () => void;
-  onSendNow: () => void;
+  onSendNow: () => Promise<void>;
   onRefresh: () => void;
 }) {
   const [sending, setSending] = useState(false);
@@ -1055,59 +1228,58 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
     finally { setSending(false); setTimeout(() => setSendResult(null), 3000); }
   };
 
+  const handleDelete = () => {
+    if (!confirm(`Remover o agendamento de "${schedule.destinationName}"?`)) return;
+    onDelete();
+  };
+
   const lastLog = schedule.logs[0];
-  const channelIcon = schedule.channelType === 'TELEGRAM' ? '✈️' : '📱';
-  const channelColor = schedule.channelType === 'TELEGRAM' ? 'var(--accent)' : '#4ade80';
+  const wa = schedule.channelType === 'WHATSAPP';
+  const kind = destinationKind(schedule);
+  const custom = typeof schedule.reportConfig?.template === 'string';
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={card}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-base">{channelIcon}</span>
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{schedule.destinationName}</p>
-            <p className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-              {destinationKind(schedule)} · {schedule.channelType === 'WHATSAPP' ? 'WhatsApp' : 'Telegram'}
-              {schedule.channelType === 'WHATSAPP' && destinationKind(schedule) === 'Individual' ? ` · ${schedule.destination}` : ''}
-            </p>
-          </div>
+    <div className="ui-card flex flex-col gap-4 transition-opacity" style={{ padding: 18, opacity: schedule.isActive ? 1 : 0.72 }}>
+      <div className="flex items-start gap-3">
+        <IconTile name={wa ? 'whatsapp' : 'telegram'} tone={wa ? 'wa' : 'tg'} />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{schedule.destinationName}</p>
+          <p className="text-xs truncate inline-flex items-center gap-1.5" style={{ color: 'var(--text-secondary)' }}>
+            <Icon name={kind === 'Grupo' ? 'group' : 'user'} size={12} />
+            {kind} · {wa ? 'WhatsApp' : 'Telegram'}
+            {wa && kind === 'Individual' ? ` · ${schedule.destination}` : ''}
+          </p>
         </div>
-
-        {/* Toggle ativo */}
         <button type="button" role="switch" aria-checked={schedule.isActive} aria-label="Agendamento ativo" onClick={onToggle} className="ui-switch" />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'var(--accent-dim)', color: channelColor }}>
-          {FREQ_LABELS[schedule.frequency]}
-        </span>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
-          {describeSchedule(schedule)}
-        </span>
-        {lastLog && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs" style={{
-            backgroundColor: lastLog.status === 'SUCCESS' ? 'rgba(34,197,94,0.1)' : 'rgba(248,113,113,0.1)',
-            color: lastLog.status === 'SUCCESS' ? '#4ade80' : '#f87171',
-          }}>
-            {lastLog.status === 'SUCCESS' ? '✓' : '✗'} Último: {new Date(lastLog.sentAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-          </span>
-        )}
+      <div className="ui-inset px-3 py-2.5 flex items-center gap-2.5">
+        <span style={{ color: 'var(--text-secondary)' }}><Icon name="calendar" size={14} /></span>
+        <span className="text-xs font-semibold flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>{describeSchedule(schedule)}</span>
+        <span className="ui-badge ui-badge-tint">{FREQ_LABELS[schedule.frequency].toUpperCase()}</span>
       </div>
 
-      <div className="flex gap-2 pt-1" style={{ borderTop: '1px solid var(--border)' }}>
-        <button onClick={handleSend} disabled={sending}
-          className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{ backgroundColor: sendResult === 'ok' ? 'rgba(34,197,94,0.15)' : sendResult === 'err' ? 'rgba(248,113,113,0.15)' : 'var(--accent-dim)', color: sendResult === 'ok' ? '#4ade80' : sendResult === 'err' ? '#f87171' : 'var(--accent)', border: '1px solid var(--accent-line)' }}
-        >
-          {sending ? 'Enviando...' : sendResult === 'ok' ? '✓ Enviado' : sendResult === 'err' ? '✗ Erro' : 'Enviar agora'}
+      <div className="flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
+        <span className="inline-flex items-center gap-1.5 min-w-0 truncate"
+          title={lastLog?.status === 'FAILED' && lastLog.error ? lastLog.error : undefined}>
+          <StatusDot tone={!lastLog ? 'idle' : lastLog.status === 'SUCCESS' ? 'ok' : 'err'} />
+          {!lastLog ? 'Ainda não enviou'
+            : `${lastLog.status === 'SUCCESS' ? 'Enviado' : 'Falhou'} ${fmtWhen(new Date(lastLog.sentAt), new Date()).toLowerCase()}`}
+        </span>
+        <span className="eyebrow shrink-0" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{custom ? 'TEXTO PRÓPRIO' : 'MODELO PADRÃO'}</span>
+      </div>
+
+      <div className="flex gap-2 mt-auto">
+        <button onClick={handleSend} disabled={sending} className="ui-btn ui-btn-tint ui-btn-sm flex-1"
+          style={sendResult === 'err' ? { background: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' } : undefined}>
+          {sending ? <Icon name="spinner" size={14} /> : sendResult === 'ok' ? <Icon name="check" size={14} /> : <Icon name="send" size={14} />}
+          {sending ? 'Enviando...' : sendResult === 'ok' ? 'Enviado' : sendResult === 'err' ? 'Erro ao enviar' : 'Enviar agora'}
         </button>
-        <button onClick={() => setShowConfig(true)} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-          style={{ color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
-          Mensagem
+        <button onClick={() => setShowConfig(true)} className="ui-btn ui-btn-secondary ui-btn-sm" title="Editar a mensagem">
+          <Icon name="edit" size={14} /> Mensagem
         </button>
-        <button onClick={onDelete} className="px-3 py-1.5 rounded-lg text-xs transition-colors"
-          style={{ backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }}>
-          Remover
+        <button onClick={handleDelete} className="ui-btn ui-btn-danger ui-btn-sm" aria-label="Remover agendamento" title="Remover">
+          <Icon name="trash" size={14} />
         </button>
       </div>
 
@@ -1124,77 +1296,113 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
 
 // ─── Configuração de Alertas de Anomalia ──────────────────────────────────────
 
-const RULE_META: Record<AnomalyRuleId, { label: string; description: string; fields: { key: string; label: string; unit: string; min: number; max: number; step: number }[] }> = {
+type RuleField = { key: string; label: string; unit: 'R$' | 'horas' | '%'; min: number; max: number; step: number };
+
+const RULE_META: Record<AnomalyRuleId, { label: string; description: string; icon: IconName; fields: RuleField[] }> = {
   SPEND_NO_LEADS: {
-    label: 'Spend sem leads',
-    description: 'Gasto do dia sem nenhum lead gerado',
-    fields: [{ key: 'minSpend', label: 'Gasto mínimo', unit: 'R$', min: 1, max: 10000, step: 10 }],
-  },
-  CPL_HIGH: {
-    label: 'CPL alto',
-    description: 'CPL de hoje muito acima da média dos últimos 7 dias',
-    fields: [
-      { key: 'pctAboveAvg', label: 'Acima da média em', unit: '%', min: 5, max: 200, step: 5 },
-      { key: 'minSpend',    label: 'Gasto mínimo',       unit: 'R$', min: 1, max: 10000, step: 10 },
-    ],
-  },
-  ROAS_LOW: {
-    label: 'ROAS < 1x',
-    description: 'Receita do mês menor que o gasto total',
-    fields: [{ key: 'minMonthSpend', label: 'Gasto mínimo no mês', unit: 'R$', min: 1, max: 50000, step: 50 }],
-  },
-  CTR_DROP: {
-    label: 'CTR colapsado',
-    description: 'CTR de alguma campanha caiu muito vs ontem',
-    fields: [
-      { key: 'dropPct',        label: 'Queda mínima',         unit: '%',  min: 5,  max: 90,    step: 5 },
-      { key: 'minImpressions', label: 'Impressões mínimas',   unit: 'imp', min: 10, max: 10000, step: 50 },
-    ],
+    label: 'Gasto sem leads',
+    description: 'Investiu no dia e não chegou nenhum lead',
+    icon: 'wallet',
+    fields: [{ key: 'minSpend', label: 'A partir de', unit: 'R$', min: 1, max: 10000, step: 10 }],
   },
   LEAD_SILENCE: {
     label: 'Silêncio de leads',
-    description: 'Nenhum lead novo com campanha ativa',
+    description: 'Nenhum lead novo com campanha rodando',
+    icon: 'moon',
     fields: [
-      { key: 'hoursWindow', label: 'Janela de tempo', unit: 'horas', min: 12, max: 168, step: 12 },
-      { key: 'minSpend7d',  label: 'Gasto mínimo 7d', unit: 'R$',   min: 1,  max: 10000, step: 10 },
+      { key: 'hoursWindow', label: 'Sem lead por', unit: 'horas', min: 12, max: 168, step: 12 },
+      { key: 'minSpend7d',  label: 'Gasto mínimo em 7 dias', unit: 'R$', min: 1, max: 10000, step: 10 },
     ],
   },
   BUDGET_LOW: {
-    label: 'Saldo restante baixo',
-    description: 'Avisa quando saldo Meta cair abaixo do mínimo ou campanha Google esgotar orçamento diário',
-    fields: [
-      { key: 'budgetMinBalance',   label: 'Saldo mínimo Meta',          unit: 'R$', min: 50,  max: 50000, step: 50 },
-      { key: 'budgetPctThreshold', label: '% orçamento diário Google',  unit: '%',  min: 50,  max: 99,    step: 5  },
-    ],
+    label: 'Saldo baixo',
+    description: 'Avisa antes de a conta de anúncios ficar sem saldo, com o saldo atual na mensagem',
+    icon: 'pulse',
+    fields: [], // campos próprios (Meta + Google com modo % ou R$) — ver BudgetFields
   },
   CRM_UNANSWERED: {
-    label: 'CRM: WhatsApp sem resposta',
-    description: 'Cliente do CRM Cromalex com mensagem de WhatsApp aguardando resposta há muitas horas',
-    fields: [{ key: 'hoursUnanswered', label: 'Horas sem resposta', unit: 'horas', min: 1, max: 168, step: 1 }],
+    label: 'WhatsApp sem resposta',
+    description: 'Cliente do CRM esperando resposta há muitas horas',
+    icon: 'chat',
+    fields: [{ key: 'hoursUnanswered', label: 'Esperando há', unit: 'horas', min: 1, max: 168, step: 1 }],
   },
   CRM_FOLLOWUP_DIGEST: {
-    label: 'CRM: digest de follow-ups',
-    description: 'Resumo de segunda a sexta, às 9h, com os follow-ups vencidos e os agendados para hoje',
+    label: 'Resumo de follow-ups',
+    description: 'Seg a sex, 9h: follow-ups vencidos e os de hoje',
+    icon: 'list',
     fields: [],
   },
 };
 
-const ALL_RULES = Object.keys(RULE_META) as AnomalyRuleId[];
+const RULES_ANUNCIOS: AnomalyRuleId[] = ['SPEND_NO_LEADS', 'LEAD_SILENCE', 'BUDGET_LOW'];
+const RULES_CRM: AnomalyRuleId[] = ['CRM_UNANSWERED', 'CRM_FOLLOWUP_DIGEST'];
+const ALL_RULES: AnomalyRuleId[] = [...RULES_ANUNCIOS, ...RULES_CRM];
 // As únicas que não dependem de anúncio — no plano CRM as outras aparecem com cadeado
 // (o backend também só roda estas para o plano CRM).
-const REGRAS_DO_CRM: AnomalyRuleId[] = ['CRM_UNANSWERED', 'CRM_FOLLOWUP_DIGEST'];
+const REGRAS_DO_CRM: AnomalyRuleId[] = RULES_CRM;
 
 // Defaults espelhando o backend — usados quando a regra ainda não tem config salva no banco
 const RULE_DEFAULTS: Record<AnomalyRuleId, Record<string, number>> = {
   SPEND_NO_LEADS: { minSpend: 50 },
-  CPL_HIGH:       { pctAboveAvg: 30, minSpend: 50 },
-  ROAS_LOW:       { minMonthSpend: 100 },
-  CTR_DROP:       { dropPct: 40, minImpressions: 100 },
   LEAD_SILENCE:   { hoursWindow: 48, minSpend7d: 50 },
-  BUDGET_LOW:     { budgetMinBalance: 200, budgetPctThreshold: 80 },
+  BUDGET_LOW:     { budgetMinBalance: 200, budgetPctThreshold: 80, googleUseBalance: 0, googleMinBalance: 200 },
   CRM_UNANSWERED: { hoursUnanswered: 12 },
   CRM_FOLLOWUP_DIGEST: {},
 };
+
+/** Campo numérico com a unidade grudada (R$ antes, % e horas depois). */
+function NumField({ field, value, onChange, disabled }: { field: RuleField; value: number; onChange: (v: number) => void; disabled?: boolean }) {
+  const prefix = field.unit === 'R$';
+  return (
+    <label className="flex flex-col gap-1.5 min-w-0" style={{ flex: '1 1 150px' }}>
+      <span className="text-[11px] font-semibold" style={{ color: 'var(--text-secondary)' }}>{field.label}</span>
+      <span className="flex items-center gap-1.5 px-3"
+        style={{ height: 38, borderRadius: 10, backgroundColor: 'var(--input-bg)', border: '1px solid var(--input-border)', opacity: disabled ? 0.5 : 1 }}>
+        {prefix && <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>R$</span>}
+        <input type="number" min={field.min} max={field.max} step={field.step} disabled={disabled}
+          className="flex-1 min-w-0 bg-transparent outline-none text-sm font-semibold"
+          style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}
+          value={value} onChange={(e) => onChange(Number(e.target.value))} />
+        {!prefix && <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{field.unit === '%' ? '%' : 'h'}</span>}
+      </span>
+    </label>
+  );
+}
+
+function BudgetFields({ values, onChange, disabled }: { values: Record<string, number>; onChange: (key: string, v: number) => void; disabled?: boolean }) {
+  const useBalance = values.googleUseBalance === 1;
+  return (
+    <div className="space-y-3">
+      <div className="ui-inset p-3 space-y-2">
+        <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>META ADS</span>
+        <NumField disabled={disabled} field={{ key: 'budgetMinBalance', label: 'Avisar com saldo abaixo de', unit: 'R$', min: 50, max: 50000, step: 50 }}
+          value={values.budgetMinBalance ?? 200} onChange={(v) => onChange('budgetMinBalance', v)} />
+      </div>
+      <div className="ui-inset p-3 space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>GOOGLE ADS</span>
+          <div className="ui-seg" role="group" aria-label="Como medir o Google" style={{ padding: 3 }}>
+            <button aria-pressed={useBalance} disabled={disabled} onClick={() => onChange('googleUseBalance', 1)} style={{ padding: '5px 10px', fontSize: 12 }}>Saldo em R$</button>
+            <button aria-pressed={!useBalance} disabled={disabled} onClick={() => onChange('googleUseBalance', 0)} style={{ padding: '5px 10px', fontSize: 12 }}>% do orçamento diário</button>
+          </div>
+        </div>
+        {useBalance ? (
+          <>
+            <NumField disabled={disabled} field={{ key: 'googleMinBalance', label: 'Avisar com saldo abaixo de', unit: 'R$', min: 50, max: 50000, step: 50 }}
+              value={values.googleMinBalance ?? 200} onChange={(v) => onChange('googleMinBalance', v)} />
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+              Só existe saldo em conta Google <strong style={{ color: 'var(--text-primary)' }}>pré-paga ou com faturamento mensal</strong>.
+              Conta paga no cartão não tem saldo para vigiar: nesse caso use o modo %.
+            </p>
+          </>
+        ) : (
+          <NumField disabled={disabled} field={{ key: 'budgetPctThreshold', label: 'Avisar quando a campanha gastar', unit: '%', min: 50, max: 99, step: 5 }}
+            value={values.budgetPctThreshold ?? 80} onChange={(v) => onChange('budgetPctThreshold', v)} />
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AlertConfigSection() {
   const { temGrowth } = usePlano();
@@ -1222,7 +1430,7 @@ function AlertConfigSection() {
   const toggleRule = (rule: AnomalyRuleId) => {
     setEnabled(prev => {
       const next = new Set(prev);
-      next.has(rule) ? next.delete(rule) : next.add(rule);
+      if (next.has(rule)) next.delete(rule); else next.add(rule);
       return next;
     });
   };
@@ -1233,6 +1441,13 @@ function AlertConfigSection() {
       return { ...prev, [rule]: { ...(prev[rule] as Record<string, number>), [key]: value } };
     });
   };
+
+  // Só habilita "Salvar" quando algo mudou em relação ao que veio do servidor
+  const dirty = useMemo(() => {
+    if (!config || !thresholds) return false;
+    const sorted = (rules: Iterable<string>) => [...rules].filter((r) => ALL_RULES.includes(r as AnomalyRuleId)).sort().join(',');
+    return sorted(enabled) !== sorted(config.enabledRules) || JSON.stringify(thresholds) !== JSON.stringify(config.thresholds);
+  }, [config, thresholds, enabled]);
 
   const handleSave = async () => {
     if (!thresholds) return;
@@ -1254,145 +1469,87 @@ function AlertConfigSection() {
     }
   };
 
-  const inputStyle = {
-    backgroundColor: 'var(--input-bg)',
-    border: '1px solid var(--input-border)',
-    color: 'var(--text-primary)',
-    borderRadius: 6,
-    padding: '3px 8px',
-    fontSize: 12,
-    width: 80,
-  };
+  // No plano CRM só as regras do CRM contam: as de anúncio não rodam, mesmo ligadas no banco.
+  const disponiveis = temGrowth ? ALL_RULES : REGRAS_DO_CRM;
+  const ativas = disponiveis.filter((r) => enabled.has(r)).length;
+
+  const header = (
+    <SectionHead eyebrow="ALERTAS" title="Alertas de anomalia"
+      sub="Verificado de segunda a sexta, às 9h. O alerta vai para todos os agendamentos ativos acima, no Telegram e no WhatsApp."
+      right={config ? (
+        <div className="flex items-center gap-2">
+          <span className="ui-chip">{ativas === 0 ? 'nenhuma ativa' : `${ativas} de ${disponiveis.length} ativas`}</span>
+          {dirty && <span className="ui-chip" style={{ color: 'var(--text-primary)' }}><StatusDot tone="warn" /> não salvo</span>}
+          <button onClick={handleSave} disabled={saving || !thresholds || (!dirty && !saved)} className="ui-btn ui-btn-primary ui-btn-sm">
+            {saving ? <><Icon name="spinner" size={14} /> Salvando...</> : saved ? <><Icon name="check" size={14} /> Salvo</> : 'Salvar alertas'}
+          </button>
+        </div>
+      ) : undefined} />
+  );
 
   if (loading) return (
-    <div className="rounded-xl p-4 flex items-center gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      <svg className="animate-spin h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
-        <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
-      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Carregando alertas...</span>
+    <section>
+      {header}
+      <div className="ui-card flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+        <Icon name="spinner" size={14} /> <span className="text-xs">Carregando alertas...</span>
+      </div>
+    </section>
+  );
+
+  const renderRule = (rule: AnomalyRuleId) => {
+    const meta = RULE_META[rule];
+    const travada = !temGrowth && !REGRAS_DO_CRM.includes(rule);
+    const isOn = enabled.has(rule) && !travada;
+    const values = { ...RULE_DEFAULTS[rule], ...((thresholds?.[rule] as Record<string, number> | undefined) ?? {}) };
+    const temCampos = rule === 'BUDGET_LOW' || meta.fields.length > 0;
+    return (
+      <div key={rule} className={`ui-card flex flex-col gap-4 transition-colors ${isOn ? 'ui-card-hl' : ''}`} style={{ padding: 18 }}>
+        <div className="flex items-start gap-3">
+          <IconTile name={meta.icon} tone={isOn ? 'lime' : 'neutral'} />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{meta.label}</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>{meta.description}</p>
+          </div>
+          {travada ? (
+            <span className="ui-chip shrink-0"><IconeCadeado className="h-3 w-3" /> Growth + CRM</span>
+          ) : (
+            <button type="button" role="switch" aria-checked={isOn} aria-label={`${meta.label} ativo`} onClick={() => toggleRule(rule)} className="ui-switch" />
+          )}
+        </div>
+        {temCampos && thresholds && !travada && (
+          <div style={isOn ? undefined : { opacity: 0.55 }}>
+            {rule === 'BUDGET_LOW' ? (
+              <BudgetFields values={values} disabled={!isOn} onChange={(k, v) => setThresholdField(rule, k, v)} />
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {meta.fields.map((field) => (
+                  <NumField key={field.key} field={field} disabled={!isOn} value={values[field.key] ?? 0}
+                    onChange={(v) => setThresholdField(rule, field.key, v)} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const group = (eyebrow: string, rules: AnomalyRuleId[]) => (
+    <div className="space-y-2.5">
+      <span className="eyebrow" style={{ color: 'var(--text-secondary)' }}>{eyebrow}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">{rules.map(renderRule)}</div>
     </div>
   );
 
   return (
-    <div className="rounded-xl p-4 space-y-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Alertas de Anomalia</p>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-            Verificado de segunda a sexta, às 9h — enviado nos chats Telegram ativos acima
-          </p>
-        </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !thresholds}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
-          style={{
-            backgroundColor: saved ? 'rgba(34,197,94,0.15)' : 'var(--accent-fill)',
-            color: saved ? '#4ade80' : 'var(--on-accent)',
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          {saving ? 'Salvando...' : saved ? '✓ Salvo' : 'Salvar'}
-        </button>
+    <section>
+      {header}
+      {error && <p className="text-xs mb-3" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
+      <div className="space-y-5">
+        {group('ANÚNCIOS', RULES_ANUNCIOS)}
+        {group('CRM', RULES_CRM)}
       </div>
-
-      {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
-
-      {/* Regras */}
-      <div className="space-y-2">
-        {ALL_RULES.map(rule => {
-          const meta = RULE_META[rule];
-          const travada = !temGrowth && !REGRAS_DO_CRM.includes(rule);
-          const isOn = enabled.has(rule) && !travada;
-          return (
-            <div
-              key={rule}
-              className="rounded-lg p-3 transition-all"
-              style={{
-                backgroundColor: isOn ? 'var(--accent-dim)' : 'rgba(255,255,255,0.02)',
-                border: `1px solid ${isOn ? 'var(--accent-line)' : 'rgba(255,255,255,0.06)'}`,
-              }}
-            >
-              <div className="flex items-start gap-3">
-                {/* Toggle */}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isOn}
-                  onClick={() => toggleRule(rule)}
-                  disabled={travada}
-                  title={travada ? 'Não faz parte do plano CRM' : undefined}
-                  className="ui-switch mt-0.5"
-                />
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-medium" style={{ color: isOn ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                      {meta.label}
-                    </span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>— {meta.description}</span>
-                  </div>
-
-                  {/* Thresholds (só quando ativo) */}
-                  {isOn && thresholds && (
-                    <div className="flex flex-wrap gap-3 mt-2">
-                      {meta.fields.map(field => (
-                        <label key={field.key} className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                          {field.label}:
-                          <input
-                            type="number"
-                            min={field.min}
-                            max={field.max}
-                            step={field.step}
-                            style={inputStyle}
-                            value={((thresholds[rule] as Record<string, number> | undefined)?.[field.key]) ?? RULE_DEFAULTS[rule][field.key] ?? 0}
-                            onChange={e => setThresholdField(rule, field.key, Number(e.target.value))}
-                          />
-                          <span style={{ color: 'var(--text-muted)' }}>{field.unit}</span>
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Badge status */}
-                {travada ? (
-                  <span className="shrink-0 inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-secondary)' }}>
-                    <IconeCadeado className="h-3 w-3" /> Growth + CRM
-                  </span>
-                ) : (
-                <span
-                  className="shrink-0 text-xs px-2 py-0.5 rounded-full"
-                  style={{
-                    backgroundColor: isOn ? 'var(--accent-dim)' : 'rgba(255,255,255,0.05)',
-                    color: isOn ? 'var(--accent)' : '#64748b',
-                  }}
-                >
-                  {isOn ? 'Ativo' : 'Off'}
-                </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {config && (() => {
-        // No plano CRM só as regras do CRM contam: as de anúncio não rodam, mesmo ligadas no banco.
-        const disponiveis = temGrowth ? ALL_RULES : REGRAS_DO_CRM;
-        const ativas = disponiveis.filter((r) => enabled.has(r)).length;
-        return (
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            {ativas === 0
-              ? 'Nenhuma regra ativa — alertas suprimidos.'
-              : `${ativas} de ${disponiveis.length} regras ativas.`}
-          </p>
-        );
-      })()}
-    </div>
+    </section>
   );
 }
 
@@ -1407,19 +1564,8 @@ export default function RelatoriosPage() {
 
   const isGestorContext = typeof window !== 'undefined' && !!sessionStorage.getItem('traffic_manager_org_id') && user?.role === 'TRAFFIC_MANAGER';
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [registeringWebhook, setRegisteringWebhook] = useState(false);
 
-  const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); };
-
-  const handleRegisterWebhook = async () => {
-    setRegisteringWebhook(true);
-    try {
-      const { message } = await apiService.registerTelegramWebhook();
-      showToast(message, true);
-    } catch {
-      showToast('Erro ao registrar webhook. Verifique BACKEND_URL no Render.', false);
-    } finally { setRegisteringWebhook(false); }
-  };
+  const showToast = useCallback((msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 4000); }, []);
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -1449,98 +1595,87 @@ export default function RelatoriosPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
       {/* Banner gestor */}
       {isGestorContext && (
-        <div className="rounded-xl px-4 py-2.5 flex items-center justify-between gap-3"
-          style={{ backgroundColor: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)' }}>
-          <p className="text-xs" style={{ color: '#c084fc' }}>
+        <div className="ui-card ui-card-hl flex items-center justify-between gap-3" style={{ padding: '12px 16px' }}>
+          <p className="text-xs" style={{ color: 'var(--text-primary)' }}>
             Gerenciando relatórios de <strong>{organization?.name}</strong>
           </p>
           <button onClick={() => { apiService.setSelectedClientOrgId(''); router.push('/dashboard/gestor'); }}
-            className="text-xs px-2.5 py-1 rounded-lg transition-colors"
-            style={{ backgroundColor: 'rgba(168,85,247,0.12)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.2)' }}>
-            ← Voltar ao Gestor
+            className="ui-btn ui-btn-secondary ui-btn-sm">
+            Voltar ao Gestor
           </button>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="ui-h1">Relatórios automáticos</h1>
+          <span className="eyebrow">RELATÓRIOS · ENVIO AUTOMÁTICO</span>
+          <h1 className="ui-h1 mt-2">Relatórios automáticos</h1>
           <p className="ui-sub">
-            {organization?.name} · envio automático via Telegram ou WhatsApp
+            {organization?.name ? `${organization.name} · ` : ''}os números do período chegam sozinhos no grupo, pelo Telegram ou pelo WhatsApp.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="ui-btn ui-btn-primary ui-btn-sm"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-          Novo agendamento
+        <button onClick={() => setShowCreate(true)} className="ui-btn ui-btn-primary">
+          <Icon name="plus" size={16} /> Novo agendamento
         </button>
       </div>
 
-      {/* Instruções de configuração */}
-      <div className="rounded-xl p-4 space-y-3" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--accent-line)' }}>
-        <p className="text-xs font-medium" style={{ color: 'var(--accent)' }}>Como configurar</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-          <div>
-            <p className="font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>✈️ Telegram</p>
-            <ol className="space-y-0.5 list-decimal list-inside mb-2">
-              <li>Clique em <strong style={{ color: 'var(--text-primary)' }}>"Registrar Webhook"</strong> abaixo (uma vez só)</li>
-              <li>Adicione o bot <code style={{ color: 'var(--accent)' }}>@CortexGrowthBot</code> ao grupo desejado</li>
-              <li>Ao criar um agendamento, clique em <strong style={{ color: 'var(--text-primary)' }}>"Conectar via QR Code"</strong></li>
-              <li>Escaneie o QR Code com o Telegram — a conexão é automática</li>
-            </ol>
-            <button onClick={handleRegisterWebhook} disabled={registeringWebhook}
-              className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-              style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)', border: '1px solid var(--accent-line)', opacity: registeringWebhook ? 0.6 : 1 }}>
-              {registeringWebhook ? 'Registrando...' : '⚡ Registrar Webhook'}
+      {!loading && schedules.length > 0 && <StatStrip schedules={schedules} />}
+
+      {/* Canais */}
+      <section>
+        <SectionHead eyebrow="CANAIS" title="Por onde os relatórios saem" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <TelegramChannelCard showToast={showToast} />
+          <WhatsappChannelCard showToast={showToast} refreshSignal={showCreate} />
+        </div>
+      </section>
+
+      {/* Agendamentos */}
+      <section>
+        <SectionHead eyebrow="AGENDAMENTOS" title="O que está programado"
+          sub={schedules.length > 0 ? `${schedules.length} agendamento${schedules.length > 1 ? 's' : ''}` : undefined} />
+        {loading ? (
+          <div className="ui-card flex items-center justify-center gap-2 py-16" style={{ color: 'var(--text-secondary)' }}>
+            <Icon name="spinner" size={18} /> <span className="text-sm">Carregando agendamentos...</span>
+          </div>
+        ) : schedules.length === 0 ? (
+          <div className="ui-card flex flex-col items-center justify-center text-center py-14"
+            style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, var(--highlight), transparent 60%)' }}>
+            <IconTile name="calendar" tone="lime" size={52} />
+            <p className="text-base font-bold mt-4" style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>Nenhum agendamento ainda</p>
+            <p className="text-xs mt-1 mb-5 max-w-sm" style={{ color: 'var(--text-secondary)' }}>
+              Escolha o grupo, o dia e o horário. O relatório com os números do período sai sozinho, sem ninguém precisar montar.
+            </p>
+            <button onClick={() => setShowCreate(true)} className="ui-btn ui-btn-primary ui-btn-sm">
+              <Icon name="plus" size={14} /> Criar primeiro agendamento
             </button>
           </div>
-          <ReportWhatsappPanel showToast={showToast} refreshSignal={showCreate} />
-        </div>
-      </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {schedules.map(s => (
+              <ScheduleCard
+                key={s.id}
+                schedule={s}
+                onToggle={() => handleToggle(s)}
+                onDelete={() => handleDelete(s.id)}
+                onSendNow={async () => { await handleSendNow(s.id); }}
+                onRefresh={fetchSchedules}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
-      {/* Lista de schedules */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20" style={{ color: 'var(--text-muted)' }}>
-          <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="var(--accent)" strokeWidth="4" />
-            <path className="opacity-75" fill="var(--accent)" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          Carregando agendamentos...
-        </div>
-      ) : schedules.length === 0 ? (
-        <div className="rounded-xl p-10 flex flex-col items-center justify-center text-center" style={card}>
-          <svg className="w-10 h-10 mb-3 opacity-20" fill="none" viewBox="0 0 24 24" stroke="#94a3b8" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Nenhum agendamento criado</p>
-          <p className="text-xs mt-1 mb-4" style={{ color: 'var(--text-muted)' }}>Configure o envio automático do relatório de KPIs para o Telegram ou WhatsApp.</p>
-          <button onClick={() => setShowCreate(true)} className="px-4 py-2 rounded-lg text-xs font-medium" style={{ backgroundColor: 'var(--accent-fill)', color: 'var(--on-accent)' }}>
-            Criar primeiro agendamento
-          </button>
-        </div>
-      ) : (
-        <>
-        <ScheduleCalendar schedules={schedules} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {schedules.map(s => (
-            <ScheduleCard
-              key={s.id}
-              schedule={s}
-              onToggle={() => handleToggle(s)}
-              onDelete={() => handleDelete(s.id)}
-              onSendNow={async () => { await handleSendNow(s.id); }}
-              onRefresh={fetchSchedules}
-            />
-          ))}
-        </div>
-        </>
+      {!loading && schedules.length > 0 && (
+        <section>
+          <SectionHead eyebrow="CALENDÁRIO" title="Quando cada envio acontece" />
+          <ScheduleCalendar schedules={schedules} />
+        </section>
       )}
 
       {showCreate && <CreateModal onClose={() => setShowCreate(false)} onCreated={fetchSchedules} />}
@@ -1550,10 +1685,9 @@ export default function RelatoriosPage() {
 
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-lg" style={toast.ok
-  ? { backgroundColor: 'var(--badge-success-bg)', color: 'var(--badge-success-text)', border: '1px solid var(--badge-success-text)' }
-  : { backgroundColor: 'var(--badge-error-bg)', color: 'var(--badge-error-text)', border: '1px solid var(--badge-error-text)' }
-}>
+        <div role="status" className="fixed bottom-6 right-6 z-50 px-4 py-3 text-sm font-semibold inline-flex items-center gap-2.5"
+          style={{ borderRadius: 12, backgroundColor: 'var(--bg-surface)', color: 'var(--text-primary)', border: '1px solid var(--border-md)', boxShadow: '0 12px 32px rgba(0,0,0,0.3)' }}>
+          <StatusDot tone={toast.ok ? 'ok' : 'err'} />
           {toast.msg}
         </div>
       )}

@@ -557,15 +557,13 @@ export interface GoogleBudgetStatus {
 
 // ===== ALERTAS DE ANOMALIA =====
 
-export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'CPL_HIGH' | 'ROAS_LOW' | 'CTR_DROP' | 'LEAD_SILENCE' | 'BUDGET_LOW' | 'CRM_UNANSWERED' | 'CRM_FOLLOWUP_DIGEST';
+export type AnomalyRuleId = 'SPEND_NO_LEADS' | 'LEAD_SILENCE' | 'BUDGET_LOW' | 'CRM_UNANSWERED' | 'CRM_FOLLOWUP_DIGEST';
 
 export interface AlertThresholds {
   SPEND_NO_LEADS: { minSpend: number };
-  CPL_HIGH:       { pctAboveAvg: number; minSpend: number };
-  ROAS_LOW:       { minMonthSpend: number };
-  CTR_DROP:       { dropPct: number; minImpressions: number };
   LEAD_SILENCE:   { hoursWindow: number; minSpend7d: number };
-  BUDGET_LOW:     { budgetMinBalance: number; budgetPctThreshold: number };
+  // googleUseBalance: 0 = % do orçamento diário da campanha · 1 = saldo da conta em R$
+  BUDGET_LOW:     { budgetMinBalance: number; budgetPctThreshold: number; googleUseBalance: number; googleMinBalance: number };
   CRM_UNANSWERED: { hoursUnanswered: number };
   CRM_FOLLOWUP_DIGEST: Record<string, never>;
 }
