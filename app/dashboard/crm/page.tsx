@@ -2496,6 +2496,78 @@ function ReportGrupo({ children }: { children: React.ReactNode }) {
   return <p className="eyebrow pt-2">{children}</p>;
 }
 
+// Minutos de expediente → "12 min" · "1h 05min" · "3h".
+function fmtMinutos(min: number | null): string {
+  if (min === null) return '—';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m ? `${h}h ${String(m).padStart(2, '0')}min` : `${h}h`;
+}
+
+// Tempo de resposta no WhatsApp (pedido do Ruan, 12/11). Mediana, só horário
+// comercial; envio automático não conta como resposta.
+function ReportTempoResposta({ rt }: { rt: NonNullable<CrmReport['responseTime']> }) {
+  const desde = rt.since
+    ? new Date(rt.since).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Fortaleza' })
+    : null;
+  const o = rt.overall;
+  const vazio = o.firstCount + o.restCount + o.waiting === 0;
+  const nota = <>
+    Tempo típico (mediana) entre a mensagem do cliente e a resposta do vendedor no WhatsApp, contando só o horário
+    comercial (seg. a sex. 8h–18h, sáb. 8h–12h). Mensagem automática não conta como resposta.
+    {desde ? <> Medido desde {desde}: o que veio antes não entra.</> : <> A medição começa com as próximas mensagens.</>}
+  </>;
+  return (
+    <>
+      <ReportGrupo>ATENDIMENTO</ReportGrupo>
+      <ReportSecao titulo="Tempo de resposta" nota={nota}>
+        {vazio ? (
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            {desde ? 'Nenhuma conversa no período.' : 'Ainda não há conversa registrada.'}
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <ReportKpi label="Primeiro contato" value={fmtMinutos(o.firstMedianMin)} sub={`${o.firstCount} lead${o.firstCount === 1 ? '' : 's'} novo${o.firstCount === 1 ? '' : 's'} respondido${o.firstCount === 1 ? '' : 's'}`} />
+              <ReportKpi label="No restante da conversa" value={fmtMinutos(o.restMedianMin)} sub={`${o.restCount} resposta${o.restCount === 1 ? '' : 's'}`} />
+              <ReportKpi label="Esperando resposta" value={String(o.waiting)} sub="mensagens do período sem resposta" accent={o.waiting > 0 ? 'var(--badge-warn-text)' : undefined} />
+            </div>
+            {rt.bySeller.length > 0 && (
+              <div className="overflow-x-auto mt-4">
+                <table className="ui-table !text-[13px]">
+                  <thead>
+                    <tr>
+                      <th>Vendedor</th>
+                      <th className="ui-num">Primeiro contato</th>
+                      <th className="ui-num">Restante</th>
+                      <th className="ui-num">Esperando</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rt.bySeller.map((s) => (
+                      <tr key={s.userId ?? '_none'}>
+                        <td className="font-medium">{s.name}</td>
+                        <td className="ui-num whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                          {fmtMinutos(s.firstMedianMin)}{s.firstCount > 0 && <span className="text-xs"> · {s.firstCount}</span>}
+                        </td>
+                        <td className="ui-num whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+                          {fmtMinutos(s.restMedianMin)}{s.restCount > 0 && <span className="text-xs"> · {s.restCount}</span>}
+                        </td>
+                        <td className="ui-num" style={{ color: s.waiting > 0 ? 'var(--badge-warn-text)' : 'var(--text-secondary)' }}>{s.waiting}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </ReportSecao>
+    </>
+  );
+}
+
 function ReportModal({ onClose }: { onClose: () => void }) {
   const [periodKey, setPeriodKey] = useState('3');
   const [periodo, setPeriodo] = useState<ReportPeriodo>({ months: 3 });
@@ -2797,6 +2869,8 @@ function ReportModal({ onClose }: { onClose: () => void }) {
                   </div>
                 </>
               )}
+
+              {report.responseTime && <ReportTempoResposta rt={report.responseTime} />}
 
               {/* Por vendedor */}
               {report.sellers.length > 0 && (

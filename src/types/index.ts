@@ -1260,6 +1260,21 @@ export interface CrmReport {
   /** Produtos das vendas ganhas no período. Receita já com o desconto rateado. */
   products?: { name: string; sales: number; quantity: number; revenue: number }[];
   sellers: { id: string | null; name: string; wonCount: number; wonValue: number; lostCount: number; winRate: number | null; avgTicket: number }[];
+  /** Tempo de resposta no WhatsApp, em minutos de expediente. Opcional: backend antigo não manda. */
+  responseTime?: {
+    /** 1º registro da org; null = ainda não há nenhuma mensagem gravada. */
+    since: string | null;
+    overall: CrmResponseTimeNums;
+    bySeller: (CrmResponseTimeNums & { userId: string | null; name: string })[];
+  };
+}
+
+export interface CrmResponseTimeNums {
+  firstCount: number;
+  firstMedianMin: number | null;
+  restCount: number;
+  restMedianMin: number | null;
+  waiting: number;
 }
 
 // CRM — WhatsApp do vendedor (Evolution API)
