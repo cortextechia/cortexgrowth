@@ -1491,6 +1491,17 @@ class ApiService {
     return response.data;
   }
 
+  // Qualidade do atendimento por IA — roda no período do relatório (gasta a cota de IA).
+  async runCrmQualityAnalysis(periodo: { months: number } | { from: string; to: string }): Promise<{ success: boolean; data: import('@/types').CrmQualityAnalysis }> {
+    const response = await this.client.post('/crm/quality-analysis', periodo, { timeout: 180_000 });
+    return response.data;
+  }
+
+  async getCrmQualityLatest(): Promise<{ success: boolean; data: import('@/types').CrmQualityAnalysis | null }> {
+    const response = await this.client.get('/crm/quality-analysis/latest');
+    return response.data;
+  }
+
   async exportCrmClients(): Promise<Blob> {
     const response = await this.client.get('/crm/clients/export', { responseType: 'blob' });
     return response.data;

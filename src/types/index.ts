@@ -100,7 +100,7 @@ export interface Organization {
   _count?: { users: number; integrations: number };
 }
 
-export type AiQuotaKind = 'REPORT' | 'CREATIVE' | 'BRIEFING' | 'COPY';
+export type AiQuotaKind = 'REPORT' | 'CREATIVE' | 'BRIEFING' | 'COPY' | 'ATTENDANCE';
 export type AiUsage = Record<AiQuotaKind, { usado: number; limite: number }>;
 
 // ===== INTEGRAÇÃO =====
@@ -1266,6 +1266,29 @@ export interface CrmReport {
     since: string | null;
     overall: CrmResponseTimeNums;
     bySeller: (CrmResponseTimeNums & { userId: string | null; name: string })[];
+  };
+}
+
+/** Análise de qualidade do atendimento por IA. O vendedor recebe só a própria linha e `resumoGeral` null. */
+export interface CrmQualityAnalysis {
+  id: string;
+  since: string;
+  until: string;
+  conversations: number;
+  createdAt: string;
+  result: {
+    resumoGeral: string | null;
+    vendedores: {
+      userId: string;
+      name: string;
+      conversas: number;
+      nota: number;
+      resumo: string;
+      pontosFortes: string[];
+      pontosAMelhorar: string[];
+      exemplos: { conversa: number; cliente: string; vendedor: string; problema: string; sugestao: string }[];
+    }[];
+    semConversa: { userId: string; name: string }[];
   };
 }
 

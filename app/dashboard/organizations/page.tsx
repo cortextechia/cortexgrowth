@@ -83,6 +83,7 @@ const AI_QUOTA_ROWS: { kind: AiQuotaKind; label: string; padrao: number }[] = [
   { kind: 'CREATIVE', label: 'Análises de criativo',    padrao: 4 },
   { kind: 'BRIEFING', label: 'Briefings e ideias',      padrao: 8 },
   { kind: 'COPY',     label: 'Copies',                  padrao: 8 },
+  { kind: 'ATTENDANCE', label: 'Análises de atendimento', padrao: 4 },
 ];
 
 interface UsersModal {

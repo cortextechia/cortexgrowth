@@ -15,7 +15,7 @@ import { originLabel, originOptions, originValue, parseOriginValue, originFilter
 import type {
   CrmStatus, CrmStage, CrmSummary, CrmClientSummary, CrmClientDetail,
   CrmSale, CrmOrigin, CrmLostReasonOption, CrmDiscardReasonOption, CrmClientTypeOption, CrmTagOption, CrmCustomOriginOption, CrmQuickReply, User, CrmWaStatus, CrmWaMessage,
-  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage, CrmProduct,
+  CrmTask, CrmTaskType, CrmReport, CrmEvent, CardMessage, IgMessage, CrmProduct, CrmQualityAnalysis,
 } from '@/types';
 
 // Foto de perfil do WhatsApp com fallback nas iniciais (URL assinada pode expirar)
@@ -2197,7 +2197,7 @@ export default function CrmPage() {
         />
       )}
 
-      {showReport && <ReportModal onClose={() => setShowReport(false)} />}
+      {showReport && <ReportModal isAdmin={isAdmin} onClose={() => setShowReport(false)} />}
 
       {toast && <Toast toast={toast} />}
     </div>
@@ -2568,7 +2568,126 @@ function ReportTempoResposta({ rt }: { rt: NonNullable<CrmReport['responseTime']
   );
 }
 
-function ReportModal({ onClose }: { onClose: () => void }) {
+// Qualidade do atendimento por IA (pedido do Ruan, 12/11). Mostra a última análise;
+// o admin roda uma nova no período que está na tela (gasta a cota de IA). Plano sem
+// IA (403 na leitura) → a seção some.
+function ReportQualidade({ periodo, isAdmin }: { periodo: ReportPeriodo; isAdmin: boolean }) {
+  const [analise, setAnalise] = useState<CrmQualityAnalysis | null>(null);
+  const [disponivel, setDisponivel] = useState(true);
+  const [rodando, setRodando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    apiService.getCrmQualityLatest()
+      .then((res) => { if (alive && res.success) setAnalise(res.data); })
+      .catch((e: { response?: { status?: number } }) => { if (alive && e.response?.status === 403) setDisponivel(false); });
+    return () => { alive = false; };
+  }, []);
+
+  if (!disponivel) return null;
+
+  const rodar = async () => {
+    setRodando(true);
+    setErro(null);
+    try {
+      const res = await apiService.runCrmQualityAnalysis(periodo);
+      if (res.success) setAnalise(res.data);
+    } catch (e) {
+      const err = e as { response?: { data?: { message?: string } } };
+      setErro(err.response?.data?.message ?? 'Não foi possível analisar agora. Tente de novo em alguns minutos.');
+    } finally {
+      setRodando(false);
+    }
+  };
+
+  const f = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', timeZone: 'America/Fortaleza' });
+  const quando = analise
+    ? `Análise de ${new Date(analise.createdAt).toLocaleString('pt-BR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Fortaleza' })} · conversas de ${f(analise.since)} a ${f(new Date(new Date(analise.until).getTime() - 1).toISOString())} · ${analise.conversations} conversa${analise.conversations === 1 ? '' : 's'} lida${analise.conversations === 1 ? '' : 's'}`
+    : null;
+  const corNota = (n: number) => n >= 7 ? 'var(--badge-success-text)' : n >= 5 ? 'var(--badge-warn-text)' : 'var(--badge-error-text)';
+
+  return (
+    <ReportSecao
+      titulo="Qualidade do atendimento"
+      nota={<>
+        A IA lê uma amostra das conversas do WhatsApp (até 5 por vendedor) e avalia o conteúdo das respostas: se o vendedor
+        investiga o que o cliente procura, oferece alternativa e combina o próximo passo. Nome e telefone do cliente não são enviados.
+        É uma amostra — use como ponto de partida para conversar com a equipe, não como veredito.
+      </>}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        {isAdmin && (
+          <button type="button" className="ui-btn ui-btn-secondary" onClick={rodar} disabled={rodando}>
+            {rodando ? 'Analisando as conversas…' : analise ? 'Analisar de novo neste período' : 'Analisar com IA'}
+          </button>
+        )}
+        {quando && <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{quando}</p>}
+      </div>
+      {erro && <p className="mt-3 text-sm" style={{ color: 'var(--badge-error-text)' }}>{erro}</p>}
+
+      {!analise ? (
+        !isAdmin && <p className="mt-3 text-sm" style={{ color: 'var(--text-secondary)' }}>Ainda não há análise. Quem administra o CRM pode rodar uma.</p>
+      ) : (
+        <div className="mt-4 space-y-4">
+          {analise.result.resumoGeral && (
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{analise.result.resumoGeral}</p>
+          )}
+          {analise.result.vendedores.map((v) => (
+            <div key={v.userId} className="ui-inset p-4">
+              <div className="flex items-baseline gap-3">
+                <p className="font-semibold flex-1 min-w-0" style={{ color: 'var(--text-primary)' }}>{v.name}</p>
+                <p className="ui-big !text-[22px]" style={{ color: corNota(v.nota) }}>{v.nota}<span className="text-sm" style={{ color: 'var(--text-secondary)' }}>/10</span></p>
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v.conversas} conversa{v.conversas === 1 ? '' : 's'} lida{v.conversas === 1 ? '' : 's'}</p>
+              <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>{v.resumo}</p>
+              {(v.pontosFortes.length > 0 || v.pontosAMelhorar.length > 0) && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {v.pontosFortes.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--badge-success-text)' }}>Faz bem</p>
+                      <ul className="mt-1 space-y-1 text-sm list-disc pl-4" style={{ color: 'var(--text-secondary)' }}>
+                        {v.pontosFortes.map((p, i) => <li key={i}>{p}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {v.pontosAMelhorar.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold" style={{ color: 'var(--badge-warn-text)' }}>Pode melhorar</p>
+                      <ul className="mt-1 space-y-1 text-sm list-disc pl-4" style={{ color: 'var(--text-secondary)' }}>
+                        {v.pontosAMelhorar.map((p, i) => <li key={i}>{p}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+              {v.exemplos.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Exemplos da conversa</p>
+                  {v.exemplos.map((ex, i) => (
+                    <div key={i} className="rounded-xl p-3 text-sm space-y-1" style={{ border: '1px solid var(--border)' }}>
+                      <p style={{ color: 'var(--text-secondary)' }}><span className="font-semibold">Cliente:</span> {ex.cliente}</p>
+                      <p style={{ color: 'var(--text-secondary)' }}><span className="font-semibold">Vendedor:</span> {ex.vendedor}</p>
+                      <p style={{ color: 'var(--text-primary)' }}>{ex.problema}</p>
+                      <p style={{ color: 'var(--text-primary)' }}><span className="font-semibold" style={{ color: 'var(--accent)' }}>Poderia ter dito:</span> {ex.sugestao}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {analise.result.semConversa.length > 0 && (
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Sem conversa com resposta no período: {analise.result.semConversa.map((s) => s.name).join(', ')}.
+            </p>
+          )}
+        </div>
+      )}
+    </ReportSecao>
+  );
+}
+
+function ReportModal({ onClose, isAdmin }: { onClose: () => void; isAdmin: boolean }) {
   const [periodKey, setPeriodKey] = useState('3');
   const [periodo, setPeriodo] = useState<ReportPeriodo>({ months: 3 });
   const [customFrom, setCustomFrom] = useState(() => `${hojeBRT().slice(0, 8)}01`);
@@ -2871,6 +2990,7 @@ function ReportModal({ onClose }: { onClose: () => void }) {
               )}
 
               {report.responseTime && <ReportTempoResposta rt={report.responseTime} />}
+              <ReportQualidade periodo={periodo} isAdmin={isAdmin} />
 
               {/* Por vendedor */}
               {report.sellers.length > 0 && (
