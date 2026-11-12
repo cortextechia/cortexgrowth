@@ -733,6 +733,439 @@ function WaText({ text }: { text: string }) {
   );
 }
 
+// ─── Editor do texto personalizado: variáveis viram chips com ícone ──────────
+//
+// O que é salvo continua sendo texto puro com {chave} (backend, validação e prévia não mudaram).
+// O editor só desenha cada {chave} conhecida como um chip e devolve o texto ao digitar.
+
+type TemplateVar = { key: string; label: string; value: string };
+type VarKind = 'meta' | 'google' | 'money' | 'people' | 'chart' | 'info';
+
+/** Plataforma pela chave (investimento_meta, receita_meta, investimento_google…); o resto, pelo tipo do número. */
+function varKind(key: string): VarKind {
+  if (/(^|_)meta($|_)/.test(key)) return 'meta';
+  if (/(^|_)google($|_)/.test(key)) return 'google';
+  if (/investimento|receita|cpl|vendas|ticket|custo/.test(key)) return 'money';
+  if (/leads|contatos|oportunidades|conversas/.test(key)) return 'people';
+  if (/impress|clique|ctr|conversao|roas|alcance|cpc/.test(key)) return 'chart';
+  return 'info';
+}
+
+const KIND_ICON: Record<Exclude<VarKind, 'meta' | 'google'>, Exclude<IconName, 'spinner'>> = {
+  money: 'wallet', people: 'group', chart: 'pulse', info: 'calendar',
+};
+
+// Mesmas marcas da tela de Integrações (o "f" da Meta e o G do Google)
+const META_SVG = '<svg width="14" height="14" viewBox="0 0 36 36" aria-hidden="true"><path d="M18 3C9.716 3 3 9.716 3 18s6.716 15 15 15 15-6.716 15-15S26.284 3 18 3z" fill="#1877F2"/><path d="M22.162 11H20.05c-.808 0-1.703.338-2.29 1.157-.547.768-.66 1.703-.66 2.546v1.547H15v2.75h2.1V25h2.9v-6h2.1l.3-2.75h-2.4v-1.375c0-.792.22-1.125.9-1.125h1.262V11z" fill="#fff"/></svg>';
+const GOOGLE_SVG = '<svg width="13" height="13" viewBox="0 0 36 36" aria-hidden="true"><path d="M33.12 18.37c0-1.16-.1-2.27-.29-3.34H18v6.32h8.49a7.26 7.26 0 01-3.15 4.76v3.95h5.1c2.99-2.75 4.68-6.8 4.68-11.69z" fill="#4285F4"/><path d="M18 34c4.26 0 7.83-1.41 10.44-3.84l-5.1-3.95c-1.41.95-3.22 1.5-5.34 1.5-4.11 0-7.59-2.77-8.83-6.5H3.9v4.08A15.98 15.98 0 0018 34z" fill="#34A853"/><path d="M9.17 21.21A9.64 9.64 0 018.67 18c0-1.11.19-2.19.5-3.21V10.71H3.9A15.98 15.98 0 002 18c0 2.58.62 5.02 1.9 7.29l5.27-4.08z" fill="#FBBC05"/><path d="M18 8.29c2.32 0 4.4.8 6.04 2.37l4.53-4.53A15.94 15.94 0 0018 2 15.98 15.98 0 003.9 10.71l5.27 4.08C10.41 11.06 13.89 8.29 18 8.29z" fill="#EA4335"/></svg>';
+
+function glyphSvg(key: string): string {
+  const k = varKind(key);
+  if (k === 'meta') return META_SVG;
+  if (k === 'google') return GOOGLE_SVG;
+  return `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[KIND_ICON[k]]}"/></svg>`;
+}
+
+/** Cor do chip por origem do número. Texto sempre em cor de leitura (a cor vai no fundo/borda). */
+function chipStyle(key: string): string {
+  const base = 'display:inline-flex;align-items:center;gap:4px;padding:0 7px 0 5px;margin:0 1px;border-radius:7px;'
+    + 'font:600 12px/1.75 var(--font-sans),system-ui,sans-serif;white-space:nowrap;user-select:none;cursor:default;vertical-align:baseline;';
+  const k = varKind(key);
+  if (k === 'meta') return base + 'background:color-mix(in srgb,#1877F2 13%,transparent);border:1px solid color-mix(in srgb,#1877F2 40%,transparent);color:var(--text-primary);';
+  if (k === 'google') return base + 'background:var(--bg-elevated);border:1px solid var(--border-md);color:var(--text-primary);';
+  return base + 'background:var(--tint-bg);border:1px solid var(--highlight-border);color:var(--tint-ink);';
+}
+
+const VAR_GROUP_LABEL: Record<'geral' | 'meta' | 'google', string> = { geral: 'Geral · Meta + Google', meta: 'Meta Ads', google: 'Google Ads' };
+const varGroup = (key: string): 'geral' | 'meta' | 'google' => {
+  const k = varKind(key);
+  return k === 'meta' || k === 'google' ? k : 'geral';
+};
+const normTxt = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function filterVars(vars: TemplateVar[], query: string): TemplateVar[] {
+  const q = normTxt(query.trim());
+  const list = q
+    ? vars.filter((v) => normTxt(v.label).includes(q) || v.key.includes(q.replace(/\s+/g, '_')))
+    : vars;
+  // Ordem estável por grupo (Geral, Meta, Google); quem começa com o termo vem antes dentro do grupo
+  const ordem = { geral: 0, meta: 1, google: 2 } as const;
+  return [...list].sort((a, b) => {
+    const g = ordem[varGroup(a.key)] - ordem[varGroup(b.key)];
+    if (g !== 0) return g;
+    if (!q) return 0;
+    const sa = normTxt(a.label).startsWith(q) || a.key.startsWith(q) ? 0 : 1;
+    const sb = normTxt(b.label).startsWith(q) || b.key.startsWith(q) ? 0 : 1;
+    return sa - sb;
+  });
+}
+
+function VarGlyph({ k }: { k: string }) {
+  return <span className="inline-flex shrink-0" dangerouslySetInnerHTML={{ __html: glyphSvg(k) }} />;
+}
+
+/** Lista de variáveis agrupada — usada no "/" e no botão "Inserir variável". */
+function VarMenu({ items, active, onPick, onHover, header }: {
+  items: TemplateVar[]; active: number; onPick: (v: TemplateVar) => void; onHover: (i: number) => void; header?: React.ReactNode;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
+  // Cabeçalho do grupo na primeira variável de cada grupo
+  const heads = items.map((v, i) => i === 0 || varGroup(v.key) !== varGroup(items[i - 1]!.key));
+  return (
+    <div className="flex flex-col" style={{
+      width: 300, maxHeight: 320, backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-md)', borderRadius: 14,
+      boxShadow: '0 18px 44px rgba(0,0,0,0.28)', overflow: 'hidden',
+    }}>
+      {header}
+      <div ref={listRef} className="overflow-y-auto py-1" role="listbox">
+        {items.length === 0 && <p className="text-xs px-3 py-3" style={{ color: 'var(--text-secondary)' }}>Nenhuma variável com esse nome.</p>}
+        {items.map((v, i) => {
+          const g = varGroup(v.key);
+          const showHead = heads[i];
+          return (
+            <div key={v.key}>
+              {showHead && (
+                <div className="eyebrow px-3 pt-2.5 pb-1" style={{ color: 'var(--text-secondary)', fontSize: 10.5 }}>{VAR_GROUP_LABEL[g].toUpperCase()}</div>
+              )}
+              <button type="button" role="option" aria-selected={i === active} data-idx={i}
+                onMouseDown={(e) => { e.preventDefault(); onPick(v); }}
+                onMouseEnter={() => onHover(i)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
+                style={{ backgroundColor: i === active ? 'var(--bg-elevated)' : 'transparent' }}>
+                <span className="inline-flex items-center justify-center shrink-0"
+                  style={{ width: 24, height: 24, borderRadius: 7, color: 'var(--tint-ink)',
+                    backgroundColor: g === 'geral' ? 'var(--tint-bg)' : 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                  <VarGlyph k={v.key} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{v.label}</span>
+                  <span className="block eyebrow truncate" style={{ color: 'var(--text-secondary)', fontSize: 10.5 }}>/{v.key}</span>
+                </span>
+                <span className="eyebrow shrink-0 truncate" style={{ color: 'var(--text-secondary)', fontSize: 10.5, maxWidth: 96 }} title={`hoje: ${v.value}`}>{v.value}</span>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function makeChip(key: string, label: string): HTMLSpanElement {
+  const s = document.createElement('span');
+  s.contentEditable = 'false';
+  s.dataset.var = key;
+  s.title = `{${key}}`;
+  s.style.cssText = chipStyle(key);
+  s.innerHTML = glyphSvg(key);
+  const t = document.createElement('span');
+  t.textContent = label;
+  s.appendChild(t);
+  return s;
+}
+
+/** Texto → nós (chips para variável conhecida, <br> para quebra de linha). */
+function textToNodes(text: string, labels: Map<string, string>): Node[] {
+  const nodes: Node[] = [];
+  text.split('\n').forEach((line, i) => {
+    if (i > 0) nodes.push(document.createElement('br'));
+    let last = 0;
+    for (const m of line.matchAll(TEMPLATE_VAR_RE)) {
+      const key = m[1]!;
+      const label = labels.get(key);
+      if (!label) continue; // variável desconhecida fica como texto (o aviso abaixo do campo aponta)
+      if (m.index! > last) nodes.push(document.createTextNode(line.slice(last, m.index)));
+      nodes.push(makeChip(key, label));
+      last = m.index! + m[0].length;
+    }
+    if (last < line.length) nodes.push(document.createTextNode(line.slice(last)));
+  });
+  return nodes;
+}
+
+/** Nós → texto com {chave}. O <br data-end> do fim existe só para a última linha vazia aparecer. */
+function nodesToText(root: HTMLElement): string {
+  let out = '';
+  const walk = (n: Node) => {
+    // Espaço especial (colado ou do navegador) vira espaço comum no texto salvo
+    if (n.nodeType === Node.TEXT_NODE) { out += (n.textContent ?? '').replace(/\u200B/g, '').replace(/\u00A0/g, ' '); return; }
+    if (!(n instanceof HTMLElement)) return;
+    if (n.dataset.var) { out += `{${n.dataset.var}}`; return; }
+    if (n.dataset.end) return;
+    if (n.tagName === 'BR') { out += '\n'; return; }
+    // Bloco que o navegador cria sozinho (colar, ditado): vira quebra de linha
+    if ((n.tagName === 'DIV' || n.tagName === 'P') && out && !out.endsWith('\n')) out += '\n';
+    n.childNodes.forEach(walk);
+  };
+  root.childNodes.forEach(walk);
+  return out;
+}
+
+function TemplateEditor({ value, onChange, vars, minHeight, maxLength, toolbar }: {
+  value: string; onChange: (v: string) => void; vars: TemplateVar[]; minHeight: number; maxLength: number;
+  /** Botões extras na barra do campo (ex.: "Usar texto pronto") */
+  toolbar?: React.ReactNode;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const lastText = useRef<string | null>(null);
+  const savedRange = useRef<Range | null>(null);
+  const labels = useMemo(() => new Map(vars.map((v) => [v.key, v.label])), [vars]);
+  const labelsKey = vars.map((v) => v.key).join(',');
+
+  // Menu do "/": posição na tela + termo digitado depois da barra
+  const [slash, setSlash] = useState<{ x: number; y: number; query: string } | null>(null);
+  const [active, setActive] = useState(0);
+  // Menu do botão "Inserir variável"
+  // Posição fixa na tela: dentro do modal (área com rolagem) o menu seria cortado pelo rodapé
+  const [picker, setPicker] = useState<{ x: number; y: number } | null>(null);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const ensureEnd = (root: HTMLElement) => {
+    root.querySelectorAll('br[data-end]').forEach((b) => { if (b !== root.lastChild) b.remove(); });
+    const lc = root.lastChild;
+    if (!(lc instanceof HTMLElement && lc.dataset.end)) {
+      const br = document.createElement('br');
+      br.dataset.end = '1';
+      root.appendChild(br);
+    }
+  };
+
+  // Redesenha só quando o texto mudou por FORA (texto pronto, troca de modo) ou a lista de variáveis chegou;
+  // redesenhar a cada tecla jogaria o cursor para o começo.
+  const drawnKeys = useRef('');
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (value === lastText.current && drawnKeys.current === labelsKey) return;
+    root.replaceChildren(...textToNodes(value, labels));
+    ensureEnd(root);
+    lastText.current = value;
+    drawnKeys.current = labelsKey;
+  }, [value, labels, labelsKey]);
+
+  // Guarda onde o cursor estava no campo — o botão "Inserir variável" insere ali
+  useEffect(() => {
+    const onSel = () => {
+      const sel = window.getSelection();
+      const root = rootRef.current;
+      if (sel && sel.rangeCount && root && root.contains(sel.anchorNode)) savedRange.current = sel.getRangeAt(0).cloneRange();
+    };
+    document.addEventListener('selectionchange', onSel);
+    return () => document.removeEventListener('selectionchange', onSel);
+  }, []);
+
+  // Fecha o menu do botão ao clicar fora
+  useEffect(() => {
+    if (!picker) return;
+    const onDown = (e: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPicker(null); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [picker]);
+
+  const emit = () => {
+    const root = rootRef.current;
+    if (!root) return;
+    ensureEnd(root);
+    const t = nodesToText(root);
+    lastText.current = t;
+    onChange(t);
+  };
+
+  const placeCaretAfter = (node: Node) => {
+    const sel = window.getSelection();
+    if (!sel) return;
+    const r = document.createRange();
+    r.setStartAfter(node);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    savedRange.current = r.cloneRange();
+  };
+
+  const insertNodes = (nodes: Node[], range: Range) => {
+    if (nodes.length === 0) return;
+    range.deleteContents();
+    const frag = document.createDocumentFragment();
+    nodes.forEach((n) => frag.appendChild(n));
+    const last = nodes[nodes.length - 1]!;
+    range.insertNode(frag);
+    placeCaretAfter(last);
+    emit();
+  };
+
+  /** Range válido dentro do campo: o último cursor guardado, senão o fim do texto. */
+  const workingRange = (): Range => {
+    const root = rootRef.current!;
+    const r = savedRange.current;
+    if (r && root.contains(r.startContainer)) return r;
+    const end = document.createRange();
+    const lc = root.lastChild;
+    if (lc instanceof HTMLElement && lc.dataset.end) end.setStartBefore(lc); else end.selectNodeContents(root);
+    end.collapse(lc instanceof HTMLElement && lc.dataset.end ? true : false);
+    return end;
+  };
+
+  const chipWithSpace = (v: TemplateVar) => [makeChip(v.key, v.label), document.createTextNode(' ')];
+
+  /** Termo depois de uma "/" logo antes do cursor (início de linha, depois de espaço ou parêntese). */
+  const readSlash = (): { node: Text; start: number; query: string } | null => {
+    const sel = window.getSelection();
+    const root = rootRef.current;
+    if (!sel || !sel.rangeCount || !sel.isCollapsed || !root) return null;
+    const { startContainer: n, startOffset: o } = sel.getRangeAt(0);
+    if (n.nodeType !== Node.TEXT_NODE || !root.contains(n)) return null;
+    const before = (n.textContent ?? '').slice(0, o);
+    const m = before.match(/(^|[\s(\u00A0])\/([\p{L}\p{N}_]{0,30})$/u);
+    if (!m) return null;
+    return { node: n as Text, start: o - m[2]!.length - 1, query: m[2]! };
+  };
+
+  const updateSlash = () => {
+    const s = readSlash();
+    if (!s) { setSlash(null); return; }
+    const sel = window.getSelection()!;
+    const rect = sel.getRangeAt(0).getBoundingClientRect();
+    const box = rootRef.current!.getBoundingClientRect();
+    // Caret em linha vazia não tem retângulo: cai no canto do campo
+    const x = rect.left || box.left + 12;
+    const y = (rect.bottom || box.top + 28) + 6;
+    if (!slash || slash.query !== s.query) setActive(0);
+    setSlash({ x: Math.min(x, window.innerWidth - 316), y: Math.min(y, window.innerHeight - 330), query: s.query });
+  };
+
+  const slashItems = slash ? filterVars(vars, slash.query) : [];
+
+  const pickFromSlash = (v: TemplateVar) => {
+    const s = readSlash();
+    setSlash(null);
+    if (!s) return;
+    const r = document.createRange();
+    r.setStart(s.node, s.start);
+    r.setEnd(s.node, s.start + 1 + s.query.length);
+    insertNodes(chipWithSpace(v), r);
+  };
+
+  const pickFromButton = (v: TemplateVar) => {
+    setPicker(null);
+    setPickerQuery('');
+    rootRef.current?.focus();
+    insertNodes(chipWithSpace(v), workingRange());
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (slash) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setActive((a) => Math.min(a + 1, Math.max(slashItems.length - 1, 0))); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); return; }
+      if ((e.key === 'Enter' || e.key === 'Tab') && slashItems[active]) { e.preventDefault(); pickFromSlash(slashItems[active]!); return; }
+      // Esc fecha só o menu, não o modal de agendamento
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSlash(null); return; }
+    }
+    if (e.key === 'Enter') {
+      // Quebra de linha como <br> (sem o <div> que o navegador criaria)
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) insertNodes([document.createElement('br')], sel.getRangeAt(0));
+    }
+  };
+
+  const onPaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    const sel = window.getSelection();
+    if (text && sel && sel.rangeCount) insertNodes(textToNodes(text, labels), sel.getRangeAt(0));
+  };
+
+  const pickerItems = filterVars(vars, pickerQuery);
+  const [pickerActive, setPickerActive] = useState(0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span style={{ ...labelStyle, marginBottom: 0 }}>Seu texto</span>
+        <div className="flex items-center gap-2">
+        {toolbar}
+        <div className="relative" ref={pickerRef}>
+          <button type="button" onClick={(e) => {
+              if (picker) { setPicker(null); return; }
+              const r = e.currentTarget.getBoundingClientRect();
+              const MENU_H = 380; // busca + lista
+              const y = r.bottom + 6 + MENU_H > window.innerHeight ? Math.max(8, r.top - 6 - MENU_H) : r.bottom + 6;
+              setPicker({ x: Math.max(8, Math.min(r.right - 300, window.innerWidth - 308)), y });
+              setPickerQuery(''); setPickerActive(0);
+            }}
+            disabled={vars.length === 0} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 11px', fontSize: 12 }}
+            aria-expanded={!!picker} aria-haspopup="listbox">
+            <Icon name="plus" size={13} /> Inserir variável
+          </button>
+          {picker && (
+            <div className="fixed z-[70]" style={{ left: picker.x, top: picker.y }}>
+              <VarMenu items={pickerItems} active={pickerActive} onHover={setPickerActive} onPick={pickFromButton}
+                header={
+                  <div className="p-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                    <input autoFocus value={pickerQuery} placeholder="Buscar variável..."
+                      onChange={(e) => { setPickerQuery(e.target.value); setPickerActive(0); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') { e.preventDefault(); setPickerActive((a) => Math.min(a + 1, Math.max(pickerItems.length - 1, 0))); }
+                        if (e.key === 'ArrowUp') { e.preventDefault(); setPickerActive((a) => Math.max(a - 1, 0)); }
+                        if (e.key === 'Enter' && pickerItems[pickerActive]) { e.preventDefault(); pickFromButton(pickerItems[pickerActive]!); }
+                        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPicker(null); }
+                      }}
+                      style={{ ...inputStyle, padding: '7px 10px', fontSize: 12.5 }} />
+                  </div>
+                } />
+            </div>
+          )}
+        </div>
+        </div>
+      </div>
+
+      <div className="relative">
+        {value === '' && (
+          <span className="absolute left-3.5 top-2.5 text-[13px] pointer-events-none" style={{ color: 'var(--text-secondary)' }}>
+            Escreva a mensagem. Digite / para encaixar um número.
+          </span>
+        )}
+        <div
+          ref={rootRef}
+          role="textbox"
+          aria-multiline="true"
+          aria-label="Texto da mensagem"
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck
+          onInput={() => { emit(); updateSlash(); }}
+          onKeyDown={onKeyDown}
+          onKeyUp={(e) => { if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End') updateSlash(); }}
+          onClick={updateSlash}
+          onPaste={onPaste}
+          onBlur={() => setTimeout(() => setSlash(null), 120)}
+          className="outline-none overflow-y-auto"
+          style={{
+            ...inputStyle, minHeight, maxHeight: minHeight * 2.2, lineHeight: 1.95, fontSize: 13,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word', cursor: 'text',
+            borderColor: value.length > maxLength ? 'var(--badge-error-text)' : 'var(--input-border)',
+          }}
+        />
+      </div>
+
+      {slash && (
+        <div className="fixed z-[70]" style={{ left: slash.x, top: slash.y }}>
+          <VarMenu items={slashItems} active={active} onHover={setActive} onPick={pickFromSlash}
+            header={
+              <div className="px-3 py-2 eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 10.5, borderBottom: '1px solid var(--border)' }}>
+                {slash.query ? <>BUSCANDO <span style={{ color: 'var(--text-primary)' }}>/{slash.query}</span></> : 'ESCOLHA UMA VARIÁVEL'} · ↑↓ ENTER
+              </div>
+            } />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MessageEditor({ frequency, config, onChange, wide = false }: {
   frequency: ReportFrequency;
   config: ReportConfig;
@@ -741,7 +1174,6 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
 }) {
   const [meta, setMeta] = useState<{ preset: string; variables: { key: string; label: string; value: string }[] } | null>(null);
   const [stdPreview, setStdPreview] = useState<string | null>(null);
-  const taRef = useRef<HTMLTextAreaElement>(null);
   // Texto digitado sobrevive à ida e volta entre "padrão" e "personalizado"
   const lastCustom = useRef<string | null>(null);
 
@@ -787,15 +1219,6 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
       delete rest.template;
       onChange(rest);
     }
-  };
-
-  const insertVar = (key: string) => {
-    const ta = taRef.current;
-    const start = ta?.selectionStart ?? template.length;
-    const end = ta?.selectionEnd ?? template.length;
-    const token = `{${key}}`;
-    onChange({ ...config, template: template.slice(0, start) + token + template.slice(end) });
-    requestAnimationFrame(() => { ta?.focus(); ta?.setSelectionRange(start + token.length, start + token.length); });
   };
 
   const usePreset = () => {
@@ -852,45 +1275,29 @@ function MessageEditor({ frequency, config, onChange, wide = false }: {
           {custom && (
             <>
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span style={{ ...labelStyle, marginBottom: 0 }}>Seu texto</span>
-                  <button onClick={usePreset} disabled={!meta} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '4px 10px', fontSize: 12 }}>Usar texto pronto</button>
-                </div>
-                <textarea
-                  ref={taRef}
-                  style={{ ...inputStyle, minHeight: wide ? 240 : 170, resize: 'vertical', lineHeight: 1.55, fontFamily: 'var(--font-mono-cx), ui-monospace, monospace', fontSize: 12.5 }}
-                  placeholder="Escreva a mensagem e clique nas variáveis abaixo para encaixar os números."
-                  maxLength={TEMPLATE_MAX}
+                <TemplateEditor
+                  toolbar={<button onClick={usePreset} disabled={!meta} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 11px', fontSize: 12 }}>Usar texto pronto</button>}
                   value={template}
-                  onChange={(e) => onChange({ ...config, template: e.target.value })}
+                  onChange={(t) => onChange({ ...config, template: t })}
+                  vars={meta?.variables ?? []}
+                  minHeight={wide ? 240 : 170}
+                  maxLength={TEMPLATE_MAX}
                 />
                 <div className="flex items-center justify-between mt-1.5">
-                  <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>*NEGRITO* · _ITÁLICO_</span>
+                  <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>/ VARIÁVEL · *NEGRITO* · _ITÁLICO_</span>
                   <span className="eyebrow" style={{ color: template.length > TEMPLATE_MAX * 0.9 ? 'var(--badge-warn-text)' : 'var(--text-secondary)', fontSize: 11 }}>{template.length} / {TEMPLATE_MAX}</span>
                 </div>
               </div>
 
               {unknown.length > 0 && (
                 <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>
-                  Variável que não existe: {unknown.map((u) => `{${u}}`).join(', ')}. Corrija ou escolha uma da lista.
+                  Variável que não existe: {unknown.map((u) => `{${u}}`).join(', ')}. Apague e insira pelo botão ou digitando /.
                 </p>
               )}
               {custom && !template.trim() && (
                 <p className="text-xs inline-flex items-center gap-1.5" style={{ color: 'var(--text-primary)' }}><StatusDot tone="warn" /> O texto está vazio.</p>
               )}
 
-              <div>
-                <span style={labelStyle}>Variáveis — clique para inserir onde está o cursor</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {(meta?.variables ?? []).map((v) => (
-                    <button key={v.key} type="button" onClick={() => insertVar(v.key)}
-                      title={`{${v.key}} — hoje: ${v.value}`}
-                      className="ui-chip !text-[11.5px] !px-2.5 !py-1 hover:!text-[var(--text-primary)]">
-                      <span style={{ color: 'var(--accent)' }}>{'{'}</span>{v.label}<span style={{ color: 'var(--accent)' }}>{'}'}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             </>
           )}
         </div>
