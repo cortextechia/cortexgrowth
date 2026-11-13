@@ -2719,7 +2719,8 @@ function DashboardConteudo() {
       {aba === 'vendas' && (<>
 
       {/* ── VENDEDOR — admin/gestor vê o CRM de um vendedor só ───────────────── */}
-      {canEditGoal && hasCrmSource && (sellersRanking?.sellers.length ?? 0) > 0 && (
+      {/* Com uma pessoa só, "Todos" e ela são o mesmo número: o seletor não serve para nada. */}
+      {canEditGoal && hasCrmSource && (sellersRanking?.sellers.length ?? 0) > 1 && (
         <div className="flex flex-wrap items-center gap-3">
           <Dropdown
             variant="pill"
