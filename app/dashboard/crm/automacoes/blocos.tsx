@@ -76,6 +76,11 @@ export const KIND_LABEL: Record<Kind, string> = { trigger: 'QUANDO', action: 'A�
 
 export const TRIGGER_IDS: CrmAutomationTrigger[] = ['NEW_LEAD', 'STAGE_ENTERED', 'STAGE_IDLE', 'NO_REPLY', 'LEAD_SILENT', 'SALE_WON', 'SALE_LOST'];
 export const ACTION_IDS: CrmAutomationStepType[] = ['SEND_MESSAGE', 'MOVE_STAGE', 'ASSIGN', 'ADD_TAG', 'CREATE_TASK', 'SET_FOLLOWUP', 'ADD_NOTE', 'DISCARD'];
+// Vendedor não tem "Atribuir responsável": a automação dele só age nos cards dele,
+// e passar o card para outro é decisão da empresa (o backend recusa igual).
+export const ACTION_IDS_VENDEDOR = ACTION_IDS.filter((t) => t !== 'ASSIGN');
+/** Tira o "Atribuir" de um modelo pronto (os modelos não têm condição, então a lista é linear). */
+export const semAtribuir = (steps: CrmAutomationStep[]) => steps.filter((s) => s.type !== 'ASSIGN');
 // Mesma regra do backend: nos outros gatilhos o robô falaria no meio de uma
 // conversa que um vendedor está tocando.
 export const MESSAGE_TRIGGERS: CrmAutomationTrigger[] = ['NEW_LEAD', 'LEAD_SILENT'];

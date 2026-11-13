@@ -4,7 +4,8 @@
 // e/ou tipo de cliente. As mensagens saem do WhatsApp do vendedor RESPONSÁVEL de
 // cada cliente (instância crm-{userId}); quem não tiver WhatsApp conectado é
 // pulado. Agenda para uma data/hora ou dispara na hora, no ritmo padrão ou em
-// lotes com pausa (anti-bloqueio). Só ADMIN/gestor.
+// lotes com pausa (anti-bloqueio). ADMIN/gestor e, desde 13/11, o vendedor:
+// o dele sai TODO pelo WhatsApp dele (para qualquer cliente) e ele só vê os próprios.
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -120,6 +121,8 @@ function ChipGroup({ label, empty, options, selected, onToggle }: {
 export default function CrmDisparosPage() {
   const { user } = useAuth();
   const isAdmin = !!user && ADMIN_ROLES.includes(user.role);
+  const isVendedor = user?.role === 'USER';
+  const podeDisparar = isAdmin || isVendedor;
 
   const [status, setStatus] = useState<CrmStatus | null>(null);
   const [tags, setTags] = useState<CrmTagOption[]>([]);
@@ -238,7 +241,7 @@ export default function CrmDisparosPage() {
   }, [preview?.sendable, useBatches, rhythmErr, sizeN, pauseN]);
 
   const canSubmit =
-    isAdmin && message.trim().length > 0 && !!preview && preview.total > 0 && !rhythmErr &&
+    podeDisparar && message.trim().length > 0 && !!preview && preview.total > 0 && !rhythmErr &&
     (mode === 'now' || (mode === 'schedule' && !!when)) && !submitting;
 
   const submit = async () => {
@@ -283,14 +286,14 @@ export default function CrmDisparosPage() {
   if (loading) {
     return <p className="py-24 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>Carregando…</p>;
   }
-  if ((status && !status.enabled) || !isAdmin) {
+  if ((status && !status.enabled) || !podeDisparar) {
     return (
       <div className="ui-card max-w-lg mx-auto mt-16 text-center space-y-2">
         <h1 className="ui-h2">Disparos</h1>
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           {status && !status.enabled
             ? status.kommoConnected ? 'Esta organização usa o Kommo como CRM.' : 'Ative o CRM Cromalex na página do funil para usar os disparos.'
-            : 'Apenas administradores podem criar disparos em massa.'}
+            : 'Seu acesso não permite criar disparos em massa.'}
         </p>
       </div>
     );
@@ -301,7 +304,7 @@ export default function CrmDisparosPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="ui-h1">Disparos</h1>
-          <p className="ui-sub">Promoção para a carteira, segmentada por etapa, tag ou tipo. Sai do WhatsApp do vendedor de cada cliente.</p>
+          <p className="ui-sub">Promoção para a carteira, segmentada por etapa, tag ou tipo. {isVendedor ? 'Sai todo pelo seu WhatsApp.' : 'Sai do WhatsApp do vendedor de cada cliente.'}</p>
         </div>
         <a href="/dashboard/crm" className="ui-btn ui-btn-secondary ui-btn-sm">← Funil</a>
       </div>
@@ -404,7 +407,7 @@ export default function CrmDisparosPage() {
                     <p className="ui-big" style={preview.skipped > 0 ? { color: 'var(--badge-warn-text)' } : undefined}>{preview.skipped}</p>
                   </div>
                   {preview.skipped > 0 && (
-                    <p className="col-span-3 text-xs" style={{ color: 'var(--text-secondary)' }}>Pulados = o vendedor responsável não tem WhatsApp conectado.</p>
+                    <p className="col-span-3 text-xs" style={{ color: 'var(--text-secondary)' }}>{isVendedor ? 'Seu WhatsApp não está conectado: conecte pelo botão do funil para disparar.' : 'Pulados = o vendedor responsável não tem WhatsApp conectado.'}</p>
                   )}
                 </div>
               ) : (

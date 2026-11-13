@@ -14,7 +14,7 @@ import type {
   CrmAutomation, CrmAutomationActivity, CrmAutomationTrigger, CrmStage, CrmDiscardReasonOption,
 } from '@/types';
 import {
-  Miniatura, RECEITAS, Switch, resumoLista, rotuloGatilho, statusLabel, statusStyle,
+  Miniatura, RECEITAS, Switch, semAtribuir, resumoLista, rotuloGatilho, statusLabel, statusStyle,
   type Editor, type Receita,
 } from './blocos';
 import FluxoCanvas from './FluxoCanvas';
@@ -31,7 +31,9 @@ type Estado = 'todas' | 'ligadas' | 'desligadas';
 
 export default function AutomacoesPage() {
   const { user } = useAuth();
-  const podeConfigurar = !!user && ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'].includes(user.role);
+  // Vendedor (13/11, pedido do Ruan) cria as próprias: só agem nos cards dele.
+  const isVendedor = user?.role === 'USER';
+  const podeConfigurar = !!user && (['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'].includes(user.role) || isVendedor);
 
   const [stages, setStages] = useState<CrmStage[]>([]);
   const [motivos, setMotivos] = useState<string[]>([]);
@@ -76,7 +78,8 @@ export default function AutomacoesPage() {
 
   const abrirReceita = (r: Receita) => {
     setModoInicial('editar');
-    setEditor({ id: null, name: r.nome, trigger: r.trigger, cfg: r.cfg(stages), steps: r.steps(stages), stopOnReply: true });
+    const steps = isVendedor ? semAtribuir(r.steps(stages)) : r.steps(stages);
+    setEditor({ id: null, name: r.nome, trigger: r.trigger, cfg: r.cfg(stages), steps, stopOnReply: true });
   };
 
   const abrirExistente = (a: CrmAutomation, modo: 'editar' | 'execucoes' = 'editar') => {
@@ -151,8 +154,7 @@ export default function AutomacoesPage() {
         <div className="ui-card">
           <p style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Acesso restrito</p>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Automações são configuradas pelo administrador — elas agem sobre os cards de toda a operação.
-            Quando uma delas mexer num card seu, o histórico dele mostra qual foi.
+            Seu acesso não permite configurar automações. Quando uma delas mexer num card seu, o histórico dele mostra qual foi.
           </p>
         </div>
       </div>
@@ -173,6 +175,7 @@ export default function AutomacoesPage() {
         <FluxoCanvas
           editor={editor} setEditor={setEditor} stages={stages} motivos={motivos}
           salvando={salvando} modoInicial={modoInicial} onSalvar={salvar} onVoltar={() => setEditor(null)}
+          vendedor={isVendedor}
         />
       </div>
     );
@@ -190,6 +193,11 @@ export default function AutomacoesPage() {
             Cada fluxo é um desenho: o gatilho primeiro, as ações em seguida. O CRM faz sozinho o que hoje depende de
             alguém lembrar. Mensagem automática só existe em boas-vindas e lead que não respondeu, e sai pela fila dos Disparos.
           </p>
+          {isVendedor && (
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              Os seus fluxos agem só nos cards em que você é o responsável. Os da empresa continuam valendo para todos.
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           <a href="#modelos" className="ui-btn ui-btn-secondary">Ver modelos prontos</a>
@@ -251,6 +259,11 @@ export default function AutomacoesPage() {
                     <div className="flex flex-1 flex-col gap-2 px-4 pb-4 pt-3.5">
                       <span style={{ ...mono, color: 'var(--accent)' }}>{rotuloGatilho(a.triggerType, a.triggerConfig as Record<string, unknown>).toUpperCase()}</span>
                       <h2 className="ui-h2">{a.name}</h2>
+                      {a.ownerId && (
+                        <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          {isVendedor ? 'Só nos seus cards' : `Do vendedor ${a.ownerName ?? '(removido)'} · só nos cards dele`}
+                        </span>
+                      )}
                       <p className="flex-1 text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
                         {resumoLista(a.steps)}
                       </p>
@@ -311,7 +324,7 @@ export default function AutomacoesPage() {
           {RECEITAS.map((r) => (
             <button key={r.nome} type="button" onClick={() => abrirReceita(r)}
               className="ui-card flex flex-col !p-0 overflow-hidden text-left transition-transform hover:-translate-y-0.5">
-              <Miniatura trigger={r.trigger} steps={r.steps(stages)} />
+              <Miniatura trigger={r.trigger} steps={isVendedor ? semAtribuir(r.steps(stages)) : r.steps(stages)} />
               <span className="flex flex-col gap-1.5 px-4 pb-4 pt-3">
                 <span style={{ ...mono, color: 'var(--accent)' }}>{rotuloGatilho(r.trigger, r.cfg(stages)).toUpperCase()}</span>
                 <span className="text-[15px] font-bold" style={{ color: 'var(--text-primary)' }}>{r.nome}</span>

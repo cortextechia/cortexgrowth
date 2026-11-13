@@ -1009,6 +1009,9 @@ export interface CrmAutomation {
   runCount: number;
   lastRunAt: string | null;
   createdAt: string;
+  /** Automação de vendedor: só age nos cards dele (null = da empresa). */
+  ownerId?: string | null;
+  ownerName?: string | null;
 }
 
 export interface CrmAutomationRun {

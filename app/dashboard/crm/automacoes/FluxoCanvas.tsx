@@ -21,7 +21,7 @@ import type {
   CrmAutomationTrigger, CrmStage,
 } from '@/types';
 import {
-  ACTION_IDS, BLOCKS, Icon, KIND_LABEL, ParamsGatilho, ParamsPasso, Switch, TRIGGER_IDS,
+  ACTION_IDS, ACTION_IDS_VENDEDOR, BLOCKS, Icon, KIND_LABEL, ParamsGatilho, ParamsPasso, Switch, TRIGGER_IDS,
   avisoStyle, cfgPadrao, checarFluxo, frasear, indiceDe, juntar, novoPasso, ondeFica,
   resumoGatilho, resumoPasso, separar, statusLabel, statusStyle,
   type Caminho, type Editor, type Partes,
@@ -219,6 +219,8 @@ interface Props {
   modoInicial?: Modo;
   onSalvar: () => void;
   onVoltar: () => void;
+  /** Vendedor: some o bloco "Atribuir responsável". */
+  vendedor?: boolean;
 }
 
 export default function FluxoCanvas(props: Props) {
@@ -229,7 +231,7 @@ export default function FluxoCanvas(props: Props) {
   );
 }
 
-function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoInicial = 'editar', onSalvar, onVoltar }: Props) {
+function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoInicial = 'editar', onSalvar, onVoltar, vendedor = false }: Props) {
   const rf = useReactFlow();
   const [sel, setSel] = useState<Sel>('t');
   // Para onde vai o bloco clicado na lista quando há condição
@@ -537,7 +539,7 @@ function FluxoCanvasInner({ editor, setEditor, stages, motivos, salvando, modoIn
                 : 'Arraste para a tela ou clique para adicionar no fim. Gatilho troca o atual.'}
             </p>
             <Grupo titulo="GATILHO · QUANDO" ids={TRIGGER_IDS} atual={editor.trigger} onAdd={inserir} />
-            <Grupo titulo="AÇÕES · FAÇA" ids={ACTION_IDS} onAdd={inserir} />
+            <Grupo titulo="AÇÕES · FAÇA" ids={vendedor ? ACTION_IDS_VENDEDOR : ACTION_IDS} onAdd={inserir} />
             <Grupo titulo="CONTROLE" ids={['WAIT', 'CONDITION']} desligados={partes.cond ? ['CONDITION'] : []} onAdd={inserir} />
           </aside>
         )}

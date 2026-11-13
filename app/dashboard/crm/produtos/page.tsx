@@ -3,8 +3,11 @@
 // Catálogo de produtos do CRM (pedido do Ruan, 28/10/2026).
 // Cadastra aqui; no card, a venda é montada escolhendo produto + quantidade + desconto.
 // Sem "excluir": desativar tira da lista da venda nova e preserva o relatório.
+// Vendedor (13/11, pedido do Ruan) só consulta: cadastrar/editar é da gerência
+// (o backend recusa a escrita com 403 do mesmo jeito).
 
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { apiService } from '@/lib/api';
 import type { CrmProduct } from '@/types';
 
@@ -44,6 +47,8 @@ function erroDaApi(err: unknown, fallback: string): string {
 }
 
 export default function ProdutosPage() {
+  const { user } = useAuth();
+  const podeEditar = !!user && ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'].includes(user.role);
   const [produtos, setProdutos] = useState<CrmProduct[] | null>(null);
   const [verDesativados, setVerDesativados] = useState(false);
   const [nome, setNome] = useState('');
@@ -54,10 +59,11 @@ export default function ProdutosPage() {
   const [editando, setEditando] = useState<{ id: string; name: string; sku: string; price: string } | null>(null);
 
   const carregar = useCallback(() => {
-    apiService.getCrmProducts(true)
+    // Quem só consulta não vê os desativados (não dá para vender e não há o que reativar).
+    apiService.getCrmProducts(podeEditar)
       .then((r) => setProdutos(r.data))
       .catch((err) => { setProdutos([]); setAviso({ tipo: 'erro', msg: erroDaApi(err, 'Não foi possível carregar os produtos.') }); });
-  }, []);
+  }, [podeEditar]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const avisar = (tipo: 'ok' | 'erro', msg: string) => {
@@ -110,12 +116,14 @@ export default function ProdutosPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="ui-h1">Produtos</h1>
-          <p className="ui-sub">Cadastre uma vez; no card do cliente a venda é montada escolhendo produto, quantidade e desconto.</p>
+          <p className="ui-sub">{podeEditar
+            ? 'Cadastre uma vez; no card do cliente a venda é montada escolhendo produto, quantidade e desconto.'
+            : 'Catálogo da empresa. No card do cliente, a venda é montada escolhendo produto, quantidade e desconto.'}</p>
         </div>
         <a href="/dashboard/crm" className="ui-btn ui-btn-secondary ui-btn-sm">← Funil</a>
       </div>
 
-      <div className="ui-card space-y-3">
+      {podeEditar && <div className="ui-card space-y-3">
         <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Novo produto</p>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_160px_140px_auto] gap-2 items-end">
           <label className="text-xs" style={{ color: 'var(--text-secondary)' }}>
@@ -138,7 +146,7 @@ export default function ProdutosPage() {
             {salvando ? 'Salvando…' : 'Cadastrar'}
           </button>
         </div>
-      </div>
+      </div>}
 
       {aviso && (
         <p className="text-sm flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
@@ -171,8 +179,8 @@ export default function ProdutosPage() {
                   <th>Produto</th>
                   <th>Código</th>
                   <th className="ui-num">Preço</th>
-                  <th className="ui-num">Ativo</th>
-                  <th />
+                  {podeEditar && <th className="ui-num">Ativo</th>}
+                  {podeEditar && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -196,14 +204,14 @@ export default function ProdutosPage() {
                     <td style={{ color: 'var(--text-primary)' }}>{p.name}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{p.sku ?? '—'}</td>
                     <td className="ui-num tabular-nums" style={{ color: 'var(--text-primary)' }}>{fmtMoney(p.price)}</td>
-                    <td className="ui-num">
+                    {podeEditar && <td className="ui-num">
                       <button className="ui-switch" role="switch" aria-checked={p.active} aria-label={p.active ? `Desativar ${p.name}` : `Reativar ${p.name}`}
                         onClick={() => void alternarAtivo(p)} />
-                    </td>
-                    <td className="text-right">
+                    </td>}
+                    {podeEditar && <td className="text-right">
                       <button onClick={() => setEditando({ id: p.id, name: p.name, sku: p.sku ?? '', price: paraMascara(p.price) })}
                         className="ui-btn ui-btn-secondary ui-btn-sm">Editar</button>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

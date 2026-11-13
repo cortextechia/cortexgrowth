@@ -127,7 +127,8 @@ function UnreadBadge({ count }: { count: number }) {
   );
 }
 
-type NavChild = { href: string; label: string; adminOnly?: boolean; soGrowth?: boolean; busca?: string[] };
+// vendedor: subitem só-admin que o vendedor (USER) também vê (13/11, pedido do Ruan).
+type NavChild = { href: string; label: string; adminOnly?: boolean; vendedor?: boolean; soGrowth?: boolean; busca?: string[] };
 
 // `busca`: termos extras para a busca do menu achar a tela por outro nome.
 const NAV_ITEMS = [
@@ -195,9 +196,9 @@ const NAV_ITEMS = [
     children: [
       { href: '/dashboard/crm/contatos', label: 'Contatos', busca: ['Clientes', 'Lista de contatos', 'Exportar'] },
       // Catálogo de produtos (pedido do Ruan 28/10/2026).
-      { href: '/dashboard/crm/produtos', label: 'Produtos', adminOnly: true, busca: ['Catálogo', 'Cadastrar produto', 'SKU', 'Preço', 'Desconto'] },
-      { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true, busca: ['Mensagem em massa', 'Promoção', 'Agendar mensagem'] },
-      { href: '/dashboard/crm/automacoes', label: 'Automações', adminOnly: true, busca: ['Boas-vindas', 'Mensagem automática', 'Rodízio de vendedores'] },
+      { href: '/dashboard/crm/produtos', label: 'Produtos', adminOnly: true, vendedor: true, busca: ['Catálogo', 'Cadastrar produto', 'SKU', 'Preço', 'Desconto'] },
+      { href: '/dashboard/crm/disparos', label: 'Disparos', adminOnly: true, vendedor: true, busca: ['Mensagem em massa', 'Promoção', 'Agendar mensagem'] },
+      { href: '/dashboard/crm/automacoes', label: 'Automações', adminOnly: true, vendedor: true, busca: ['Boas-vindas', 'Mensagem automática', 'Rodízio de vendedores'] },
       // "Rastreio" e não "Criativos": já existe um item Criativos no menu (a
       // Inteligência Criativa da IA) e dois rótulos iguais confundem.
       { href: '/dashboard/crm/criativos', label: 'Rastreio', adminOnly: true, busca: ['De qual anúncio veio o lead', 'Link da bio', 'Frase do anúncio'] },
@@ -428,6 +429,8 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
   const telaBloqueada = temGrowth ? undefined : telaDoGrowth(pathname);
   // Subitens só-admin do menu (ex: Disparos)
   const canBroadcast = !!user && [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.TRAFFIC_MANAGER].includes(user.role);
+  const isVendedor = user?.role === UserRole.USER;
+  const childVisivel = (c: NavChild) => !c.adminOnly || canBroadcast || (!!c.vendedor && isVendedor);
   const [clientOrgs, setClientOrgs] = useState<TrafficManagerClient[]>([]);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
 
@@ -494,13 +497,13 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
         out.push({ titulo: item.label, href: item.href, termos: 'busca' in item ? item.busca : undefined, bloqueado: !temGrowth && item.href in TELAS_DO_GROWTH });
       }
       for (const c of filhos) {
-        if (c.adminOnly && !canBroadcast) continue;
+        if (!childVisivel(c)) continue;
         out.push({ titulo: c.label, caminho: item.label, href: c.href, termos: c.busca, bloqueado: childBloqueado(c) });
       }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crmVisible, user, temGrowth, canBroadcast]);
+  }, [crmVisible, user, temGrowth, canBroadcast, isVendedor]);
 
   useEffect(() => {
     if (!isTrafficManager) return;
@@ -534,7 +537,7 @@ function DashboardLayoutConteudo({ children }: { children: React.ReactNode }) {
       .map((item) => {
       const exact = 'exact' in item && item.exact;
       const childItems = (('children' in item ? item.children : undefined) as NavChild[] | undefined)
-        ?.filter((c) => !c.adminOnly || canBroadcast);
+        ?.filter(childVisivel);
       const algumFilhoAtivo = !!childItems?.some((c) => childIsActive(c.href));
       // O Dashboard é coberto pelas abas: com uma aba acesa, o pai não acende junto.
       const isActive = (exact
