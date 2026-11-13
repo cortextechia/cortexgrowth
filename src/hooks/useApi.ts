@@ -267,11 +267,11 @@ export function useDashboard() {
     }
   }, [isAuthenticated]);
 
-  const fetchFunnelSummary = useCallback(async (days: number, start?: string, end?: string) => {
+  const fetchFunnelSummary = useCallback(async (days: number, start?: string, end?: string, sellerId?: string | null) => {
     if (!isAuthenticated) return;
     const reqId = ++funnelReqId.current;
     try {
-      const response = await apiService.getFunnelSummary(days, start, end);
+      const response = await apiService.getFunnelSummary(days, start, end, sellerId);
       // descarta resposta se uma requisição mais recente já foi disparada
       if (reqId === funnelReqId.current && response.success) {
         setFunnelSummary(response.data);

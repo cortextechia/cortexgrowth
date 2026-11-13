@@ -616,10 +616,10 @@ class ApiService {
     return response.data;
   }
 
-  async getFunnelSummary(days: number, start?: string, end?: string): Promise<{ success: boolean; data: FunnelSummary }> {
+  async getFunnelSummary(days: number, start?: string, end?: string, sellerId?: string | null): Promise<{ success: boolean; data: FunnelSummary }> {
     // Mesma assinatura do attribution/summary: start/end (YYYY-MM-DD) mandam no range
     // personalizado, senão o backend usa "últimos N dias".
-    const params = start && end ? { days, start, end } : { days };
+    const params = { ...(start && end ? { days, start, end } : { days }), ...(sellerId ? { sellerId } : {}) };
     const response = await this.client.get('/platforms/funnel/summary', { params });
     return response.data;
   }
@@ -1069,13 +1069,19 @@ class ApiService {
     return response.data;
   }
 
-  async getRevenueGoalProgress(months = 6): Promise<{ success: boolean; data: import('@/types').RevenueGoalProgress[] }> {
-    const response = await this.client.get('/revenue-goals/progress', { params: { months } });
+  // sellerId: realizado e meta de UM vendedor (SellerRevenueGoal) em vez da empresa.
+  async getRevenueGoalProgress(months = 6, sellerId?: string | null): Promise<{ success: boolean; data: import('@/types').RevenueGoalProgress[] }> {
+    const response = await this.client.get('/revenue-goals/progress', { params: { months, ...(sellerId ? { sellerId } : {}) } });
     return response.data;
   }
 
-  async getCrmHygiene(): Promise<{ success: boolean; data: import('@/types').CrmHygiene }> {
-    const response = await this.client.get('/crm-hygiene');
+  async getCrmHygiene(sellerId?: string | null): Promise<{ success: boolean; data: import('@/types').CrmHygiene }> {
+    const response = await this.client.get('/crm-hygiene', { params: sellerId ? { sellerId } : {} });
+    return response.data;
+  }
+
+  async saveSellerGoal(sellerId: string, data: { month: number; year: number; target: number }): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.put(`/revenue-goals/sellers/${encodeURIComponent(sellerId)}`, data);
     return response.data;
   }
 
@@ -1089,8 +1095,8 @@ class ApiService {
     return response.data;
   }
 
-  async getWonLeads(year: number, month: number): Promise<{ success: boolean; data: { leads: import('@/types').WonLead[]; total: number } }> {
-    const response = await this.client.get('/revenue-goals/won-leads', { params: { year, month } });
+  async getWonLeads(year: number, month: number, sellerId?: string | null): Promise<{ success: boolean; data: { leads: import('@/types').WonLead[]; total: number } }> {
+    const response = await this.client.get('/revenue-goals/won-leads', { params: { year, month, ...(sellerId ? { sellerId } : {}) } });
     return response.data;
   }
 

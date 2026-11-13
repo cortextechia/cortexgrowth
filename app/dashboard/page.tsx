@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useIntegrations, useDashboard, useAiInsights, usePlano } from '@/hooks/useApi';
 import { RecursoBloqueado } from '@/components/RecursoBloqueado';
 import { apiService } from '@/lib/api';
+import { Dropdown } from '@/components/Dropdown';
 import Sparkline from '@/components/charts/Sparkline';
 import AdminDashboard from '@/components/AdminDashboard';
 import { UserRole, type CreativePerformance } from '@/types';
@@ -416,12 +417,17 @@ function BottomKpiCard({ title, value, sub, badge, badgeColor, accent = 'var(--t
 
 const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
-function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPrev, onNext, onAtual, atCurrent }: {
+function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPrev, onNext, onAtual, atCurrent, seller, porVendedor, onVerVendedor }: {
   progress: import('@/types').RevenueGoalProgress;
   canEdit: boolean;
   onSaved: () => void;
   chartData?: import('@/types').RevenueGoalProgress[];
   wonLeads?: import('@/types').WonLead[];
+  /** Vendedor escolhido no dashboard: o card mostra e grava a meta DELE. */
+  seller?: { id: string; name: string } | null;
+  /** Meta da empresa: quanto cada vendedor contribuiu no mês (mesmo mês do Ranking). */
+  porVendedor?: import('@/types').SellerRankingRow[];
+  onVerVendedor?: (id: string) => void;
   /** null = não há mês anterior carregado. */
   onPrev: (() => void) | null;
   onNext: () => void;
@@ -433,6 +439,7 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPr
   const [saving, setSaving]         = useState(false);
   const [chartOpen, setChartOpen]   = useState(false);
   const [leadsOpen, setLeadsOpen]   = useState(false);
+  const [vendOpen, setVendOpen]     = useState(false);
 
   const originTag = (utmSource: string | null) => originTagFor(utmSource);
 
@@ -458,7 +465,8 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPr
     if (!isFinite(num) || num < 0) return;
     setSaving(true);
     try {
-      await apiService.saveRevenueGoal({ month: progress.month, year: progress.year, target: num });
+      const dados = { month: progress.month, year: progress.year, target: num };
+      await (seller ? apiService.saveSellerGoal(seller.id, dados) : apiService.saveRevenueGoal(dados));
       setEditing(false);
       onSaved();
     } finally {
@@ -472,8 +480,10 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPr
     <div className="rounded-xl p-4 flex flex-col gap-3" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
       <div className="flex items-center flex-wrap justify-between gap-2">
         <span className="flex items-center gap-1 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Meta do mês
-          <InfoTip text={`Soma das vendas marcadas como ganhas no CRM em ${MESES_EXTENSO[progress.month - 1]} de ${progress.year}, pela data de fechamento do negócio — independente de quando o lead entrou. Use ◀ ▶ para ver os meses anteriores; o Ranking de vendedores acompanha o mesmo mês.`} />
+          {seller ? `Meta de ${seller.name}` : 'Meta do mês'}
+          <InfoTip text={seller
+            ? `Vendas que ${seller.name} fechou (ganhas no CRM) em ${MESES_EXTENSO[progress.month - 1]} de ${progress.year}, pela data de fechamento, contra a meta dele no mês. A meta da empresa é separada: volte para "Todos" para vê-la.`
+            : `Soma das vendas marcadas como ganhas no CRM em ${MESES_EXTENSO[progress.month - 1]} de ${progress.year}, pela data de fechamento do negócio — independente de quando o lead entrou. Use ◀ ▶ para ver os meses anteriores; o Ranking de vendedores acompanha o mesmo mês.`} />
         </span>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
@@ -556,6 +566,56 @@ function MonthlyGoalCard({ progress, canEdit, onSaved, chartData, wonLeads, onPr
                 : `Fechou ${fmtMoney(target - realized)} abaixo da meta`}
           </p>
         </>
+      )}
+
+      {porVendedor && porVendedor.length > 0 && (
+        <div className="pt-1" style={{ borderTop: '1px solid var(--border)' }}>
+          <button onClick={() => setVendOpen((o) => !o)} className="flex items-center gap-1.5 w-full text-left py-1">
+            <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+              Por vendedor ({porVendedor.length})
+            </span>
+            <svg className="h-3 w-3 transition-transform" style={{ transform: vendOpen ? 'rotate(180deg)' : 'rotate(0deg)', color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {vendOpen && (
+            <div className="mt-1 flex flex-col gap-1">
+              {porVendedor.map((v) => {
+                // Contribuição = parte da meta da empresa; sem meta, parte do que a empresa vendeu.
+                const base = target && target > 0 ? target : realized;
+                const contrib = base > 0 ? (v.revenue / base) * 100 : 0;
+                const pctDele = v.target && v.target > 0 ? (v.revenue / v.target) * 100 : null;
+                return (
+                  <div key={v.userId} className="rounded-lg px-2.5 py-2" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                    <div className="flex items-center justify-between gap-2">
+                      {onVerVendedor && v.userId ? (
+                        <button type="button" onClick={() => onVerVendedor(v.userId)} className="text-xs font-medium truncate hover:underline text-left" style={{ color: 'var(--text-primary)' }}>
+                          {v.name}
+                        </button>
+                      ) : (
+                        <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)' }}>{v.name}</span>
+                      )}
+                      <span className="text-xs tabular-nums shrink-0" style={{ color: 'var(--text-secondary)' }}>
+                        <strong style={{ color: 'var(--text-primary)' }}>{fmtMoney(v.revenue)}</strong>
+                        {' · '}{fmtPct1(contrib)} {target && target > 0 ? 'da meta da empresa' : 'do vendido'}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1.5 w-full rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(contrib, 100)}%`, backgroundColor: 'var(--accent)' }} />
+                    </div>
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      {pctDele == null
+                        ? 'Sem meta própria no mês'
+                        : v.revenue >= v.target!
+                          ? `Bateu a meta dele (${fmtMoney(v.target!)}) · ${fmtPct1(pctDele)}`
+                          : `${fmtPct1(pctDele)} da meta dele (${fmtMoney(v.target!)}) · faltam ${fmtMoney(v.target! - v.revenue)}`}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {wonLeads && wonLeads.length > 0 && (
@@ -1156,7 +1216,7 @@ function DashboardConteudo() {
     funnelSummary, fetchFunnelSummary, isLoading: dashLoading,
     fetchStats, fetchKommoLeads,
   } = useDashboard();
-  const kommoLeads = rawKommoLeads as KommoLead[];
+  const kommoLeadsDaEmpresa = rawKommoLeads as KommoLead[];
   const { latestInsight, isLoading: insightLoading, isGenerating, fetchLatestInsight, generateInsights } = useAiInsights();
   // Plano CRM: marketing, campanhas, ROAS/CPL e a análise da IA ficam com cadeado — o resto
   // do painel (funil, vendas, meta, ranking) é o CRM e segue igual.
@@ -1174,14 +1234,35 @@ function DashboardConteudo() {
   const [animKey, setAnimKey]         = useState(0);
   const [generateToast, setGenerateToast] = useState<string | null>(null);
   const [manualRevenueSummary, setManualRevenueSummary] = useState<import('@/types').ManualRevenueSummary | null>(null);
-  const [goalProgress, setGoalProgress] = useState<import('@/types').RevenueGoalProgress[] | null>(null);
-  const [wonLeads, setWonLeads] = useState<import('@/types').WonLead[] | null>(null);
-  const [crmHygiene, setCrmHygiene] = useState<import('@/types').CrmHygiene | null>(null);
+  // Cada carga guarda de qual vendedor é (`de`, null = empresa): a tela só mostra a que bate
+  // com o vendedor escolhido — número da empresa com o nome do vendedor em cima nunca aparece.
+  const [goalCarga, setGoalCarga] = useState<{ de: string | null; data: import('@/types').RevenueGoalProgress[] } | null>(null);
+  const [wonCarga, setWonCarga] = useState<{ de: string | null; data: import('@/types').WonLead[] } | null>(null);
+  const [hygieneCarga, setHygieneCarga] = useState<{ de: string | null; data: import('@/types').CrmHygiene } | null>(null);
   const [hygieneOpen, setHygieneOpen] = useState<'stagnant' | 'wonNoValue' | 'noOrigin' | null>(null);
   const [sellersRanking, setSellersRanking] = useState<import('@/types').SellersRanking | null>(null);
   // Mês da Meta do mês E do Ranking de vendedores: os dois andam juntos (pedido do Benny, 04/11/2026).
   const [mesSel, setMesSel] = useState<{ year: number; month: number } | null>(null);
   const mesPedido = useRef('');
+  // Vendedor escolhido (pedido do Ruan, 13/11/2026): só os números do CRM dele, sem nada de
+  // anúncio. Vale só na aba Vendas e só para quem vê a empresa inteira (admin e gestor) —
+  // `funnelSummary` também alimenta a aba Anúncios, que segue sendo da empresa.
+  const [vendedorSel, setVendedorSel] = useState<string | null>(null);
+  const vendedorAtivo = aba === 'vendas' && (user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN' || user?.role === 'TRAFFIC_MANAGER')
+    ? vendedorSel : null;
+  const vendedorAtual = useRef(vendedorAtivo);
+  useEffect(() => { vendedorAtual.current = vendedorAtivo; }, [vendedorAtivo]);
+  const goalProgress = goalCarga?.de === vendedorAtivo ? goalCarga.data : null;
+  const wonLeads = wonCarga?.de === vendedorAtivo ? wonCarga.data : null;
+  const crmHygiene = hygieneCarga?.de === vendedorAtivo ? hygieneCarga.data : null;
+  const mostraAnuncio = temGrowth && !vendedorAtivo;
+  // O `responsible_user_id` da projeção: quem VENDEU na venda fechada, o responsável na aberta.
+  const kommoLeads = useMemo(
+    () => vendedorAtivo
+      ? kommoLeadsDaEmpresa.filter((l) => String((l.rawData as Record<string, unknown> | undefined)?.responsible_user_id ?? '') === vendedorAtivo)
+      : kommoLeadsDaEmpresa,
+    [kommoLeadsDaEmpresa, vendedorAtivo],
+  );
   const [negotiatingOpen, setNegotiatingOpen] = useState(false);
   const [lastUpdate]                  = useState(() => new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
   const [funnelTab, setFunnelTab]     = useState<'total' | 'meta' | 'google'>('total');
@@ -1267,7 +1348,7 @@ function DashboardConteudo() {
     setCrmNudgeVisible(false);
   };
 
-  const kpisFundo = temGrowth ? visibleBottomKpis : visibleBottomKpis.filter((k) => !KPIS_DE_ANUNCIO.includes(k));
+  const kpisFundo = mostraAnuncio ? visibleBottomKpis : visibleBottomKpis.filter((k) => !KPIS_DE_ANUNCIO.includes(k));
   const limparBottomKpis = () => { setVisibleBottomKpis([]); localStorage.setItem('dashboard_bottom_kpis', '[]'); };
   const toggleBottomKpi = (key: BottomKpiKey) => {
     setVisibleBottomKpis((prev) => {
@@ -1315,6 +1396,7 @@ function DashboardConteudo() {
 
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const canEditGoal = isAdmin || user?.role === 'TRAFFIC_MANAGER';
+  const nomeVendedor = sellersRanking?.sellers.find((v) => v.id === vendedorSel)?.name ?? 'vendedor';
   const idxMesSel = goalProgress && mesSel
     ? goalProgress.findIndex((g) => g.year === mesSel.year && g.month === mesSel.month)
     : -1;
@@ -1325,11 +1407,12 @@ function DashboardConteudo() {
   // Carrega vendas do mês + ranking. Clique rápido nas setas: só a resposta do último mês pedido vale.
   const selecionarMes = (year: number, month: number) => {
     const chave = `${year}-${month}`;
+    const vendedor = vendedorAtual.current;
     mesPedido.current = chave;
     setMesSel({ year, month });
-    setWonLeads(null);
-    apiService.getWonLeads(year, month)
-      .then((wr) => { if (wr.success && mesPedido.current === chave) setWonLeads(wr.data.leads); })
+    setWonCarga(null);
+    apiService.getWonLeads(year, month, vendedor)
+      .then((wr) => { if (wr.success && mesPedido.current === chave && vendedorAtual.current === vendedor) setWonCarga({ de: vendedor, data: wr.data.leads }); })
       .catch(() => {});
     apiService.getSellersRanking(year, month)
       .then((sr) => { if (sr.success && mesPedido.current === chave) setSellersRanking(sr.data); })
@@ -1350,9 +1433,10 @@ function DashboardConteudo() {
   // 24 meses = máximo do endpoint; é até onde as setas voltam. Depois de salvar a meta, recarrega
   // sem tirar o usuário do mês que ele estava vendo.
   const loadGoalProgress = () => {
-    apiService.getRevenueGoalProgress(24).then((r) => {
-      if (r.success) {
-        setGoalProgress(r.data);
+    const vendedor = vendedorAtual.current;
+    apiService.getRevenueGoalProgress(24, vendedor).then((r) => {
+      if (r.success && vendedorAtual.current === vendedor) {
+        setGoalCarga({ de: vendedor, data: r.data });
         const current = r.data[r.data.length - 1];
         if (current && !mesPedido.current) selecionarMes(current.year, current.month);
       }
@@ -1370,10 +1454,25 @@ function DashboardConteudo() {
       fetchKommoLeads();
     }
     apiService.getManualRevenueSummary(3).then((r) => { if (r.success) setManualRevenueSummary(r.data); }).catch(() => {});
-    loadGoalProgress();
-    apiService.getCrmHygiene().then((r) => { if (r.success && r.data.hasData) setCrmHygiene(r.data); }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Meta, vendas do mês e saúde do CRM: da empresa ou do vendedor escolhido.
+  useEffect(() => {
+    const vendedor = vendedorAtivo;
+    loadGoalProgress();
+    // Vendas do mês que já está na tela (o Ranking é da empresa e não muda com o vendedor).
+    if (mesSel) {
+      const chave = `${mesSel.year}-${mesSel.month}`;
+      apiService.getWonLeads(mesSel.year, mesSel.month, vendedor)
+        .then((wr) => { if (wr.success && mesPedido.current === chave && vendedorAtual.current === vendedor) setWonCarga({ de: vendedor, data: wr.data.leads }); })
+        .catch(() => {});
+    }
+    apiService.getCrmHygiene(vendedor)
+      .then((r) => { if (r.success && r.data.hasData && vendedorAtual.current === vendedor) setHygieneCarga({ de: vendedor, data: r.data }); })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendedorAtivo]);
 
   const changeRange = (r: Range) => {
     if (r === range) return;
@@ -1423,13 +1522,13 @@ function DashboardConteudo() {
     // calcular "últimos N dias" e ignorar as datas escolhidas
     if (range === 'CUSTOM' && customStart && customEnd) {
       fetchAttributionSummary(activeDays, customStart, customEnd);
-      fetchFunnelSummary(activeDays, customStart, customEnd);
+      fetchFunnelSummary(activeDays, customStart, customEnd, vendedorAtivo);
     } else {
       fetchAttributionSummary(activeDays);
-      fetchFunnelSummary(activeDays);
+      fetchFunnelSummary(activeDays, undefined, undefined, vendedorAtivo);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeDays, range, customStart, customEnd]);
+  }, [activeDays, range, customStart, customEnd, vendedorAtivo]);
 
   const rangeLabel = useMemo(() => {
     if (range === 'CUSTOM') {
@@ -2619,6 +2718,24 @@ function DashboardConteudo() {
       {/* ═══ ABA VENDAS E CRM ═══════════════════════════════════════════════════ */}
       {aba === 'vendas' && (<>
 
+      {/* ── VENDEDOR — admin/gestor vê o CRM de um vendedor só ───────────────── */}
+      {canEditGoal && hasCrmSource && (sellersRanking?.sellers.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Dropdown
+            variant="pill"
+            label="Vendedor"
+            value={vendedorSel ?? ''}
+            options={[{ value: '', label: 'Todos' }, ...sellersRanking!.sellers.map((v) => ({ value: v.id, label: v.name }))]}
+            onChange={(v) => { setVendedorSel(v || null); setFunnelTab('total'); }}
+          />
+          {vendedorSel && (
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+              Só os números do CRM de <strong style={{ color: 'var(--text-primary)' }}>{nomeVendedor}</strong>: leads, funil, vendas e meta dele. Gasto, CPL e ROAS são da empresa e ficam de fora.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* ── DADOS MANUAIS — banner quando sem CRM ───────────────────────────── */}
       {!hasCrmSource && (
         <>
@@ -2744,7 +2861,7 @@ function DashboardConteudo() {
               titulo="CARDS · FUNDO DE FUNIL"
               grupos={['Receita', 'Leads e custo'].map((nome) => ({
                 nome,
-                opcoes: BOTTOM_KPI_OPTIONS.filter((o) => o.grupo === nome && (temGrowth || !KPIS_DE_ANUNCIO.includes(o.key))),
+                opcoes: BOTTOM_KPI_OPTIONS.filter((o) => o.grupo === nome && (mostraAnuncio || !KPIS_DE_ANUNCIO.includes(o.key))),
               }))}
               selecionados={visibleBottomKpis}
               onToggle={toggleBottomKpi}
@@ -2862,13 +2979,17 @@ function DashboardConteudo() {
           <MonthlyGoalCard
             progress={currentGoal}
             canEdit={canEditGoal}
-            onSaved={loadGoalProgress}
+            // Recarrega o Ranking junto: ele traz a meta de cada vendedor ("Por vendedor").
+            onSaved={() => { loadGoalProgress(); if (mesSel) selecionarMes(mesSel.year, mesSel.month); }}
             chartData={goalProgress ? goalProgress.slice(Math.max(0, idxMesSel - 5), idxMesSel + 1) : undefined}
             wonLeads={wonLeads ?? undefined}
             onPrev={idxMesSel > 0 ? () => navMes(-1) : null}
             onNext={() => navMes(1)}
             onAtual={irMesAtual}
             atCurrent={mesSelAtual}
+            seller={vendedorAtivo ? { id: vendedorAtivo, name: nomeVendedor } : null}
+            porVendedor={!vendedorAtivo && canEditGoal ? sellersRanking?.ranking.filter((r) => r.userId) : undefined}
+            onVerVendedor={canEditGoal ? (id) => { setVendedorSel(id); setFunnelTab('total'); } : undefined}
           />
         </div>
       )}
@@ -2878,7 +2999,7 @@ function DashboardConteudo() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funilGerados} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · {crmLabel}</p>
-            <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
+            {!vendedorAtivo && <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
                 <button
                   key={tab}
@@ -2889,7 +3010,7 @@ function DashboardConteudo() {
                   {label}
                 </button>
               ))}
-            </div>
+            </div>}
           </div>
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-[3fr_1fr]">
 
@@ -2944,7 +3065,7 @@ function DashboardConteudo() {
 
                 {/* Mini KPIs de conversão */}
                 <div className="grid grid-cols-2 gap-2">
-                  {funilMinis.map((item, i) => (
+                  {funilMinis.filter((m) => !vendedorAtivo || m.label !== 'CPL médio').map((item, i) => (
                     <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                       <p className="text-xs mb-1" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
                       <p className="text-base font-semibold" style={{ color: item.color }}>
@@ -3064,7 +3185,8 @@ function DashboardConteudo() {
                 <p className="text-xs mt-2" style={{ color: 'var(--text-muted)' }}>Requer rastreamento de movimentações no CRM</p>
               </div>
 
-              {/* Comparativo de canais */}
+              {/* Comparativo de canais — tem CPL/ROAS: é da empresa, some com vendedor escolhido */}
+              {!vendedorAtivo && (
               <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
                 <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Comparativo de canais</p>
                 <div className="space-y-0">
@@ -3132,6 +3254,7 @@ function DashboardConteudo() {
                   ))}
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -3240,12 +3363,18 @@ function DashboardConteudo() {
                     metrics.push({ label: 'ticket', value: fmtMoney(s.avgTicket) });
                     if (s.avgDaysToClose !== null) metrics.push({ label: 'fecha em', value: `${s.avgDaysToClose}d` });
                     if (s.openPipeline > 0) metrics.push({ label: 'pipeline', value: fmtMoney(s.openPipeline) });
+                    if (s.target != null && s.target > 0) metrics.push({ label: 'da meta', value: `${Math.round((s.revenue / s.target) * 100)}%`, valueFirst: true });
                     const deltaPct = s.prevRevenue > 0 ? Math.round(((s.revenue - s.prevRevenue) / s.prevRevenue) * 100) : null;
                     return (
-                      <div key={s.userId} className="rounded-lg px-3.5 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                      <div key={s.userId} className="rounded-lg px-3.5 py-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: `1px solid ${vendedorAtivo === s.userId ? 'var(--accent)' : 'var(--border)'}` }}>
                         <div className="flex items-center gap-3">
                           <span className="text-base font-bold tabular-nums shrink-0 w-6 text-center" style={{ color: idx === 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{idx + 1}</span>
-                          <span className="font-semibold truncate text-sm flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
+                          {canEditGoal && s.userId && vendedorAtivo !== s.userId ? (
+                            <button type="button" onClick={() => { setVendedorSel(s.userId); setFunnelTab('total'); }} title={`Ver só os números de ${s.name}`}
+                              className="font-semibold truncate text-sm flex-1 text-left hover:underline" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</button>
+                          ) : (
+                            <span className="font-semibold truncate text-sm flex-1" style={{ color: 'var(--text-primary)', minWidth: 0 }}>{s.name}</span>
+                          )}
                           {deltaPct !== null && (
                             <span className="text-xs font-semibold shrink-0 tabular-nums" style={{ color: deltaPct >= 0 ? 'var(--badge-success-text)' : 'var(--badge-error-text)' }}>
                               {deltaPct >= 0 ? '↑' : '↓'}{Math.abs(deltaPct)}%
@@ -3552,11 +3681,11 @@ function DashboardConteudo() {
       {aba === 'vendas' && attributionSummary && (hasCrmSource || manualRevenueSummary?.hasData) && (
         <div>
           <SectionLabel>saúde financeira e projeção</SectionLabel>
-          <div className={`grid grid-cols-1 gap-3 ${temGrowth ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+          <div className={`grid grid-cols-1 gap-3 ${mostraAnuncio ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
 
             {/* LTV & LTV/CAC */}
             <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{temGrowth ? 'LTV & relação LTV/CAC' : 'LTV e recorrência'}</p>
+              <p className="text-sm font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>{mostraAnuncio ? 'LTV & relação LTV/CAC' : 'LTV e recorrência'}</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   {
@@ -3592,7 +3721,7 @@ function DashboardConteudo() {
                     info: `Leads marcados com a tag Carteira no ${crmLabel} — clientes que voltaram a comprar no período.`,
                   },
                 // CAC e LTV/CAC dividem por gasto em anúncio: fora do plano CRM.
-                ].filter((item) => temGrowth || (item.label !== 'CAC real' && item.label !== 'Relação LTV/CAC')).map((item, i) => (
+                ].filter((item) => mostraAnuncio || (item.label !== 'CAC real' && item.label !== 'Relação LTV/CAC')).map((item, i) => (
                   <div key={i} className="rounded-lg p-2.5" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                     <div className="flex items-center gap-1 mb-1">
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{item.label}</p>
@@ -3636,7 +3765,7 @@ function DashboardConteudo() {
             </div>
 
             {/* ROAS por canal */}
-            {temGrowth && (
+            {mostraAnuncio && (
             <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
               <p className="text-sm font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>ROAS por canal</p>
               <div className="space-y-4">

@@ -890,6 +890,8 @@ export interface SellerRankingRow {
   avgDaysToClose: number | null;
   openPipeline: number;
   prevRevenue: number;
+  /** Meta do mês do vendedor (SellerRevenueGoal); null = sem meta. */
+  target: number | null;
 }
 
 export interface SellersRanking {
@@ -897,6 +899,8 @@ export interface SellersRanking {
   totalRevenue: number;
   totalSales: number;
   hasData: boolean;
+  /** Todos os vendedores da empresa — lista do seletor "Vendedor" do dashboard. */
+  sellers: { id: string; name: string }[];
 }
 
 // ===== CRM PRÓPRIO (CRM CORTEX) =====
