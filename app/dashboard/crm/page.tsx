@@ -523,6 +523,9 @@ export default function CrmPage() {
   // Ref porque o loadAll é useCallback e não pode depender do filtro sem recriar
   const filterUnreadRef = useRef(false);
   const [filterResponsible, setFilterResponsible] = useState('');
+  const filterResponsibleRef = useRef('');
+  // Leads por etapa contados no servidor, com os mesmos filtros da lista.
+  const [byStage, setByStage] = useState<Record<string, number> | null>(null);
   const [filterTag, setFilterTag] = useState('');
   const [filterOrigin, setFilterOrigin] = useState('');
   const [filterClientType, setFilterClientType] = useState('');
@@ -595,6 +598,7 @@ export default function CrmPage() {
           // Filtro no servidor: os não respondidos podem estar fora dos 100
           // cards mais recentes, e o filtro client-side não os enxergava.
           ...(filterUnreadRef.current ? { unread: true } : {}),
+          ...(filterResponsibleRef.current ? { responsibleId: filterResponsibleRef.current } : {}),
           ...periodRef.current,
         }),
         apiService.getCrmTasks('open'),
@@ -608,6 +612,7 @@ export default function CrmPage() {
       if (cl.success) {
         setClients(cl.data.clients);
         setTotalClients(cl.data.total);
+        setByStage(cl.data.byStage ?? null);
         setPeriodByOrigin(cl.data.byOrigin ?? null);
         setPeriodByCustomOrigin(cl.data.byCustomOrigin ?? null);
         const comPeriodo = !!(periodRef.current.createdFrom || periodRef.current.createdTo);
@@ -1166,9 +1171,12 @@ export default function CrmPage() {
   // Vem do banco (não de clients.filter): card não respondido pode estar fora
   // dos 100 carregados, e o chip mostraria menos gente esperando do que existe.
   const unreadCount = unreadTotal;
-  const responsibleOptions = [...new Map(
-    clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name])
-  ).entries()];
+  // Usuários da empresa + donos dos cards na tela. Só dos cards não serve: com o filtro
+  // rodando no servidor, escolher um vendedor faria os outros sumirem da lista.
+  const responsibleOptions = [...new Map([
+    ...orgUsers.map((u) => [u.id, u.name] as [string, string]),
+    ...clients.filter((c) => c.responsible).map((c) => [c.responsible!.id, c.responsible!.name] as [string, string]),
+  ]).entries()];
   const tagOptions = crmTags.map((t) => t.label);
 
   // Triagem: contato novo do WhatsApp espera Aceitar/Rejeitar antes de entrar
@@ -1389,7 +1397,14 @@ export default function CrmPage() {
             variant="pill"
             label="Responsável"
             value={filterResponsible}
-            onChange={setFilterResponsible}
+            onOpen={loadUsersOnce}
+            onChange={(v) => {
+              setFilterResponsible(v);
+              // Filtro do SERVIDOR (como o de não respondidos): traz todos os leads do
+              // vendedor, não só os que estavam entre os 100 mais recentes da tela.
+              filterResponsibleRef.current = v;
+              void loadAll(searchRef.current.trim() || undefined, { force: true });
+            }}
             options={[
               { value: '', label: 'todos' },
               ...responsibleOptions.map(([id, name]) => ({ value: id, label: name })),
@@ -1462,8 +1477,9 @@ export default function CrmPage() {
           <button
             onClick={() => {
               setFilterUnread(false); setFilterResponsible(''); setFilterTag(''); setFilterOrigin(''); setFilterClientType(''); setFilterSale('');
-              // Não respondidos e período são filtros do servidor: limpar exige recarregar.
+              // Não respondidos, responsável e período são filtros do servidor: limpar exige recarregar.
               filterUnreadRef.current = false;
+              filterResponsibleRef.current = '';
               setPeriodFrom(''); setPeriodTo('');
               aplicarPeriodo('');
             }}
@@ -1733,7 +1749,22 @@ export default function CrmPage() {
                     </span>
                   )}
                 </span>
-                <span className="text-xs tabular-nums" style={{ fontFamily: 'var(--font-mono-cx), monospace', color: 'var(--text-muted)' }}>{items.length}</span>
+                {(() => {
+                  // Total real da etapa vem do servidor (mesmos filtros da lista). Com filtro que
+                  // só roda no navegador (tag, origem, tipo, venda) o servidor não sabe dele: conta a tela.
+                  const soNaTela = !!filterTag || !!filterOrigin || !!filterClientType || !!filterSale;
+                  const real = !soNaTela && byStage ? (byStage[stage.id] ?? 0) : items.length;
+                  const parcial = real > items.length;
+                  return (
+                    <span
+                      className="text-xs tabular-nums"
+                      style={{ fontFamily: 'var(--font-mono-cx), monospace', color: parcial ? 'var(--text-secondary)' : 'var(--text-muted)' }}
+                      title={parcial ? `${real} leads nesta etapa · ${items.length} desenhados (os mais recentes). Use a busca ou Contatos para os outros.` : undefined}
+                    >
+                      {parcial ? `${items.length} de ${real}` : real}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="text-xs mb-3 tabular-nums" style={{ color: 'var(--text-secondary)' }}>{fmtMoney(total)}</div>
               <div className="space-y-2">
