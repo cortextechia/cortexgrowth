@@ -1427,6 +1427,12 @@ class ApiService {
     return response.data;
   }
 
+  /** Tira o card do funil sem mexer em venda nem descarte. Recusa (400) com venda aberta. */
+  async removeCrmClientFromFunnel(clientId: string): Promise<{ success: boolean; message: string }> {
+    const response = await this.client.post(`/crm/clients/${clientId}/remove-from-funnel`);
+    return response.data;
+  }
+
   async winCrmSale(saleId: string, data?: { value?: number }): Promise<{ success: boolean; message: string }> {
     const response = await this.client.post(`/crm/sales/${saleId}/win`, data ?? {});
     return response.data;

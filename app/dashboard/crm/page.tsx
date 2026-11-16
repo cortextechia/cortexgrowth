@@ -48,6 +48,7 @@ const EVENT_LABELS: Record<string, string> = {
   STAGE_CHANGED: 'Mudou de etapa',
   TRIAGE_ACCEPTED: 'Contato aceito no funil',
   TRIAGE_REJECTED: 'Contato arquivado',
+  REMOVED_FROM_FUNNEL: 'Tirado do funil',
   RESPONSIBLE_CHANGED: 'Troca de responsável',
   SALE_WON: 'Venda ganha',
   SALE_LOST: 'Venda perdida',
@@ -903,17 +904,26 @@ export default function CrmPage() {
 
   const [draggingClientId, setDraggingClientId] = useState<string | null>(null);
   const [dropStageId, setDropStageId] = useState<string | null>(null);
-  const [dropOutcome, setDropOutcome] = useState<'win' | 'lose' | null>(null);
+  const [dropOutcome, setDropOutcome] = useState<'win' | 'lose' | 'remove' | null>(null);
   const justDraggedRef = useRef(false); // evita o click de abrir o drawer logo após soltar
 
   // Soltar o card em Ganhar/Perder age na venda aberta do cliente. Sem venda
   // aberta, avisa pra criar uma antes (não reintroduz a venda-zerada).
-  const handleOutcomeDrop = (kind: 'win' | 'lose', clientId: string) => {
+  const handleOutcomeDrop = (kind: 'win' | 'lose' | 'remove', clientId: string) => {
     setDraggingClientId(null);
     setDropStageId(null);
     setDropOutcome(null);
     const client = clients.find((c) => c.id === clientId);
     const openSale = client?.sales.find((s) => s.status === 'OPEN');
+    if (kind === 'remove') {
+      // Tirar do funil não mexe em venda: com venda aberta, ganhar/perder vem antes.
+      if (openSale) {
+        showToast('error', 'Este card tem venda aberta: ganhe ou perca a venda antes de tirar do funil.');
+        return;
+      }
+      void handleRemoveFromFunnel(clientId);
+      return;
+    }
     if (!openSale) {
       showToast('error', 'Crie uma venda no card antes de marcar como ganha/perdida.');
       void openClient(clientId);
@@ -921,6 +931,20 @@ export default function CrmPage() {
     }
     if (kind === 'win') setWinSaleTarget({ id: openSale.id, value: openSale.value });
     else setLoseSaleTarget({ id: openSale.id, value: openSale.value });
+  };
+
+  const handleRemoveFromFunnel = async (clientId: string) => {
+    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, stageId: null } : c)));
+    movingRef.current++;
+    try {
+      await apiService.removeCrmClientFromFunnel(clientId);
+      showToast('success', 'Card tirado do funil. O histórico continua em Contatos.');
+    } catch (err) {
+      showToast('error', apiErrorMsg(err, 'Erro ao tirar o card do funil.'));
+    } finally {
+      movingRef.current--;
+      if (movingRef.current === 0) await loadAll(searchRef.current.trim() || undefined, { force: true });
+    }
   };
 
   const handleDropOnClientStage = async (stageId: string, clientId: string, fromStageId: string | null) => {
@@ -1910,6 +1934,21 @@ export default function CrmPage() {
             }}
           >
             ✗ Soltar aqui para PERDER
+          </div>
+          <div
+            onDragOver={(e) => { e.preventDefault(); if (dropOutcome !== 'remove') setDropOutcome('remove'); }}
+            onDragLeave={() => dropOutcome === 'remove' && setDropOutcome(null)}
+            onDrop={(e) => { e.preventDefault(); handleOutcomeDrop('remove', e.dataTransfer.getData('text/plain').split('|')[0] ?? ''); }}
+            title="Tira o card do quadro sem mexer em venda, ganho, perda ou relatório. O histórico continua."
+            className="flex-1 rounded-xl py-4 text-center text-sm font-semibold transition-all"
+            style={{
+              border: `2px dashed var(--text-secondary)`,
+              color: 'var(--text-secondary)',
+              backgroundColor: dropOutcome === 'remove' ? 'var(--bg-elevated)' : 'transparent',
+              transform: dropOutcome === 'remove' ? 'scale(1.01)' : 'none',
+            }}
+          >
+            ↧ Soltar aqui para TIRAR DO FUNIL
           </div>
         </div>
       )}
