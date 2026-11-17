@@ -321,7 +321,7 @@ export default function CrmContatosPage() {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr style={{ color: 'var(--text-muted)' }}>
                   <th className="text-left font-medium py-2 pr-4">Cliente</th>
@@ -359,7 +359,7 @@ export default function CrmContatosPage() {
                         )}
                       </span>
                     </td>
-                    <td className="py-2.5 pr-4" style={{ color: 'var(--text-secondary)' }}>{c.phone ? fmtPhone(c.phone) : c.igUsername ? `@${c.igUsername}` : '—'}</td>
+                    <td className="py-2.5 pr-4 whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>{c.phone ? fmtPhone(c.phone) : c.igUsername ? `@${c.igUsername}` : '—'}</td>
                     <td className="py-2.5 pr-4">
                       <span className="text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
                         {originLabel(c.origin, c.customOrigin)}

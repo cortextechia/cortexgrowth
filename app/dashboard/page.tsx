@@ -355,14 +355,14 @@ function KpiCard({ title, value, delta, invertDelta = false, neutralDelta = fals
   const arrow = delta >= 0 ? '↑' : '↓';
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
         <span className="flex items-center gap-1 min-w-0">
           <span className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{title}</span>
           {info && <InfoTip text={info} />}
         </span>
         {delta !== 0 && (
           <span
-            className="text-xs font-semibold px-1.5 py-0.5 rounded"
+            className="text-xs font-semibold px-1.5 py-0.5 rounded whitespace-nowrap"
             style={neutralDelta
               ? { backgroundColor: 'rgba(148,163,184,0.10)', color: 'var(--text-secondary)' }
               : {
@@ -2551,7 +2551,7 @@ function DashboardConteudo() {
           texto="Gasto, impressões, cliques, CPL e ROAS das campanhas. Faz parte do plano Growth + CRM." />
       ) : (
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>marketing — topo de funil · {rangeLabel.toLowerCase()}</p>
           <div className="flex items-center gap-2">
             <MetricPicker
@@ -2998,7 +2998,7 @@ function DashboardConteudo() {
       {/* ── 5. FUNIL DE VENDAS ────────────────────────────────────────────────── */}
       {((funilPorCards && funnelSummary!.leads!.total > 0) || kommoCur.length > 0) && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--text-muted)', letterSpacing: '0.1em' }}>funil de vendas · {funilGerados} leads{funnelTab !== 'total' ? ` · ${funnelTab === 'meta' ? 'Meta Ads' : 'Google Ads'}` : ' · todos os canais'} · {crmLabel}</p>
             {!vendedorAtivo && <div className="flex rounded-lg p-0.5 gap-0.5" style={{ backgroundColor: 'var(--bg-base)', border: '1px solid var(--border)' }}>
               {([['total', 'Total'], ['meta', 'Meta Ads'], ['google', 'Google Ads']] as const).map(([tab, label]) => (
@@ -3016,8 +3016,8 @@ function DashboardConteudo() {
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-[3fr_1fr]">
 
             {/* Left: funnel SVG + right info panel */}
-            <div className="rounded-xl p-5 flex gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
-              <div className="flex flex-col justify-center">
+            <div className="rounded-xl p-5 flex flex-col sm:flex-row gap-6 h-full" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)' }}>
+              <div className="flex flex-col justify-center items-center sm:items-stretch">
                 <FunnelSVG etapas={funilEtapas} lost={funnelCounts.lost} semTaxaFinal={funilPorCards} />
               </div>
 

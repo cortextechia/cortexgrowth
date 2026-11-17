@@ -173,7 +173,7 @@ export default function ProdutosPage() {
           <p className="px-4 py-6 text-sm" style={{ color: 'var(--text-secondary)' }}>Nenhum produto cadastrado ainda.</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="ui-table !text-[13px]">
+            <table className="ui-table !text-[13px] min-w-[560px]">
               <thead>
                 <tr>
                   <th>Produto</th>

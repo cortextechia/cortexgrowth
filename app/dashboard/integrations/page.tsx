@@ -1147,7 +1147,7 @@ export default function IntegrationsPage() {
             Alternativa sem CRM
           </p>
           <div
-            className="flex items-center justify-between gap-4 rounded-2xl p-5 shadow-sm"
+            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl p-5 shadow-sm"
             style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-surface)' }}
           >
             <div className="flex items-start gap-3">
