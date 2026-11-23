@@ -362,6 +362,7 @@ const ADMIN_ROLES = ['ADMIN', 'SUPER_ADMIN', 'TRAFFIC_MANAGER'];
 // O navegador só libera áudio depois que a pessoa interagiu com a página — até
 // o primeiro clique o som fica mudo, e isso é do navegador, não um erro.
 const SOUND_PREF_KEY = 'crm_sound';
+const GALPAO_ORG_ID = '9971164d-1e53-4546-98c6-b9b66b76e05c';
 let dingCtx: AudioContext | null = null;
 function playDing() {
   try {
@@ -507,6 +508,7 @@ export default function CrmPage() {
   const { user } = useAuth();
   const isAdmin = ADMIN_ROLES.includes(user?.role ?? '');
 
+  const [blingDraft, setBlingDraft] = useState<{ clientId: string; text: string } | null>(null);
   const [status, setStatus] = useState<CrmStatus | null>(null);
   const [summary, setSummary] = useState<CrmSummary | null>(null);
   const [clients, setClients] = useState<CrmClientSummary[]>([]);
@@ -807,8 +809,36 @@ export default function CrmPage() {
 
   const closeClient = () => {
     setDetail(null);
+    setBlingDraft(null);
     window.history.replaceState(null, '', window.location.pathname);
   };
+
+  // Galpão: "Enviar por whatsapp" do pedido no Bling chega pela extensão do Chrome.
+  // Abre o card com a mensagem escrita; quem envia é a pessoa.
+  const orgId = user?.organization?.id;
+  useEffect(() => {
+    if (orgId !== GALPAO_ORG_ID) return;
+    if (new URLSearchParams(window.location.search).get('bling') !== '1') return;
+    const onMessage = async (e: MessageEvent) => {
+      if (e.source !== window || e.origin !== window.location.origin) return;
+      const { type, phone, text, name } = (e.data ?? {}) as Record<string, unknown>;
+      if (type !== 'CROMALEX_BLING_PEDIDO' || typeof phone !== 'string' || typeof text !== 'string') return;
+      window.removeEventListener('message', onMessage);
+      try {
+        const res = await apiService.resolveBlingWhatsapp(phone, typeof name === 'string' ? name : undefined);
+        setBlingDraft({ clientId: res.data.clientId, text });
+        await openClient(res.data.clientId);
+        await loadAll(searchRef.current.trim() || undefined);
+      } catch (err) {
+        window.history.replaceState(null, '', window.location.pathname);
+        showToast('error', apiErrorMsg(err, 'Não foi possível abrir o cliente do Bling.'));
+      }
+    };
+    window.addEventListener('message', onMessage);
+    window.postMessage({ type: 'CROMALEX_BLING_PRONTO' }, window.location.origin);
+    return () => window.removeEventListener('message', onMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
 
   const refreshDetail = async () => {
     // Sem drawer aberto (ação veio do kanban), atualiza só a lista
@@ -1991,6 +2021,7 @@ export default function CrmPage() {
           onError={(msg) => showToast('error', msg)}
           isAdmin={isAdmin}
           canSendOnBehalf={WA_ORG_ROLES.includes(user?.role ?? '')}
+          initialDraft={blingDraft && blingDraft.clientId === detail?.id ? blingDraft.text : ''}
           currentUserId={user?.id ?? null}
           liveSignal={waSignal}
           orgUsers={orgUsers}
@@ -3571,6 +3602,7 @@ function ClientDrawer(props: {
   onError: (msg: string) => void;
   isAdmin: boolean;
   canSendOnBehalf: boolean; // ADMIN/SUPER_ADMIN respondem card alheio pelo número do responsável
+  initialDraft: string; // mensagem vinda do Bling (Galpão), já escrita no composer
   currentUserId: string | null;
   liveSignal: { clientId: string; seq: number } | null;
   orgUsers: User[];
@@ -4594,6 +4626,7 @@ function ClientDrawer(props: {
                     sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
                     responsibleName={detail.responsible?.name ?? null}
                     onAssumir={() => props.onTransfer(props.currentUserId)}
+                    initialDraft={props.initialDraft}
                     refreshSignal={waRefresh}
                     variant="panel"
                   />
@@ -4636,6 +4669,7 @@ function ClientDrawer(props: {
                 sendingOnBehalf={detail.responsibleId !== null && detail.responsibleId !== props.currentUserId}
                 responsibleName={detail.responsible?.name ?? null}
                 onAssumir={() => props.onTransfer(props.currentUserId)}
+                initialDraft={props.initialDraft}
                 refreshSignal={waRefresh}
                 variant="panel"
               />
@@ -5511,7 +5545,7 @@ function IgConversation({ clientId, clientName, igUsername, refreshSignal = 0, v
   );
 }
 
-function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehalf = false, responsibleName, onAssumir, refreshSignal = 0, variant = 'inline' }: {
+function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehalf = false, responsibleName, onAssumir, initialDraft = '', refreshSignal = 0, variant = 'inline' }: {
   clientId: string;
   clientName: string;
   canEdit: boolean;
@@ -5521,6 +5555,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
   /** Assume o card (vira responsável) e libera o composer — sem isso o lead novo
    *  do número da empresa exige passar pelo seletor de responsável antes de responder. */
   onAssumir?: () => void | Promise<void>;
+  initialDraft?: string;
   refreshSignal?: number; // incrementa quando o stream SSE avisa mensagem deste cliente
   variant?: 'inline' | 'panel';
 }) {
@@ -5547,6 +5582,10 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
   // Mensagem sendo respondida (citação estilo WhatsApp)
   const [replyTo, setReplyTo] = useState<CrmWaMessage | null>(null);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    if (initialDraft) setDraft(initialDraft);
+  }, [initialDraft]);
 
   // Escolher "responder" leva o foco pro composer, como no WhatsApp
   useEffect(() => {
@@ -5989,7 +6028,7 @@ function WaConversation({ clientId, clientName, canEdit, canSend, sendingOnBehal
                 placeholder={replyTo ? 'Escreva a resposta...' : 'Responder... ( / = respostas rápidas · Shift+Enter = nova linha)'}
                 maxLength={4096}
                 disabled={sending}
-                rows={Math.min(5, draft.split('\n').length)}
+                rows={initialDraft && draft === initialDraft ? 5 : Math.min(5, draft.split('\n').length)}
                 className="flex-1 text-xs rounded-lg px-2.5 py-2 outline-none resize-none"
                 style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
               />

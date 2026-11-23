@@ -1566,6 +1566,11 @@ class ApiService {
 
   // quotedId cita uma mensagem da conversa (resposta estilo WhatsApp) — o texto
   // da citação é resolvido no backend, não vai daqui
+  async resolveBlingWhatsapp(phone: string, name?: string): Promise<{ success: boolean; message: string; data: { clientId: string; created: boolean } }> {
+    const response = await this.client.post('/crm/whatsapp/bling/resolve', { phone, ...(name ? { name } : {}) });
+    return response.data;
+  }
+
   async sendCrmWhatsappMessage(clientId: string, text: string, quotedId?: string): Promise<{ success: boolean; message: string }> {
     const response = await this.client.post(`/crm/whatsapp/clients/${clientId}/send`, {
       text,
