@@ -375,7 +375,7 @@ function WhatsappDestination({ destination, destinationName, onChange }: {
 }) {
   const { status, refresh } = useReportWaStatus();
   const [showQr, setShowQr] = useState(false);
-  const [mode, setMode] = useState<'group' | 'number'>('group');
+  const [mode, setMode] = useState<'group' | 'number'>(destination && !destination.endsWith('@g.us') ? 'number' : 'group');
   const [groups, setGroups] = useState<{ id: string; name: string; size?: number }[] | null>(null);
   const [groupsError, setGroupsError] = useState(false);
   const [search, setSearch] = useState('');
@@ -1680,6 +1680,77 @@ function ReportConfigModal({ schedule, onClose, onSaved }: {
   );
 }
 
+// ─── Modal de troca do destinatário (para agendamentos existentes) ─────────────
+
+function DestinationModal({ schedule, onClose, onSaved }: {
+  schedule: ReportSchedule;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [destination, setDestination] = useState(schedule.destination);
+  const [destinationName, setDestinationName] = useState(schedule.destinationName);
+  const [showQR, setShowQR] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const wa = schedule.channelType === 'WHATSAPP';
+
+  const handleSave = async () => {
+    if (!destination.trim()) { setError('Informe o destino'); return; }
+    if (!destinationName.trim()) { setError('Informe um nome para o destino'); return; }
+    setSaving(true); setError('');
+    try {
+      await apiService.updateReportSchedule(schedule.id, { destination: destination.trim(), destinationName: destinationName.trim() });
+      onSaved();
+    } catch (err) { setError(errMsg(err, 'Erro ao salvar')); } finally { setSaving(false); }
+  };
+
+  return (
+    <Modal title="Trocar destinatário" width={520}
+      sub={`${wa ? 'WhatsApp' : 'Telegram'} · ${describeSchedule(schedule)}`}
+      onClose={onClose}
+      footer={<>
+        <button onClick={onClose} className="ui-btn ui-btn-secondary ui-btn-sm flex-1">Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="ui-btn ui-btn-primary ui-btn-sm flex-1">{saving ? 'Salvando...' : 'Salvar destinatário'}</button>
+      </>}>
+      <div className="space-y-3">
+        {wa ? (
+          <>
+            <WhatsappDestination
+              destination={destination}
+              destinationName={destinationName}
+              onChange={(d, n) => { setDestination(d); setDestinationName(n); setError(''); }}
+            />
+            {destination !== '' && !destination.endsWith('@g.us') && (
+              <div>
+                <span style={labelStyle}>Nome do destino</span>
+                <input style={inputStyle} placeholder="Ex: Grupo Relatórios Galpão" value={destinationName} onChange={e => setDestinationName(e.target.value)} />
+              </div>
+            )}
+          </>
+        ) : (
+          <div>
+            <span style={labelStyle}>Chat ou grupo do Telegram</span>
+            <div className="flex items-center gap-3 px-3 py-2.5" style={{ borderRadius: 12, backgroundColor: 'var(--highlight)', border: '1px solid var(--highlight-border)' }}>
+              <IconTile name="check" tone="lime" size={28} />
+              <span className="text-xs flex-1 min-w-0 truncate" style={{ color: 'var(--text-primary)' }}>
+                <strong>{destinationName}</strong> <span className="eyebrow" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{destination}</span>
+              </span>
+              <button onClick={() => setShowQR(true)} className="ui-btn ui-btn-secondary ui-btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>Trocar</button>
+            </div>
+            {showQR && (
+              <TelegramQRModal
+                onConnected={(chatId, chatName) => { setDestination(chatId); setDestinationName(chatName); setError(''); setShowQR(false); }}
+                onClose={() => setShowQR(false)}
+              />
+            )}
+          </div>
+        )}
+        {error && <p className="text-xs" style={{ color: 'var(--badge-error-text)' }}>{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Card de agendamento ───────────────────────────────────────────────────────
 
 function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
@@ -1692,6 +1763,7 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<'ok' | 'err' | null>(null);
   const [showConfig, setShowConfig] = useState(false);
+  const [showDestination, setShowDestination] = useState(false);
 
   const handleSend = async () => {
     setSending(true); setSendResult(null);
@@ -1740,19 +1812,30 @@ function ScheduleCard({ schedule, onToggle, onDelete, onSendNow, onRefresh }: {
         <span className="eyebrow shrink-0" style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{custom ? 'TEXTO PRÓPRIO' : 'MODELO PADRÃO'}</span>
       </div>
 
-      <div className="flex gap-2 mt-auto">
-        <button onClick={handleSend} disabled={sending} className="ui-btn ui-btn-tint ui-btn-sm flex-1"
+      <div className="flex flex-wrap gap-2 mt-auto">
+        <button onClick={handleSend} disabled={sending} className="ui-btn ui-btn-tint ui-btn-sm w-full"
           style={sendResult === 'err' ? { background: 'var(--badge-error-bg)', color: 'var(--badge-error-text)' } : undefined}>
           {sending ? <Icon name="spinner" size={14} /> : sendResult === 'ok' ? <Icon name="check" size={14} /> : <Icon name="send" size={14} />}
           {sending ? 'Enviando...' : sendResult === 'ok' ? 'Enviado' : sendResult === 'err' ? 'Erro ao enviar' : 'Enviar agora'}
         </button>
-        <button onClick={() => setShowConfig(true)} className="ui-btn ui-btn-secondary ui-btn-sm" title="Editar a mensagem">
+        <button onClick={() => setShowDestination(true)} className="ui-btn ui-btn-secondary ui-btn-sm flex-1" title="Trocar o destinatário">
+          <Icon name={kind === 'Grupo' ? 'group' : 'user'} size={14} /> Destino
+        </button>
+        <button onClick={() => setShowConfig(true)} className="ui-btn ui-btn-secondary ui-btn-sm flex-1" title="Editar a mensagem">
           <Icon name="edit" size={14} /> Mensagem
         </button>
         <button onClick={handleDelete} className="ui-btn ui-btn-danger ui-btn-sm" aria-label="Remover agendamento" title="Remover">
           <Icon name="trash" size={14} />
         </button>
       </div>
+
+      {showDestination && (
+        <DestinationModal
+          schedule={schedule}
+          onClose={() => setShowDestination(false)}
+          onSaved={() => { setShowDestination(false); onRefresh(); }}
+        />
+      )}
 
       {showConfig && (
         <ReportConfigModal
